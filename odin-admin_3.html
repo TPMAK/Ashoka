@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Odin · Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;500;600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FAF7F2;
+    --card: #FFFFFF;
+    --ink: #1A1A1A;
+    --ink-soft: #6B6B6B;
+    --line: #E8E2D8;
+    --winterberry: #7B2D45;
+    --winterberry-soft: #FAEEF1;
+    --orange: #D4622A;
+    --green: #3B6D11;
+    --green-soft: #EAF3DE;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    padding: 32px 24px 64px;
+    line-height: 1.5;
+    font-size: 14px;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 32px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+  h1 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 28px; letter-spacing: -0.5px; }
+  h1 span { color: var(--winterberry); }
+  .meta { font-size: 12px; color: var(--ink-soft); }
+  h2 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 18px; margin: 32px 0 12px; color: var(--ink); }
+
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; }
+  .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-soft); margin-bottom: 6px; }
+  .stat-value { font-family: 'Fraunces', serif; font-size: 32px; font-weight: 500; color: var(--ink); }
+  .stat-sub { font-size: 11px; color: var(--ink-soft); margin-top: 4px; }
+  .accent { color: var(--winterberry); }
+
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  th, td { text-align: left; padding: 10px 14px; font-size: 13px; border-bottom: 1px solid var(--line); }
+  th { background: #FCFAF6; font-weight: 500; color: var(--ink-soft); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  tr:last-child td { border-bottom: none; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.user { font-weight: 500; }
+  td.email { color: var(--ink-soft); font-size: 12px; }
+  .stale { color: #B0B0B0; }
+
+  .funnel-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .funnel-label { width: 140px; font-size: 13px; color: var(--ink); }
+  .funnel-bar-wrap { flex: 1; background: var(--line); border-radius: 6px; height: 22px; overflow: hidden; position: relative; }
+  .funnel-bar { background: var(--winterberry); height: 100%; transition: width 0.4s; }
+  .funnel-count { width: 50px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }
+  .funnel-pct { width: 50px; text-align: right; font-size: 11px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+  .search-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .search-row:last-child { border-bottom: none; }
+  .search-q { flex: 1; font-style: italic; color: var(--ink); }
+  .search-cnt { font-weight: 500; font-variant-numeric: tabular-nums; min-width: 30px; text-align: right; }
+  .search-results { color: var(--ink-soft); font-size: 11px; min-width: 60px; text-align: right; }
+
+  .loading, .error { text-align: center; padding: 40px; color: var(--ink-soft); }
+  .error { color: var(--winterberry); }
+  button.refresh {
+    font-family: 'DM Sans', sans-serif; font-size: 12px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+    padding: 6px 12px; cursor: pointer; color: var(--ink);
+  }
+  button.refresh:hover { background: var(--winterberry); color: white; border-color: var(--winterberry); }
+
+  @media (max-width: 700px) {
+    .grid-4 { grid-template-columns: repeat(2, 1fr); }
+    .funnel-label { width: 90px; font-size: 12px; }
+    table { font-size: 12px; }
+    th, td { padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Odin <span>·</span> admin</h1>
+      <div class="meta" id="meta">Loading…</div>
+    </div>
+    <button class="refresh" onclick="location.reload()">↻ Refresh</button>
+  </header>
+
+  <div id="content">
+    <div class="loading">Loading metrics…</div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  // ── CONFIG ─────────────────────────────────────────
+  const SUPABASE_URL  = 'https://hedywkwmgkvojujvczqr.supabase.co';
+  const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhlZHl3a3dtZ2t2b2p1anZjenFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2Mzg0OTMsImV4cCI6MjA3MjIxNDQ5M30.WdGHwr40REynSkC3T3t2nB97FsAH3M0NOE9gv_bLQA8';
+  // ───────────────────────────────────────────────────
+
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+  const content = document.getElementById('content');
+  const meta = document.getElementById('meta');
+
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    const days = Math.floor((Date.now() - d) / 86400000);
+    if (days === 0) return 'today';
+    if (days === 1) return 'yesterday';
+    if (days < 7) return days + 'd ago';
+    if (days < 30) return Math.floor(days/7) + 'w ago';
+    return d.toLocaleDateString();
+  }
+
+  function staleClass(iso) {
+    if (!iso) return 'stale';
+    const days = Math.floor((Date.now() - new Date(iso)) / 86400000);
+    return days > 7 ? 'stale' : '';
+  }
+
+  function renderError(msg) {
+    content.innerHTML = `<div class="error">${msg}</div>`;
+  }
+
+  function render(data) {
+    const eng = data.engagement || {};
+    const users = data.users || [];
+    const funnel = data.funnel || {};
+    const searches = data.top_searches || [];
+
+    const ratio = eng.dau_mau_ratio == null ? '—' : eng.dau_mau_ratio + '%';
+    const ratioColor = (eng.dau_mau_ratio || 0) >= 20 ? 'var(--green)' : 'var(--ink)';
+
+    const opened = funnel.opened || 0;
+    const pct = (n) => opened ? Math.round(n/opened*100) + '%' : '—';
+    const maxCount = Math.max(funnel.opened || 0, 1);
+    const barW = (n) => maxCount ? (n/maxCount*100) + '%' : '0%';
+
+    let html = `
+      <div class="grid-4">
+        <div class="card">
+          <div class="stat-label">DAU</div>
+          <div class="stat-value">${eng.dau ?? '—'}</div>
+          <div class="stat-sub">active today</div>
+        </div>
+        <div class="card">
+          <div class="stat-label">WAU</div>
+          <div class="stat-value">${eng.wau ?? '—'}</div>
+          <div class="stat-sub">last 7 days</div>
+        </div>
+        <div class="card">
+          <div class="stat-label">MAU</div>
+          <div class="stat-value">${eng.mau ?? '—'}</div>
+          <div class="stat-sub">last 30 days</div>
+        </div>
+        <div class="card">
+          <div class="stat-label">DAU / MAU</div>
+          <div class="stat-value" style="color:${ratioColor}">${ratio}</div>
+          <div class="stat-sub">${(eng.dau_mau_ratio||0) >= 20 ? 'engaged' : 'building'}</div>
+        </div>
+      </div>
+
+      <h2>Activation funnel <span style="font-size:12px;color:var(--ink-soft);font-family:'DM Sans';">· last 30 days</span></h2>
+      <div class="card">
+    `;
+
+    const steps = [
+      ['Opened app',      funnel.opened   || 0],
+      ['Viewed item',     funnel.viewed   || 0],
+      ['Searched',        funnel.searched || 0],
+      ['Saved an item',   funnel.saved    || 0],
+      ['Contributed',     funnel.added    || 0],
+    ];
+    steps.forEach(([label, count]) => {
+      html += `
+        <div class="funnel-row">
+          <div class="funnel-label">${label}</div>
+          <div class="funnel-bar-wrap"><div class="funnel-bar" style="width:${barW(count)}"></div></div>
+          <div class="funnel-count">${count}</div>
+          <div class="funnel-pct">${pct(count)}</div>
+        </div>`;
+    });
+    html += `</div>`;
+
+    html += `<h2>Users <span style="font-size:12px;color:var(--ink-soft);font-family:'DM Sans';">· last 30 days · ${users.length} active</span></h2>`;
+    if (users.length === 0) {
+      html += `<div class="card" style="text-align:center;color:var(--ink-soft)">No activity in last 30 days</div>`;
+    } else {
+      html += `<table>
+        <thead><tr>
+          <th>User</th><th>Email</th>
+          <th class="num">Sess</th><th class="num">Search</th>
+          <th class="num">Views</th><th class="num">Saves</th>
+          <th class="num">Adds</th><th class="num">Last seen</th>
+        </tr></thead><tbody>`;
+      users.forEach(u => {
+        const cls = staleClass(u.last_seen);
+        html += `<tr>
+          <td class="user">${u.name || '—'}</td>
+          <td class="email">${u.email || '—'}</td>
+          <td class="num">${u.sessions || 0}</td>
+          <td class="num">${u.searches || 0}</td>
+          <td class="num">${u.views || 0}</td>
+          <td class="num">${u.saves || 0}</td>
+          <td class="num">${u.adds || 0}</td>
+          <td class="num ${cls}">${fmtDate(u.last_seen)}</td>
+        </tr>`;
+      });
+      html += `</tbody></table>`;
+    }
+
+    html += `<h2>Top searches <span style="font-size:12px;color:var(--ink-soft);font-family:'DM Sans';">· last 30 days</span></h2>`;
+    if (!searches.length) {
+      html += `<div class="card" style="text-align:center;color:var(--ink-soft)">No searches yet</div>`;
+    } else {
+      html += `<div class="card">`;
+      searches.forEach(s => {
+        const avg = s.avg_results == null ? '—' : Math.round(s.avg_results) + ' results';
+        html += `<div class="search-row">
+          <div class="search-q">"${s.query}"</div>
+          <div class="search-cnt">${s.cnt}×</div>
+          <div class="search-results">${avg}</div>
+        </div>`;
+      });
+      html += `</div>`;
+    }
+
+    content.innerHTML = html;
+  }
+
+  async function load() {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) {
+      renderError('Not logged in. Open Odin and sign in first, then visit this page in the same browser, on the same domain (tpmak.github.io/Ashoka/admin/).');
+      return;
+    }
+
+    const { data, error } = await sb.rpc('get_odin_metrics');
+    if (error) {
+      renderError('Access denied or query failed: ' + error.message);
+      return;
+    }
+    if (!data) {
+      renderError('No data returned. Are you signed in as the admin user?');
+      return;
+    }
+
+    render(data);
+    meta.textContent = 'Generated ' + new Date(data.generated_at).toLocaleString();
+  }
+
+  load();
+</script>
+</body>
+</html>
