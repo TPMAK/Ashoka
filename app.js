@@ -32,6 +32,37 @@ if (typeof window.supabase === 'undefined' || typeof window.supabase.createClien
 // Initialize Supabase client
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+
+// ===== ACTIVITY LOGGING =====
+// Lightweight event logger for app-level events not already captured
+// elsewhere (search_events, endorsements, knowledge_items, notifications).
+// Fire-and-forget — never blocks the UI.
+
+function getOdinSessionId() {
+    let sid = sessionStorage.getItem('odin_session_id');
+    if (!sid) {
+        sid = (crypto && crypto.randomUUID) ? crypto.randomUUID() : ('s_' + Date.now() + '_' + Math.random().toString(36).slice(2));
+        sessionStorage.setItem('odin_session_id', sid);
+    }
+    return sid;
+}
+
+function logEvent(eventType, eventData) {
+    try {
+        if (!currentUser) return;
+        supabaseClient.from('app_events').insert({
+            user_id:    currentUser.id,
+            session_id: getOdinSessionId(),
+            event_type: eventType,
+            event_data: eventData || {}
+        }).then(({ error }) => {
+            if (error) console.warn('logEvent failed:', error.message);
+        });
+    } catch (e) {
+        console.warn('logEvent error:', e);
+    }
+}
+
 // ===== FOUNDING MEMBERS ACCOUNT =====
 const ODIN_HQ_USER_ID = 'fec29546-cabd-44c7-96c9-4dfa6e952e93';
 
@@ -122,6 +153,12 @@ async function showMainApp() {
                      currentUser?.email?.split('@')[0] ||
                      'User';
     console.log('Logged in as:', userName, '| User ID:', currentUser.id);
+
+    // Log app session start (one per browser tab session)
+    logEvent('session_start', {
+        referrer: document.referrer || null,
+        path: window.location.pathname
+    });
 
     // Auto-fill the "Added by" field
     const addedByField = document.getElementById('addedBy');
@@ -3318,6 +3355,11 @@ var _currentMode = 'home';
 function setMode(mode) {
     var _prevMode = _currentMode;
     _currentMode = mode;
+
+    // Log tab navigation
+    if (typeof logEvent === 'function') {
+        logEvent('tab_view', { tab: mode, from: _prevMode });
+    }
     document.getElementById('homePage').classList.add('hidden');
     document.getElementById('searchMode').classList.add('hidden');
     document.getElementById('discoverMode').classList.add('hidden');
@@ -4852,6 +4894,15 @@ function openItemDrawer(item) {
     currentDrawerItem = item; // Store reference for edit mode
     // Track recently viewed
     trackRecentlyViewed(item);
+
+    // Log item drawer open
+    if (typeof logEvent === 'function' && item && item.id) {
+        logEvent('item_view', {
+            item_id: item.id,
+            type: item.type || null,
+            trust_level: item._trust_level || null
+        });
+    }
 
     // ── Odin Trust Layer ──────────────────────────────────────
     const trustLevel        = item._trust_level || TRUST.FRIENDS;
