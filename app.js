@@ -3539,7 +3539,7 @@ function renderPhotoCarousel(photos, opts) {
         return `<img src="${escapeHtml(photoArr[0])}"${cls}${onc} loading="lazy">`;
     }
 
-    // Multi-photo — swipeable carousel with dots.
+    // Multi-photo — swipeable carousel with dots + desktop arrow buttons.
     const id = 'carousel_' + Math.random().toString(36).slice(2, 9);
     const imgClass = opts.imgClass ? ' ' + opts.imgClass : '';
     const slides = photoArr.map(function(url, i) {
@@ -3552,6 +3552,15 @@ function renderPhotoCarousel(photos, opts) {
     }).join('');
     const counter = '<div class="carousel-counter"><span class="carousel-counter-current">1</span>/' + photoArr.length + '</div>';
 
+    // Chevron arrows (visible on hover for desktop). Hidden on touch devices via CSS.
+    const arrows = ''
+        + '<button type="button" class="carousel-arrow carousel-arrow--prev" aria-label="Previous photo">'
+        +   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>'
+        + '</button>'
+        + '<button type="button" class="carousel-arrow carousel-arrow--next" aria-label="Next photo">'
+        +   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'
+        + '</button>';
+
     const cls = 'carousel' + (opts.inlineCard ? ' carousel--inline-card' : '');
 
     // Defer init to next tick so the HTML lands in the DOM first.
@@ -3559,6 +3568,7 @@ function renderPhotoCarousel(photos, opts) {
 
     return '<div class="' + cls + '" id="' + id + '">'
         + '<div class="carousel-track">' + slides + '</div>'
+        + arrows
         + '<div class="carousel-dots">' + dots + '</div>'
         + counter
         + '</div>';
@@ -3573,6 +3583,8 @@ function initCarousel(id, opts) {
     const track = root.querySelector('.carousel-track');
     const dots = root.querySelectorAll('.carousel-dot');
     const counterEl = root.querySelector('.carousel-counter-current');
+    const prevArrow = root.querySelector('.carousel-arrow--prev');
+    const nextArrow = root.querySelector('.carousel-arrow--next');
     const slideCount = root.querySelectorAll('.carousel-slide').length;
     const SWIPE_THRESHOLD = 30;  // px movement before considered a swipe (suppresses click)
     let idx = 0;
@@ -3583,7 +3595,12 @@ function initCarousel(id, opts) {
         track.style.transform = 'translateX(-' + (idx * 100) + '%)';
         dots.forEach(function(d, i) { d.classList.toggle('active', i === idx); });
         if (counterEl) counterEl.textContent = String(idx + 1);
+        // Hide prev arrow at start, next arrow at end
+        if (prevArrow) prevArrow.classList.toggle('carousel-arrow--hidden', idx === 0);
+        if (nextArrow) nextArrow.classList.toggle('carousel-arrow--hidden', idx === slideCount - 1);
     }
+    // Initialise arrow visibility for first slide
+    if (prevArrow) prevArrow.classList.add('carousel-arrow--hidden');
 
     // Touch swipe
     let startX = 0, dx = 0, dragging = false;
@@ -3657,6 +3674,22 @@ function initCarousel(id, opts) {
             go(i);
         });
     });
+
+    // Arrow buttons (desktop) — advance slides without opening drawer
+    if (prevArrow) {
+        prevArrow.addEventListener('click', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            go(idx - 1);
+        });
+    }
+    if (nextArrow) {
+        nextArrow.addEventListener('click', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            go(idx + 1);
+        });
+    }
 }
 
 // Lightbox variant that supports multiple photos (used by drawer hero).

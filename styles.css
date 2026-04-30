@@ -11737,3 +11737,64 @@ body.map-view-open .content {
     pointer-events: none;
     z-index: 2;
 }
+
+/* Carousel arrow buttons (desktop only — hidden on touch devices) */
+.carousel-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.92);
+    color: #1f2937;
+    border: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    z-index: 3;
+    opacity: 0;
+    transition: opacity 0.15s ease, background 0.15s ease, transform 0.15s ease;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+    pointer-events: auto;
+}
+.carousel-arrow svg {
+    width: 18px;
+    height: 18px;
+}
+.carousel-arrow--prev { left: 8px; }
+.carousel-arrow--next { right: 8px; }
+.carousel-arrow:hover {
+    background: #fff;
+    transform: translateY(-50%) scale(1.08);
+}
+.carousel-arrow--hidden {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+/* Show arrows on hover (desktop). Touch devices hide them — finger swipe works instead. */
+.carousel:hover .carousel-arrow:not(.carousel-arrow--hidden) {
+    opacity: 1;
+}
+
+/* Hide arrows on touch-primary devices (phone/tablet) */
+@media (hover: none) and (pointer: coarse) {
+    .carousel-arrow {
+        display: none;
+    }
+}
+
+/* Smaller arrows on inline-card (feed-card) carousels */
+.carousel--inline-card .carousel-arrow {
+    width: 24px;
+    height: 24px;
+}
+.carousel--inline-card .carousel-arrow svg {
+    width: 13px;
+    height: 13px;
+}
+.carousel--inline-card .carousel-arrow--prev { left: 4px; }
+.carousel--inline-card .carousel-arrow--next { right: 4px; }
