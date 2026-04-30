@@ -2429,7 +2429,8 @@
                     </div>
 
                     <!-- Hidden file inputs for photo upload (shared across all chips) -->
-                    <input type="file" id="photoGallery" accept="image/*" style="display:none">
+                    <!-- multiple: allows up to MAX_PHOTOS (3) per item -->
+                    <input type="file" id="photoGallery" accept="image/*" multiple style="display:none">
                     <input type="file" id="photoCamera" accept="image/*" capture="environment" style="display:none">
 
                     <!-- Photo chip picker (shown when Photo chip selected) -->
@@ -2585,7 +2586,7 @@
                                     Camera
                                 </label>
                             </div>
-                            <!-- Photo loaded state -->
+                            <!-- Photo loaded state (single OG preview path) -->
                             <div id="subPhotoPreview" style="display:none;">
                                 <img id="subPhotoImg" class="sub-photo-thumb" src="" alt="">
                                 <div class="sub-photo-actions">
@@ -2596,6 +2597,13 @@
                                         <button type="button" class="sub-photo-btn sub-photo-btn--remove" onclick="removeUnifiedPhoto()">Remove</button>
                                     </div>
                                 </div>
+                            </div>
+                            <!-- Multi-photo thumb strip (up to 3) — visible when user has selected photos -->
+                            <div id="photoThumbStrip" class="photo-thumb-strip" style="display:none;"></div>
+                            <div id="photoCountHint" class="photo-count-hint" style="display:none;">
+                                <span id="photoCountText">0 of 3 photos</span>
+                                <span style="margin: 0 6px;">·</span>
+                                <label for="photoGallery" style="color: #7B2D45; cursor: pointer; font-weight: 500;" id="photoAddMoreLink">+ Add another</label>
                             </div>
                         </div>
                     </div>

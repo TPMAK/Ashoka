@@ -32,6 +32,58 @@ if (typeof window.supabase === 'undefined' || typeof window.supabase.createClien
 // Initialize Supabase client
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+
+// ===== MULTI-PHOTO HELPERS =====
+// Items can have up to 3 photos in `photo_urls` (TEXT[]).
+// Legacy `photo_url` (single TEXT) is kept in sync for backward compat.
+// Use these helpers everywhere — never read item.photo_url directly.
+const MAX_PHOTOS = 3;
+
+function getItemPhotos(item) {
+    if (!item) return [];
+    if (item.photo_urls && Array.isArray(item.photo_urls) && item.photo_urls.length > 0) {
+        return item.photo_urls.filter(Boolean);
+    }
+    if (item.photo_url) return [item.photo_url];
+    return [];
+}
+
+function getItemCoverPhoto(item) {
+    const photos = getItemPhotos(item);
+    return photos.length > 0 ? photos[0] : null;
+}
+
+
+// ===== ACTIVITY LOGGING =====
+// Lightweight event logger for app-level events not already captured
+// elsewhere (search_events, endorsements, knowledge_items, notifications).
+// Fire-and-forget — never blocks the UI.
+
+function getOdinSessionId() {
+    let sid = sessionStorage.getItem('odin_session_id');
+    if (!sid) {
+        sid = (crypto && crypto.randomUUID) ? crypto.randomUUID() : ('s_' + Date.now() + '_' + Math.random().toString(36).slice(2));
+        sessionStorage.setItem('odin_session_id', sid);
+    }
+    return sid;
+}
+
+function logEvent(eventType, eventData) {
+    try {
+        if (!currentUser) return;
+        supabaseClient.from('app_events').insert({
+            user_id:    currentUser.id,
+            session_id: getOdinSessionId(),
+            event_type: eventType,
+            event_data: eventData || {}
+        }).then(({ error }) => {
+            if (error) console.warn('logEvent failed:', error.message);
+        });
+    } catch (e) {
+        console.warn('logEvent error:', e);
+    }
+}
+
 // ===== FOUNDING MEMBERS ACCOUNT =====
 const ODIN_HQ_USER_ID = 'fec29546-cabd-44c7-96c9-4dfa6e952e93';
 
@@ -122,6 +174,12 @@ async function showMainApp() {
                      currentUser?.email?.split('@')[0] ||
                      'User';
     console.log('Logged in as:', userName, '| User ID:', currentUser.id);
+
+    // Log app session start (one per browser tab session)
+    logEvent('session_start', {
+        referrer: document.referrer || null,
+        path: window.location.pathname
+    });
 
     // Auto-fill the "Added by" field
     const addedByField = document.getElementById('addedBy');
@@ -3318,6 +3376,11 @@ var _currentMode = 'home';
 function setMode(mode) {
     var _prevMode = _currentMode;
     _currentMode = mode;
+
+    // Log tab navigation
+    if (typeof logEvent === 'function') {
+        logEvent('tab_view', { tab: mode, from: _prevMode });
+    }
     document.getElementById('homePage').classList.add('hidden');
     document.getElementById('searchMode').classList.add('hidden');
     document.getElementById('discoverMode').classList.add('hidden');
@@ -3453,6 +3516,197 @@ function toggleMap(type) {
             setTimeout(() => initDiscoverMap(), 100);
         }
     }
+}
+
+// ===== INSTAGRAM-STYLE PHOTO CAROUSEL =====
+// Renders a swipeable carousel for items with 2+ photos.
+// 1 photo: returns plain <img> — identical to pre-multi-photo behaviour.
+// 0 photos: returns empty string.
+//
+// opts:
+//   imgClass:   CSS class applied to <img> tags
+//   onclick:    string of JS to run on tap (e.g. "openLightboxMulti(...)")
+//   inlineCard: true when carousel is embedded inside a feed card (fixed-height container)
+function renderPhotoCarousel(photos, opts) {
+    opts = opts || {};
+    const photoArr = Array.isArray(photos) ? photos.filter(Boolean) : [];
+    if (photoArr.length === 0) return '';
+
+    // Single photo — render exactly like the legacy single-photo path.
+    if (photoArr.length === 1) {
+        const cls = opts.imgClass ? ` class="${opts.imgClass}"` : '';
+        const onc = opts.onclick ? ` onclick="${opts.onclick.replace(/"/g, '&quot;')}"` : '';
+        return `<img src="${escapeHtml(photoArr[0])}"${cls}${onc} loading="lazy">`;
+    }
+
+    // Multi-photo — swipeable carousel with dots + desktop arrow buttons.
+    const id = 'carousel_' + Math.random().toString(36).slice(2, 9);
+    const imgClass = opts.imgClass ? ' ' + opts.imgClass : '';
+    const slides = photoArr.map(function(url, i) {
+        return '<div class="carousel-slide" data-idx="' + i + '">'
+            + '<img class="carousel-slide-img' + imgClass + '" src="' + escapeHtml(url) + '" loading="' + (i === 0 ? 'eager' : 'lazy') + '">'
+            + '</div>';
+    }).join('');
+    const dots = photoArr.map(function(_, i) {
+        return '<span class="carousel-dot' + (i === 0 ? ' active' : '') + '" data-idx="' + i + '"></span>';
+    }).join('');
+    const counter = '<div class="carousel-counter"><span class="carousel-counter-current">1</span>/' + photoArr.length + '</div>';
+
+    // Chevron arrows (visible on hover for desktop). Hidden on touch devices via CSS.
+    const arrows = ''
+        + '<button type="button" class="carousel-arrow carousel-arrow--prev" aria-label="Previous photo">'
+        +   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>'
+        + '</button>'
+        + '<button type="button" class="carousel-arrow carousel-arrow--next" aria-label="Next photo">'
+        +   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'
+        + '</button>';
+
+    const cls = 'carousel' + (opts.inlineCard ? ' carousel--inline-card' : '');
+
+    // Defer init to next tick so the HTML lands in the DOM first.
+    setTimeout(function() { initCarousel(id, opts); }, 0);
+
+    return '<div class="' + cls + '" id="' + id + '">'
+        + '<div class="carousel-track">' + slides + '</div>'
+        + arrows
+        + '<div class="carousel-dots">' + dots + '</div>'
+        + counter
+        + '</div>';
+}
+
+function initCarousel(id, opts) {
+    opts = opts || {};
+    const root = document.getElementById(id);
+    if (!root || root.dataset.inited === '1') return;
+    root.dataset.inited = '1';
+
+    const track = root.querySelector('.carousel-track');
+    const dots = root.querySelectorAll('.carousel-dot');
+    const counterEl = root.querySelector('.carousel-counter-current');
+    const prevArrow = root.querySelector('.carousel-arrow--prev');
+    const nextArrow = root.querySelector('.carousel-arrow--next');
+    const slideCount = root.querySelectorAll('.carousel-slide').length;
+    const SWIPE_THRESHOLD = 30;  // px movement before considered a swipe (suppresses click)
+    let idx = 0;
+    let didSwipe = false;  // tracks whether last interaction was a real swipe
+
+    function go(n) {
+        idx = Math.max(0, Math.min(slideCount - 1, n));
+        track.style.transform = 'translateX(-' + (idx * 100) + '%)';
+        dots.forEach(function(d, i) { d.classList.toggle('active', i === idx); });
+        if (counterEl) counterEl.textContent = String(idx + 1);
+        // Hide prev arrow at start, next arrow at end
+        if (prevArrow) prevArrow.classList.toggle('carousel-arrow--hidden', idx === 0);
+        if (nextArrow) nextArrow.classList.toggle('carousel-arrow--hidden', idx === slideCount - 1);
+    }
+    // Initialise arrow visibility for first slide
+    if (prevArrow) prevArrow.classList.add('carousel-arrow--hidden');
+
+    // Touch swipe
+    let startX = 0, dx = 0, dragging = false;
+    track.addEventListener('touchstart', function(e) {
+        startX = e.touches[0].clientX;
+        dragging = true;
+        didSwipe = false;
+        track.style.transition = 'none';
+    }, { passive: true });
+    track.addEventListener('touchmove', function(e) {
+        if (!dragging) return;
+        dx = e.touches[0].clientX - startX;
+        if (Math.abs(dx) > 5) didSwipe = true;
+        track.style.transform = 'translateX(calc(-' + (idx * 100) + '% + ' + dx + 'px))';
+    }, { passive: true });
+    track.addEventListener('touchend', function(e) {
+        dragging = false;
+        track.style.transition = '';
+        if (Math.abs(dx) > SWIPE_THRESHOLD) {
+            go(idx + (dx < 0 ? 1 : -1));
+            // Real swipe: don't let parent (feed card) treat it as a tap
+            e.stopPropagation();
+            e.preventDefault();
+        } else {
+            go(idx);
+        }
+        dx = 0;
+    });
+
+    // Mouse drag (desktop)
+    let mDown = false, mStartX = 0, mDx = 0;
+    track.addEventListener('mousedown', function(e) {
+        mDown = true; mStartX = e.clientX; mDx = 0;
+        didSwipe = false;
+        track.style.transition = 'none';
+    });
+    window.addEventListener('mousemove', function(e) {
+        if (!mDown) return;
+        mDx = e.clientX - mStartX;
+        if (Math.abs(mDx) > 5) didSwipe = true;
+        track.style.transform = 'translateX(calc(-' + (idx * 100) + '% + ' + mDx + 'px))';
+    });
+    window.addEventListener('mouseup', function(e) {
+        if (!mDown) return;
+        mDown = false;
+        track.style.transition = '';
+        if (Math.abs(mDx) > SWIPE_THRESHOLD) go(idx + (mDx < 0 ? 1 : -1));
+        else go(idx);
+        mDx = 0;
+    });
+
+    // After a swipe, suppress the synthetic click that follows mouseup.
+    // This prevents the feed card's onclick (which opens the drawer) from firing.
+    root.addEventListener('click', function(e) {
+        if (didSwipe) {
+            e.stopPropagation();
+            e.preventDefault();
+            didSwipe = false;
+        } else if (opts.onclick) {
+            // No swipe = treat as tap. Run the configured onclick (e.g. open lightbox).
+            // We can't invoke a string-based handler easily; use Function constructor.
+            try { new Function('event', opts.onclick).call(root, e); } catch (err) { console.warn(err); }
+        }
+    });
+
+    // Dot click — always stop propagation, never opens drawer
+    dots.forEach(function(d, i) {
+        d.addEventListener('click', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            go(i);
+        });
+    });
+
+    // Arrow buttons (desktop) — advance slides without opening drawer
+    if (prevArrow) {
+        prevArrow.addEventListener('click', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            go(idx - 1);
+        });
+    }
+    if (nextArrow) {
+        nextArrow.addEventListener('click', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            go(idx + 1);
+        });
+    }
+}
+
+// Lightbox variant that supports multiple photos (used by drawer hero).
+// Stores the photo array on the lightbox and lets the user swipe through.
+let _lightboxPhotos = [];
+let _lightboxIdx = 0;
+
+function openLightboxMulti(photosJson, startIdx) {
+    try {
+        _lightboxPhotos = JSON.parse(decodeURIComponent(photosJson));
+    } catch (e) {
+        _lightboxPhotos = [];
+    }
+    _lightboxIdx = startIdx || 0;
+    if (_lightboxPhotos.length === 0) return;
+    document.getElementById('lightboxImg').src = _lightboxPhotos[_lightboxIdx];
+    document.getElementById('photoLightbox').classList.add('active');
 }
 
 function openLightbox(photoUrl) {
@@ -4078,10 +4332,18 @@ function createCard(item, index) {
     card.onclick = () => showDrawer(index);
 
     // ── Photo / placeholder ──
+    // Multi-photo: render carousel for 2+ photos, plain img for 1, placeholder for 0.
     const mediaSVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>';
-    const mediaHtml = item.photo_url
-        ? `<img class="hf-card-img" src="${escapeHtml(item.photo_url)}" alt="" loading="lazy">`
-        : `<div class="hf-card-placeholder">${mediaSVG}</div>`;
+    const _cardPhotos = getItemPhotos(item);
+    let mediaHtml;
+    if (_cardPhotos.length >= 2) {
+        // Carousel inherits .hf-card-media-wrap height; mark .carousel--inline-card to skip size hacks
+        mediaHtml = renderPhotoCarousel(_cardPhotos, { imgClass: 'hf-card-img', inlineCard: true });
+    } else if (_cardPhotos.length === 1) {
+        mediaHtml = `<img class="hf-card-img" src="${escapeHtml(_cardPhotos[0])}" alt="" loading="lazy">`;
+    } else {
+        mediaHtml = `<div class="hf-card-placeholder">${mediaSVG}</div>`;
+    }
 
     // ── Distance chip ──
     const distText = item.distance_km
@@ -4853,6 +5115,15 @@ function openItemDrawer(item) {
     // Track recently viewed
     trackRecentlyViewed(item);
 
+    // Log item drawer open
+    if (typeof logEvent === 'function' && item && item.id) {
+        logEvent('item_view', {
+            item_id: item.id,
+            type: item.type || null,
+            trust_level: item._trust_level || null
+        });
+    }
+
     // ── Odin Trust Layer ──────────────────────────────────────
     const trustLevel        = item._trust_level || TRUST.FRIENDS;
     const isSaveInheritance = trustLevel === TRUST.EXTENDED && item._via_friend_name;
@@ -4861,10 +5132,17 @@ function openItemDrawer(item) {
     const isDirectFriend    = !isOwner && !isExtendedCircle && isFriend(item.added_by);
     let html = '';
 
-    // === HERO PHOTO ===
-    if (item.photo_url) {
-        html += `<div class="drawer-hero" onclick="event.stopPropagation(); openLightbox('${escapeHtml(item.photo_url)}');">
-            <img src="${escapeHtml(item.photo_url)}">
+    // === HERO PHOTO (carousel for 2+ photos, plain img for 1) ===
+    const _heroPhotos = getItemPhotos(item);
+    if (_heroPhotos.length === 1) {
+        html += `<div class="drawer-hero" onclick="event.stopPropagation(); openLightbox('${escapeHtml(_heroPhotos[0])}');">
+            <img src="${escapeHtml(_heroPhotos[0])}">
+            <div class="drawer-hero-fade"></div>
+        </div>`;
+    } else if (_heroPhotos.length >= 2) {
+        const _photosArg = encodeURIComponent(JSON.stringify(_heroPhotos));
+        html += `<div class="drawer-hero">
+            ${renderPhotoCarousel(_heroPhotos, { onclick: `event.stopPropagation(); openLightboxMulti('${_photosArg}', 0)` })}
             <div class="drawer-hero-fade"></div>
         </div>`;
     }
@@ -5239,16 +5517,16 @@ function enterEditMode() {
 
     let html = '';
 
-    // Photo section with change option
-    html += `<div class="drawer-hero edit-photo-wrap" id="editPhotoWrap">`;
-    if (item.photo_url) {
-        html += `<img src="${escapeHtml(item.photo_url)}" id="editPhotoPreview">`;
-    } else {
-        html += `<div class="edit-photo-placeholder" id="editPhotoPreview">📷</div>`;
-    }
-    html += `<label class="edit-photo-btn" for="editPhotoInput">Change Photo</label>
-        <input type="file" id="editPhotoInput" accept="image/*" style="display:none" onchange="previewEditPhoto(this)">
-        <input type="hidden" id="editPhotoFile">
+    // Photo section: multi-photo editor (up to MAX_PHOTOS).
+    // Existing photos start as kind='existing', new picks become kind='new'.
+    // _editPhotos / _editPhotosToDelete are managed by helpers below.
+    _editPhotos = getItemPhotos(item).map(function(u) { return { kind: 'existing', url: u }; });
+    _editPhotosToDelete = [];
+
+    html += `<div class="drawer-hero edit-photo-wrap" id="editPhotoWrap">
+        <div class="edit-photo-grid" id="editPhotoGrid"></div>
+        <label class="edit-photo-btn" for="editPhotoInput" id="editAddPhotoBtn">+ Add Photo</label>
+        <input type="file" id="editPhotoInput" accept="image/*" multiple style="display:none" onchange="_handleEditPhotoChange(event)">
     </div>`;
 
     html += `<div class="drawer-body"><div class="edit-form" id="drawerEditForm">
@@ -5303,6 +5581,61 @@ function enterEditMode() {
     </div></div>`;
 
     document.getElementById('drawerContent').innerHTML = html;
+    // Render edit-mode photo grid now that the container exists in the DOM
+    if (typeof renderEditPhotos === 'function') renderEditPhotos();
+}
+
+// ===== EDIT-MODE MULTI-PHOTO STATE =====
+// _editPhotos entries: { kind: 'existing', url } OR { kind: 'new', file, previewUrl }
+// _editPhotosToDelete: URLs to delete from the bucket on save (best-effort)
+let _editPhotos = [];
+let _editPhotosToDelete = [];
+
+function renderEditPhotos() {
+    const grid = document.getElementById('editPhotoGrid');
+    if (!grid) return;
+    // Revoke prior blob URLs
+    grid.querySelectorAll('img').forEach(img => {
+        if (img.src && img.src.startsWith('blob:')) URL.revokeObjectURL(img.src);
+    });
+    grid.innerHTML = _editPhotos.map(function(p, idx) {
+        const src = p.kind === 'existing' ? p.url : p.previewUrl;
+        return '<div class="photo-thumb">'
+            + '<img src="' + escapeHtml(src) + '" alt="">'
+            + '<button type="button" class="photo-thumb-remove" '
+            + 'onclick="_removeEditPhoto(' + idx + ')" aria-label="Remove">×</button>'
+            + '</div>';
+    }).join('');
+    const btn = document.getElementById('editAddPhotoBtn');
+    if (btn) btn.style.display = _editPhotos.length >= MAX_PHOTOS ? 'none' : '';
+}
+
+function _handleEditPhotoChange(e) {
+    const newFiles = Array.from(e.target.files || []);
+    if (!newFiles.length) return;
+    const remaining = MAX_PHOTOS - _editPhotos.length;
+    if (newFiles.length > remaining) {
+        try { showToast('Max ' + MAX_PHOTOS + ' photos. Extra files were ignored.', 3500); } catch (err) {}
+    }
+    newFiles.slice(0, Math.max(0, remaining)).forEach(function(file) {
+        _editPhotos.push({
+            kind: 'new',
+            file: file,
+            previewUrl: URL.createObjectURL(file)
+        });
+    });
+    e.target.value = '';
+    renderEditPhotos();
+}
+
+function _removeEditPhoto(idx) {
+    const removed = _editPhotos.splice(idx, 1)[0];
+    if (removed && removed.kind === 'existing') {
+        _editPhotosToDelete.push(removed.url);
+    } else if (removed && removed.previewUrl) {
+        try { URL.revokeObjectURL(removed.previewUrl); } catch (e) {}
+    }
+    renderEditPhotos();
 }
 
 async function saveItemEdit(itemId) {
@@ -5337,36 +5670,79 @@ async function saveItemEdit(itemId) {
     const newText = newTitle.toLowerCase().trim();
     const needsReEmbed = oldText !== newText;
 
-    // Handle photo upload if a new file was selected
-    let newPhotoUrl = item.photo_url || null;
-    const photoInput = document.getElementById('editPhotoInput');
-    if (photoInput && photoInput.files && photoInput.files[0]) {
-        try {
-            btn.textContent = 'Uploading photo...';
-            const file = photoInput.files[0];
-            const ext = file.name.split('.').pop();
-            const filePath = `${currentUser.id}/${itemId}_${Date.now()}.${ext}`;
-            const { data: uploadData, error: uploadError } = await supabaseClient
+    // Multi-photo upload: walk _editPhotos, upload new files, build final URL array.
+    // Compresses to 1200px JPEG @ 82% — same as new-save flow — to keep storage tidy.
+    async function _compressForUpload(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const MAX = 1200;
+                    let w = img.width, h = img.height;
+                    if (w > MAX || h > MAX) {
+                        if (w >= h) { h = Math.round(h * MAX / w); w = MAX; }
+                        else        { w = Math.round(w * MAX / h); h = MAX; }
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    canvas.toBlob(function(blob) { resolve(blob); }, 'image/jpeg', 0.82);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    let finalPhotoUrls = [];
+    try {
+        if (_editPhotos.length > 0) {
+            btn.textContent = 'Uploading photos...';
+        }
+        for (let i = 0; i < _editPhotos.length; i++) {
+            const p = _editPhotos[i];
+            if (p.kind === 'existing') {
+                finalPhotoUrls.push(p.url);
+                continue;
+            }
+            const blob = await _compressForUpload(p.file);
+            const filePath = `${currentUser.id}/${itemId}_${Date.now()}_${i}.jpg`;
+            const { error: uploadError } = await supabaseClient
                 .storage.from('recommendation-photos')
-                .upload(filePath, file, { upsert: true });
+                .upload(filePath, blob, { upsert: true, contentType: 'image/jpeg' });
             if (uploadError) throw new Error('Photo upload failed: ' + uploadError.message);
             const { data: urlData } = supabaseClient
                 .storage.from('recommendation-photos')
                 .getPublicUrl(filePath);
-            newPhotoUrl = urlData.publicUrl;
-        } catch (photoErr) {
-            document.getElementById('editMessage').innerHTML = `<div class="error-msg">${photoErr.message}</div>`;
-            btn.disabled = false;
-            btn.textContent = 'Save Changes';
-            return;
+            finalPhotoUrls.push(urlData.publicUrl);
         }
+    } catch (photoErr) {
+        document.getElementById('editMessage').innerHTML = `<div class="error-msg">${photoErr.message}</div>`;
+        btn.disabled = false;
+        btn.textContent = 'Save Changes';
+        return;
+    }
+
+    // Best-effort cleanup of removed-existing photos (non-blocking failure)
+    for (const url of _editPhotosToDelete) {
+        try {
+            const marker = '/recommendation-photos/';
+            const idx = url.indexOf(marker);
+            if (idx >= 0) {
+                const path = url.substring(idx + marker.length).split('?')[0];
+                supabaseClient.storage.from('recommendation-photos').remove([path])
+                    .then(({ error }) => { if (error) console.warn('Photo delete failed:', error.message); });
+            }
+        } catch (e) { console.warn('Photo delete error:', e); }
     }
 
     try {
         // Update in Supabase
         const updateData = {
             title: newTitle,
-            photo_url: newPhotoUrl,
+            photo_urls: finalPhotoUrls,                  // array (canonical)
+            photo_url: finalPhotoUrls[0] || null,        // legacy mirror, kept in sync
             type: newCategory,
             address: newAddress || null,
             URL: newUrl ? [newUrl] : [],
@@ -7301,6 +7677,8 @@ function removeUnifiedPhoto() {
     if (photoGallery) photoGallery.value = '';
     if (photoCamera) photoCamera.value = '';
     _photoSource = 'none';
+    // Also clear multi-photo state
+    if (typeof _resetSelectedPhotos === 'function') _resetSelectedPhotos();
 }
 
 function resetOGFetchState() {
@@ -7480,18 +7858,14 @@ var submitDiscovery = async function(e) {
     const btn = document.getElementById('submitBtn');
     btn.disabled = true;
 
-    // Read + compress photo BEFORE showing success
-    let photoBase64 = null;
-    const _pgEl = document.getElementById('photoGallery');
-    const _pcEl = document.getElementById('photoCamera');
-    const photoFile = (_pgEl && _pgEl.files && _pgEl.files[0]) || (_pcEl && _pcEl.files && _pcEl.files[0]) || null;
-    if (photoFile) {
-        photoBase64 = await new Promise((resolve) => {
+    // Read + compress all selected photos (up to MAX_PHOTOS) BEFORE showing success.
+    // Falls back to legacy single-input lookup so any old code path still works.
+    async function _compressFile(file) {
+        return new Promise((resolve) => {
             const reader = new FileReader();
             reader.onload = (e) => {
                 const img = new Image();
                 img.onload = () => {
-                    // Resize to max 1200px on longest side
                     const MAX = 1200;
                     let w = img.width, h = img.height;
                     if (w > MAX || h > MAX) {
@@ -7501,14 +7875,32 @@ var submitDiscovery = async function(e) {
                     const canvas = document.createElement('canvas');
                     canvas.width = w; canvas.height = h;
                     canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                    // Export as JPEG at 82% quality — well under Supabase's limit
                     const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
                     resolve(dataUrl.split(',')[1]);
                 };
                 img.src = e.target.result;
             };
-            reader.readAsDataURL(photoFile);
+            reader.readAsDataURL(file);
         });
+    }
+
+    let photosBase64 = [];
+    let photoFilenames = [];
+    if (Array.isArray(_selectedPhotos) && _selectedPhotos.length > 0) {
+        for (const f of _selectedPhotos.slice(0, MAX_PHOTOS)) {
+            const b64 = await _compressFile(f);
+            photosBase64.push(b64);
+            photoFilenames.push(f.name);
+        }
+    } else {
+        // Legacy fallback: file input may still hold a single file (unlikely but safe)
+        const _pgEl = document.getElementById('photoGallery');
+        const _pcEl = document.getElementById('photoCamera');
+        const fallbackFile = (_pgEl && _pgEl.files && _pgEl.files[0]) || (_pcEl && _pcEl.files && _pcEl.files[0]) || null;
+        if (fallbackFile) {
+            photosBase64 = [await _compressFile(fallbackFile)];
+            photoFilenames = [fallbackFile.name];
+        }
     }
 
     const visibilityVal = document.getElementById('visibilityValue')?.value || 'private';
@@ -7529,9 +7921,12 @@ var submitDiscovery = async function(e) {
         user_longitude: document.getElementById('userLng').value ? parseFloat(document.getElementById('userLng').value) : null,
         UserID: currentUser.id,
         familyId: currentProfile?.family_id || '37ae9f84-2d1d-4930-9765-f6f8991ae053',
-        photo: photoBase64,
-        photoFilename: photoFile ? photoFile.name : null,
-        ogImageUrl: (!photoBase64 && _photoSource === 'og') ? (document.getElementById('ogImageUrl')?.value || null) : null,
+        // Multi-photo: array form (preferred). Plus legacy single-photo keys for backward compat.
+        photos: photosBase64,
+        photoFilenames: photoFilenames,
+        photo: photosBase64[0] || null,
+        photoFilename: photoFilenames[0] || null,
+        ogImageUrl: (photosBase64.length === 0 && _photoSource === 'og') ? (document.getElementById('ogImageUrl')?.value || null) : null,
         visibility: visibilityVal === 'private' ? 'only_me' : visibilityVal,
         place_name: document.getElementById('placeName')?.value?.trim() || null
     };
@@ -7631,47 +8026,107 @@ function selectCategory(el) {
     }
 }
 
+// ===== MULTI-PHOTO PICKER STATE =====
+// _selectedPhotos holds up to MAX_PHOTOS (3) File objects for the new-save flow.
+// The OG-image flow uses _photoSource='og' + ogImageUrl and stays single-photo
+// (user can add more on edit, per product decision).
+let _selectedPhotos = [];
+
 function _handlePhotoChange(e) {
-    const file = e.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            // Show preview in unified subPhoto component
-            const img = document.getElementById('subPhotoImg');
-            const preview = document.getElementById('subPhotoPreview');
-            const empty = document.getElementById('subPhotoEmpty');
-            const badge = document.getElementById('subPhotoBadge');
-            if (img) img.src = ev.target.result;
-            if (preview) preview.style.display = 'flex';
-            if (empty) empty.style.display = 'none';
-            if (badge) badge.textContent = 'Your photo';
+    const newFiles = Array.from(e.target.files || []);
+    if (!newFiles.length) return;
 
-            // Mark as user photo, clear any OG image URL
-            _photoSource = 'user';
-            const ogUrlField = document.getElementById('ogImageUrl');
-            if (ogUrlField) ogUrlField.value = '';
-
-            // For Photo chip: reveal Step 2 so user can name it + pick category
-            const activeChip = document.querySelector('.entry-card.active')?.dataset?.chip;
-            if (activeChip === 'photo') {
-                _revealWizardStep('wStep2');
-                _revealSubStep('subPhoto'); // ensure photo row visible
-                updateAddStep(2);
-                setTimeout(() => {
-                    const titleField = document.getElementById('title');
-                    if (titleField) {
-                        titleField.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        titleField.focus();
-                    }
-                }, 300);
-            } else {
-                // Non-photo chips: subPhoto is already visible from _revealPrivacyStep,
-                // but if user picks a photo via gallery/camera label, just update the preview
-                // (no step change needed)
-            }
-        };
-        reader.readAsDataURL(file);
+    // Cap at MAX_PHOTOS total
+    const remaining = MAX_PHOTOS - _selectedPhotos.length;
+    const toAdd = newFiles.slice(0, Math.max(0, remaining));
+    if (newFiles.length > remaining) {
+        try { showToast('Max ' + MAX_PHOTOS + ' photos. Extra files were ignored.', 3500); } catch (err) {}
     }
+    _selectedPhotos.push(...toAdd);
+
+    // Reset input so the same file can be re-picked after a remove
+    e.target.value = '';
+
+    // First photo: clear any OG image (user choice overrides OG fallback)
+    if (_selectedPhotos.length >= 1) {
+        _photoSource = 'user';
+        const ogUrlField = document.getElementById('ogImageUrl');
+        if (ogUrlField) ogUrlField.value = '';
+    }
+
+    // Hide the legacy single-photo preview (we use the thumb strip now)
+    const preview = document.getElementById('subPhotoPreview');
+    const empty = document.getElementById('subPhotoEmpty');
+    if (preview) preview.style.display = 'none';
+    if (empty) empty.style.display = _selectedPhotos.length > 0 ? 'none' : 'flex';
+
+    _renderPhotoThumbs();
+
+    // For Photo chip: reveal Step 2 so user can name it + pick category
+    const activeChip = document.querySelector('.entry-card.active')?.dataset?.chip;
+    if (activeChip === 'photo' && _selectedPhotos.length === toAdd.length) {
+        _revealWizardStep('wStep2');
+        _revealSubStep('subPhoto');
+        updateAddStep(2);
+        setTimeout(() => {
+            const titleField = document.getElementById('title');
+            if (titleField) {
+                titleField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                titleField.focus();
+            }
+        }, 300);
+    }
+}
+
+function _renderPhotoThumbs() {
+    const strip = document.getElementById('photoThumbStrip');
+    const hintBox = document.getElementById('photoCountHint');
+    const hintText = document.getElementById('photoCountText');
+    const addMoreLink = document.getElementById('photoAddMoreLink');
+    if (!strip) return;
+
+    // Revoke previous object URLs to avoid memory leaks
+    strip.querySelectorAll('img').forEach(img => {
+        if (img.src && img.src.startsWith('blob:')) URL.revokeObjectURL(img.src);
+    });
+
+    if (_selectedPhotos.length === 0) {
+        strip.innerHTML = '';
+        strip.style.display = 'none';
+        if (hintBox) hintBox.style.display = 'none';
+        return;
+    }
+
+    strip.innerHTML = _selectedPhotos.map(function(file, idx) {
+        const url = URL.createObjectURL(file);
+        return '<div class="photo-thumb">'
+            + '<img src="' + url + '" alt="">'
+            + '<button type="button" class="photo-thumb-remove" '
+            + 'onclick="_removePhoto(' + idx + ')" aria-label="Remove photo">×</button>'
+            + '</div>';
+    }).join('');
+    strip.style.display = 'flex';
+
+    if (hintBox) hintBox.style.display = '';
+    if (hintText) hintText.textContent = _selectedPhotos.length + ' of ' + MAX_PHOTOS + ' photos';
+    if (hintBox) hintBox.classList.toggle('full', _selectedPhotos.length >= MAX_PHOTOS);
+    if (addMoreLink) addMoreLink.style.display = _selectedPhotos.length >= MAX_PHOTOS ? 'none' : '';
+}
+
+function _removePhoto(idx) {
+    _selectedPhotos.splice(idx, 1);
+    _renderPhotoThumbs();
+    if (_selectedPhotos.length === 0) {
+        _photoSource = 'none';
+        const empty = document.getElementById('subPhotoEmpty');
+        if (empty) empty.style.display = 'flex';
+    }
+}
+
+// Reset all photo state — called after successful save
+function _resetSelectedPhotos() {
+    _selectedPhotos = [];
+    _renderPhotoThumbs();
 }
 document.getElementById('photoGallery').addEventListener('change', _handlePhotoChange);
 document.getElementById('photoCamera').addEventListener('change', _handlePhotoChange);
@@ -8801,13 +9256,11 @@ function dismissEmptyFriends() {
         const titleField = document.getElementById('title');
         if (titleField) titleField.value = '';
 
-        // Read + compress photo (kept inline so we can shape the payload here)
-        let photoBase64 = null;
-        const _pgEl = document.getElementById('photoGallery');
-        const _pcEl = document.getElementById('photoCamera');
-        const photoFile = (_pgEl && _pgEl.files && _pgEl.files[0]) || (_pcEl && _pcEl.files && _pcEl.files[0]) || null;
-        if (photoFile) {
-            photoBase64 = await new Promise((resolve) => {
+        // Read + compress all selected photos (multi-photo, up to MAX_PHOTOS).
+        // _selectedPhotos[] is the source of truth for the new multi-photo picker.
+        // Falls back to single-file lookup for any legacy code path.
+        async function _compressOne(file) {
+            return new Promise((resolve) => {
                 const reader = new FileReader();
                 reader.onload = (ev) => {
                     const img = new Image();
@@ -8821,14 +9274,33 @@ function dismissEmptyFriends() {
                         const canvas = document.createElement('canvas');
                         canvas.width = w; canvas.height = h;
                         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
-                        resolve(dataUrl.split(',')[1]);
+                        resolve(canvas.toDataURL('image/jpeg', 0.82).split(',')[1]);
                     };
                     img.src = ev.target.result;
                 };
-                reader.readAsDataURL(photoFile);
+                reader.readAsDataURL(file);
             });
         }
+
+        let photosBase64 = [];
+        let photoFilenames = [];
+        if (Array.isArray(_selectedPhotos) && _selectedPhotos.length > 0) {
+            const cap = (typeof MAX_PHOTOS !== 'undefined') ? MAX_PHOTOS : 3;
+            for (const f of _selectedPhotos.slice(0, cap)) {
+                photosBase64.push(await _compressOne(f));
+                photoFilenames.push(f.name);
+            }
+        } else {
+            // Legacy fallback: single file straight from the input
+            const _pgEl = document.getElementById('photoGallery');
+            const _pcEl = document.getElementById('photoCamera');
+            const fb = (_pgEl && _pgEl.files && _pgEl.files[0]) || (_pcEl && _pcEl.files && _pcEl.files[0]) || null;
+            if (fb) {
+                photosBase64 = [await _compressOne(fb)];
+                photoFilenames = [fb.name];
+            }
+        }
+        const photoBase64 = photosBase64[0] || null;  // legacy mirror for compatibility below
 
         const visibilityVal = document.getElementById('visibilityValue')?.value || 'private';
         const ogImageUrlEl = document.getElementById('ogImageUrl');
@@ -8838,8 +9310,11 @@ function dismissEmptyFriends() {
             capture_mode: mode,                                  // NEW
             personalNote: note,                                  // required
             description: note,                                   // back-compat for n8n nodes still reading description
+            // Multi-photo: array form (preferred) + legacy single-photo mirror.
+            photos: photosBase64,
+            photoFilenames: photoFilenames,
             photo: photoBase64,
-            photoFilename: photoFile ? photoFile.name : null,
+            photoFilename: photoFilenames[0] || null,
             url: (document.getElementById('url')?.value || '').trim() || null,
             ogImageUrl: (!photoBase64 && _photoSrcGlobal === 'og') ? (ogImageUrlEl?.value || null) : null,
             address: addrVal || null,
