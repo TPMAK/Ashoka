@@ -3524,8 +3524,9 @@ function toggleMap(type) {
 // 0 photos: returns empty string.
 //
 // opts:
-//   imgClass: CSS class applied to the <img> tag (single-photo case)
-//   onclick:  string of JS to run on tap (e.g. "openLightboxMulti(...)")
+//   imgClass:   CSS class applied to <img> tags
+//   onclick:    string of JS to run on tap (e.g. "openLightboxMulti(...)")
+//   inlineCard: true when carousel is embedded inside a feed card (fixed-height container)
 function renderPhotoCarousel(photos, opts) {
     opts = opts || {};
     const photoArr = Array.isArray(photos) ? photos.filter(Boolean) : [];
@@ -3540,10 +3541,10 @@ function renderPhotoCarousel(photos, opts) {
 
     // Multi-photo — swipeable carousel with dots.
     const id = 'carousel_' + Math.random().toString(36).slice(2, 9);
+    const imgClass = opts.imgClass ? ' ' + opts.imgClass : '';
     const slides = photoArr.map(function(url, i) {
-        const onc = opts.onclick ? ` onclick="${opts.onclick.replace(/"/g, '&quot;')}"` : '';
         return '<div class="carousel-slide" data-idx="' + i + '">'
-            + '<img src="' + escapeHtml(url) + '" loading="' + (i === 0 ? 'eager' : 'lazy') + '"' + onc + '>'
+            + '<img class="carousel-slide-img' + imgClass + '" src="' + escapeHtml(url) + '" loading="' + (i === 0 ? 'eager' : 'lazy') + '">'
             + '</div>';
     }).join('');
     const dots = photoArr.map(function(_, i) {
@@ -3551,17 +3552,20 @@ function renderPhotoCarousel(photos, opts) {
     }).join('');
     const counter = '<div class="carousel-counter"><span class="carousel-counter-current">1</span>/' + photoArr.length + '</div>';
 
-    // Defer init to next tick so the HTML lands in the DOM first.
-    setTimeout(function() { initCarousel(id); }, 0);
+    const cls = 'carousel' + (opts.inlineCard ? ' carousel--inline-card' : '');
 
-    return '<div class="carousel" id="' + id + '">'
+    // Defer init to next tick so the HTML lands in the DOM first.
+    setTimeout(function() { initCarousel(id, opts); }, 0);
+
+    return '<div class="' + cls + '" id="' + id + '">'
         + '<div class="carousel-track">' + slides + '</div>'
         + '<div class="carousel-dots">' + dots + '</div>'
         + counter
         + '</div>';
 }
 
-function initCarousel(id) {
+function initCarousel(id, opts) {
+    opts = opts || {};
     const root = document.getElementById(id);
     if (!root || root.dataset.inited === '1') return;
     root.dataset.inited = '1';
@@ -3570,7 +3574,9 @@ function initCarousel(id) {
     const dots = root.querySelectorAll('.carousel-dot');
     const counterEl = root.querySelector('.carousel-counter-current');
     const slideCount = root.querySelectorAll('.carousel-slide').length;
+    const SWIPE_THRESHOLD = 30;  // px movement before considered a swipe (suppresses click)
     let idx = 0;
+    let didSwipe = false;  // tracks whether last interaction was a real swipe
 
     function go(n) {
         idx = Math.max(0, Math.min(slideCount - 1, n));
@@ -3584,18 +3590,26 @@ function initCarousel(id) {
     track.addEventListener('touchstart', function(e) {
         startX = e.touches[0].clientX;
         dragging = true;
+        didSwipe = false;
         track.style.transition = 'none';
     }, { passive: true });
     track.addEventListener('touchmove', function(e) {
         if (!dragging) return;
         dx = e.touches[0].clientX - startX;
+        if (Math.abs(dx) > 5) didSwipe = true;
         track.style.transform = 'translateX(calc(-' + (idx * 100) + '% + ' + dx + 'px))';
     }, { passive: true });
-    track.addEventListener('touchend', function() {
+    track.addEventListener('touchend', function(e) {
         dragging = false;
         track.style.transition = '';
-        if (Math.abs(dx) > 50) go(idx + (dx < 0 ? 1 : -1));
-        else go(idx);
+        if (Math.abs(dx) > SWIPE_THRESHOLD) {
+            go(idx + (dx < 0 ? 1 : -1));
+            // Real swipe: don't let parent (feed card) treat it as a tap
+            e.stopPropagation();
+            e.preventDefault();
+        } else {
+            go(idx);
+        }
         dx = 0;
     });
 
@@ -3603,26 +3617,45 @@ function initCarousel(id) {
     let mDown = false, mStartX = 0, mDx = 0;
     track.addEventListener('mousedown', function(e) {
         mDown = true; mStartX = e.clientX; mDx = 0;
+        didSwipe = false;
         track.style.transition = 'none';
-        e.preventDefault();
     });
     window.addEventListener('mousemove', function(e) {
         if (!mDown) return;
         mDx = e.clientX - mStartX;
+        if (Math.abs(mDx) > 5) didSwipe = true;
         track.style.transform = 'translateX(calc(-' + (idx * 100) + '% + ' + mDx + 'px))';
     });
-    window.addEventListener('mouseup', function() {
+    window.addEventListener('mouseup', function(e) {
         if (!mDown) return;
         mDown = false;
         track.style.transition = '';
-        if (Math.abs(mDx) > 50) go(idx + (mDx < 0 ? 1 : -1));
+        if (Math.abs(mDx) > SWIPE_THRESHOLD) go(idx + (mDx < 0 ? 1 : -1));
         else go(idx);
         mDx = 0;
     });
 
-    // Dot click
+    // After a swipe, suppress the synthetic click that follows mouseup.
+    // This prevents the feed card's onclick (which opens the drawer) from firing.
+    root.addEventListener('click', function(e) {
+        if (didSwipe) {
+            e.stopPropagation();
+            e.preventDefault();
+            didSwipe = false;
+        } else if (opts.onclick) {
+            // No swipe = treat as tap. Run the configured onclick (e.g. open lightbox).
+            // We can't invoke a string-based handler easily; use Function constructor.
+            try { new Function('event', opts.onclick).call(root, e); } catch (err) { console.warn(err); }
+        }
+    });
+
+    // Dot click — always stop propagation, never opens drawer
     dots.forEach(function(d, i) {
-        d.addEventListener('click', function(e) { e.stopPropagation(); go(i); });
+        d.addEventListener('click', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            go(i);
+        });
     });
 }
 
@@ -4266,10 +4299,18 @@ function createCard(item, index) {
     card.onclick = () => showDrawer(index);
 
     // ── Photo / placeholder ──
+    // Multi-photo: render carousel for 2+ photos, plain img for 1, placeholder for 0.
     const mediaSVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>';
-    const mediaHtml = item.photo_url
-        ? `<img class="hf-card-img" src="${escapeHtml(item.photo_url)}" alt="" loading="lazy">`
-        : `<div class="hf-card-placeholder">${mediaSVG}</div>`;
+    const _cardPhotos = getItemPhotos(item);
+    let mediaHtml;
+    if (_cardPhotos.length >= 2) {
+        // Carousel inherits .hf-card-media-wrap height; mark .carousel--inline-card to skip size hacks
+        mediaHtml = renderPhotoCarousel(_cardPhotos, { imgClass: 'hf-card-img', inlineCard: true });
+    } else if (_cardPhotos.length === 1) {
+        mediaHtml = `<img class="hf-card-img" src="${escapeHtml(_cardPhotos[0])}" alt="" loading="lazy">`;
+    } else {
+        mediaHtml = `<div class="hf-card-placeholder">${mediaSVG}</div>`;
+    }
 
     // ── Distance chip ──
     const distText = item.distance_km
