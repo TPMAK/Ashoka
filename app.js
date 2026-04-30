@@ -9182,13 +9182,11 @@ function dismissEmptyFriends() {
         const titleField = document.getElementById('title');
         if (titleField) titleField.value = '';
 
-        // Read + compress photo (kept inline so we can shape the payload here)
-        let photoBase64 = null;
-        const _pgEl = document.getElementById('photoGallery');
-        const _pcEl = document.getElementById('photoCamera');
-        const photoFile = (_pgEl && _pgEl.files && _pgEl.files[0]) || (_pcEl && _pcEl.files && _pcEl.files[0]) || null;
-        if (photoFile) {
-            photoBase64 = await new Promise((resolve) => {
+        // Read + compress all selected photos (multi-photo, up to MAX_PHOTOS).
+        // _selectedPhotos[] is the source of truth for the new multi-photo picker.
+        // Falls back to single-file lookup for any legacy code path.
+        async function _compressOne(file) {
+            return new Promise((resolve) => {
                 const reader = new FileReader();
                 reader.onload = (ev) => {
                     const img = new Image();
@@ -9202,14 +9200,33 @@ function dismissEmptyFriends() {
                         const canvas = document.createElement('canvas');
                         canvas.width = w; canvas.height = h;
                         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
-                        resolve(dataUrl.split(',')[1]);
+                        resolve(canvas.toDataURL('image/jpeg', 0.82).split(',')[1]);
                     };
                     img.src = ev.target.result;
                 };
-                reader.readAsDataURL(photoFile);
+                reader.readAsDataURL(file);
             });
         }
+
+        let photosBase64 = [];
+        let photoFilenames = [];
+        if (Array.isArray(_selectedPhotos) && _selectedPhotos.length > 0) {
+            const cap = (typeof MAX_PHOTOS !== 'undefined') ? MAX_PHOTOS : 3;
+            for (const f of _selectedPhotos.slice(0, cap)) {
+                photosBase64.push(await _compressOne(f));
+                photoFilenames.push(f.name);
+            }
+        } else {
+            // Legacy fallback: single file straight from the input
+            const _pgEl = document.getElementById('photoGallery');
+            const _pcEl = document.getElementById('photoCamera');
+            const fb = (_pgEl && _pgEl.files && _pgEl.files[0]) || (_pcEl && _pcEl.files && _pcEl.files[0]) || null;
+            if (fb) {
+                photosBase64 = [await _compressOne(fb)];
+                photoFilenames = [fb.name];
+            }
+        }
+        const photoBase64 = photosBase64[0] || null;  // legacy mirror for compatibility below
 
         const visibilityVal = document.getElementById('visibilityValue')?.value || 'private';
         const ogImageUrlEl = document.getElementById('ogImageUrl');
@@ -9219,8 +9236,11 @@ function dismissEmptyFriends() {
             capture_mode: mode,                                  // NEW
             personalNote: note,                                  // required
             description: note,                                   // back-compat for n8n nodes still reading description
+            // Multi-photo: array form (preferred) + legacy single-photo mirror.
+            photos: photosBase64,
+            photoFilenames: photoFilenames,
             photo: photoBase64,
-            photoFilename: photoFile ? photoFile.name : null,
+            photoFilename: photoFilenames[0] || null,
             url: (document.getElementById('url')?.value || '').trim() || null,
             ogImageUrl: (!photoBase64 && _photoSrcGlobal === 'og') ? (ogImageUrlEl?.value || null) : null,
             address: addrVal || null,
