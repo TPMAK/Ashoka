@@ -647,6 +647,18 @@ document.addEventListener('input', (e) => {
     }
 });
 
+// Delegated handler for all [data-action="open-url"] buttons (Directions,
+// Website, etc.). Replaces fragile inline onclick handlers that broke when
+// URLs/addresses contained apostrophes or other quote chars.
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action="open-url"]');
+    if (!btn) return;
+    const targetUrl = btn.dataset.url;
+    if (!targetUrl) return;
+    e.stopPropagation(); // prevent the drawer-hero from re-triggering, etc.
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
+});
+
 // Check auth on page load
 checkAuth();
 
@@ -2740,6 +2752,14 @@ const LOAD_INCREMENT = 12;
 let filters = { categories: [], users: [], distances: [], endorsed: false, searchText: '' };
 let isFirstMessage = true;
 let currentResults = [];
+
+// Save Inheritance lookup: item_id → first-hop friend name who saved it.
+// Populated by loadDiscoveries() from the get_friend_saved_item_ids RPC.
+// Read by sendMessage() to derive "Via [Name]" labels for search results.
+// IMPORTANT: only contains items where the saver is a DIRECT friend of the
+// current user — never second-hop. Backend RPC enforces this. Do not write
+// to this cache from any other code path without preserving that invariant.
+let saverByItemIdCache = {};
 let currentSessionId = generateSessionId();
 let sessionMessages = [];
 
@@ -4194,6 +4214,9 @@ async function loadDiscoveries() {
                     savedRows.forEach(r => {
                         if (!saverByItemId[r.item_id]) saverByItemId[r.item_id] = r.saver_name || null;
                     });
+                    // Promote to module-level cache so the search path can reuse
+                    // the same first-hop friend lookup (avoids a second RPC call).
+                    saverByItemIdCache = saverByItemId;
                     const inheritedIds = savedRows
                         .map(r => r.item_id)
                         .filter(id => !seenIds.has(id));
@@ -5274,18 +5297,28 @@ function openItemDrawer(item) {
     if (url || item.address) {
         const itemType = (item.type || item.category || '').toLowerCase();
         const isPlace = itemType === 'place' || (!itemType && item.address);
+        const mapsUrl = item.address
+            ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.address)}`
+            : null;
+        // SVG icons extracted to constants for readability
+        const PIN_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>';
+        const PIN_SVG_SM = PIN_SVG.replace(/width="15" height="15"/, 'width="14" height="14"').replace(/stroke-width="2.2"/, 'stroke-width="2"');
+        const LINK_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
+        const LINK_SVG_SM = LINK_SVG.replace(/width="15" height="15"/, 'width="14" height="14"').replace(/stroke-width="2.2"/, 'stroke-width="2"');
         html += '<div class="drawer-quick-actions"><div class="drawer-action-btns">';
         if (isPlace) {
-            if (item.address) {
-                const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.address)}`;
-                html += `<button class="drawer-btn-primary" onclick="window.open('${mapsUrl}', '_blank')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg> Directions</button>`;
+            if (mapsUrl) {
+                html += `<button class="drawer-btn-primary" data-action="open-url" data-url="${escapeHtml(mapsUrl)}">${PIN_SVG} Directions</button>`;
             }
-            if (url) html += `<button class="drawer-btn-secondary" onclick="window.open('${escapeHtml(url)}', '_blank')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Website</button>`;
+            if (url) {
+                html += `<button class="drawer-btn-secondary" data-action="open-url" data-url="${escapeHtml(url)}">${LINK_SVG_SM} Website</button>`;
+            }
         } else {
-            if (url) html += `<button class="drawer-btn-primary" onclick="window.open('${escapeHtml(url)}', '_blank')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Website</button>`;
-            if (item.address) {
-                const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.address)}`;
-                html += `<button class="drawer-btn-secondary" onclick="window.open('${mapsUrl}', '_blank')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg> Directions</button>`;
+            if (url) {
+                html += `<button class="drawer-btn-primary" data-action="open-url" data-url="${escapeHtml(url)}">${LINK_SVG} Website</button>`;
+            }
+            if (mapsUrl) {
+                html += `<button class="drawer-btn-secondary" data-action="open-url" data-url="${escapeHtml(mapsUrl)}">${PIN_SVG_SM} Directions</button>`;
             }
         }
         html += '</div></div>';
@@ -6158,10 +6191,16 @@ async function sendMessage(text) {
             });
 
             // ── Anonymise extended circle items ──────────────────
-            // Sets _trust_level, clears identity fields, hides comments
+            // Sets _trust_level, clears identity fields, hides comments.
+            // For Save Inheritance items, look up the first-hop friend name
+            // from saverByItemIdCache so the card can render "Via [Name]".
+            // Defensive: only surface a name if it came from the cache (which
+            // is populated from a RPC that filters to direct friends only).
+            // If no entry exists, fall back to anonymous "Extended circle".
             currentResults = currentResults.map(r => {
                 if (r.trust_level === 'extended_circle' || r._trust_level === TRUST.EXTENDED) {
-                    return anonymiseForExtendedCircle(r);
+                    const viaName = saverByItemIdCache[r.id] || null;
+                    return anonymiseForExtendedCircle(r, viaName);
                 }
                 return r;
             });
@@ -6205,8 +6244,11 @@ async function sendMessage(text) {
                 const snippetLabel = isExt
                     ? 'Why this matches'
                     : (canSeeNote ? 'Friend says' : 'Why this matches');
+                const viaName = r._via_friend_name || null;
                 const byLine = isExt
-                    ? '<span class="meta-tag meta-added-by extended-circle-badge">🔵 Extended circle</span>'
+                    ? (viaName
+                        ? `<span class="meta-tag meta-added-by">Via ${escapeHtml(viaName)}</span>`
+                        : '<span class="meta-tag meta-added-by extended-circle-badge">Extended circle</span>')
                     : (r.added_by_name ? `<span class="meta-tag meta-added-by">by ${escapeHtml(r.added_by_name)}</span>` : '');
                 const saveLabel = getCircleSaveCount(r);
 
@@ -6261,7 +6303,9 @@ async function sendMessage(text) {
                 // ── Adder avatar + name row (same style as Discover card) ──
                 let adderRow = '';
                 if (isExt) {
-                    adderRow = `<div class="cc-adder-row"><span class="cc-adder-name">🔵 Extended circle</span></div>`;
+                    const viaName = r._via_friend_name || null;
+                    const label = viaName ? `Via ${escapeHtml(viaName)}` : 'Extended circle';
+                    adderRow = `<div class="cc-adder-row"><span class="cc-adder-name">${label}</span></div>`;
                 } else if (r.added_by_name) {
                     const initial = r.added_by_name.charAt(0).toUpperCase();
                     const avatarCol = typeof strColour === 'function' ? strColour(r.added_by_name) : '#7B2D45';
