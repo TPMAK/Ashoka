@@ -6205,8 +6205,11 @@ async function sendMessage(text) {
                 const snippetLabel = isExt
                     ? 'Why this matches'
                     : (canSeeNote ? 'Friend says' : 'Why this matches');
+                const viaName = r._via_friend_name || null;
                 const byLine = isExt
-                    ? '<span class="meta-tag meta-added-by extended-circle-badge">🔵 Extended circle</span>'
+                    ? (viaName
+                        ? `<span class="meta-tag meta-added-by">Via ${escapeHtml(viaName)}</span>`
+                        : '<span class="meta-tag meta-added-by extended-circle-badge">Extended circle</span>')
                     : (r.added_by_name ? `<span class="meta-tag meta-added-by">by ${escapeHtml(r.added_by_name)}</span>` : '');
                 const saveLabel = getCircleSaveCount(r);
 
@@ -6261,7 +6264,9 @@ async function sendMessage(text) {
                 // ── Adder avatar + name row (same style as Discover card) ──
                 let adderRow = '';
                 if (isExt) {
-                    adderRow = `<div class="cc-adder-row"><span class="cc-adder-name">🔵 Extended circle</span></div>`;
+                    const viaName = r._via_friend_name || null;
+                    const label = viaName ? `Via ${escapeHtml(viaName)}` : 'Extended circle';
+                    adderRow = `<div class="cc-adder-row"><span class="cc-adder-name">${label}</span></div>`;
                 } else if (r.added_by_name) {
                     const initial = r.added_by_name.charAt(0).toUpperCase();
                     const avatarCol = typeof strColour === 'function' ? strColour(r.added_by_name) : '#7B2D45';
