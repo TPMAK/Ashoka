@@ -647,6 +647,18 @@ document.addEventListener('input', (e) => {
     }
 });
 
+// Delegated handler for all [data-action="open-url"] buttons (Directions,
+// Website, etc.). Replaces fragile inline onclick handlers that broke when
+// URLs/addresses contained apostrophes or other quote chars.
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action="open-url"]');
+    if (!btn) return;
+    const targetUrl = btn.dataset.url;
+    if (!targetUrl) return;
+    e.stopPropagation(); // prevent the drawer-hero from re-triggering, etc.
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
+});
+
 // Check auth on page load
 checkAuth();
 
@@ -5285,18 +5297,28 @@ function openItemDrawer(item) {
     if (url || item.address) {
         const itemType = (item.type || item.category || '').toLowerCase();
         const isPlace = itemType === 'place' || (!itemType && item.address);
+        const mapsUrl = item.address
+            ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.address)}`
+            : null;
+        // SVG icons extracted to constants for readability
+        const PIN_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>';
+        const PIN_SVG_SM = PIN_SVG.replace(/width="15" height="15"/, 'width="14" height="14"').replace(/stroke-width="2.2"/, 'stroke-width="2"');
+        const LINK_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
+        const LINK_SVG_SM = LINK_SVG.replace(/width="15" height="15"/, 'width="14" height="14"').replace(/stroke-width="2.2"/, 'stroke-width="2"');
         html += '<div class="drawer-quick-actions"><div class="drawer-action-btns">';
         if (isPlace) {
-            if (item.address) {
-                const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.address)}`;
-                html += `<button class="drawer-btn-primary" onclick="window.open('${mapsUrl}', '_blank')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg> Directions</button>`;
+            if (mapsUrl) {
+                html += `<button class="drawer-btn-primary" data-action="open-url" data-url="${escapeHtml(mapsUrl)}">${PIN_SVG} Directions</button>`;
             }
-            if (url) html += `<button class="drawer-btn-secondary" onclick="window.open('${escapeHtml(url)}', '_blank')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Website</button>`;
+            if (url) {
+                html += `<button class="drawer-btn-secondary" data-action="open-url" data-url="${escapeHtml(url)}">${LINK_SVG_SM} Website</button>`;
+            }
         } else {
-            if (url) html += `<button class="drawer-btn-primary" onclick="window.open('${escapeHtml(url)}', '_blank')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Website</button>`;
-            if (item.address) {
-                const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.address)}`;
-                html += `<button class="drawer-btn-secondary" onclick="window.open('${mapsUrl}', '_blank')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg> Directions</button>`;
+            if (url) {
+                html += `<button class="drawer-btn-primary" data-action="open-url" data-url="${escapeHtml(url)}">${LINK_SVG} Website</button>`;
+            }
+            if (mapsUrl) {
+                html += `<button class="drawer-btn-secondary" data-action="open-url" data-url="${escapeHtml(mapsUrl)}">${PIN_SVG_SM} Directions</button>`;
             }
         }
         html += '</div></div>';
