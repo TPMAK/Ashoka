@@ -2740,6 +2740,14 @@ const LOAD_INCREMENT = 12;
 let filters = { categories: [], users: [], distances: [], endorsed: false, searchText: '' };
 let isFirstMessage = true;
 let currentResults = [];
+
+// Save Inheritance lookup: item_id → first-hop friend name who saved it.
+// Populated by loadDiscoveries() from the get_friend_saved_item_ids RPC.
+// Read by sendMessage() to derive "Via [Name]" labels for search results.
+// IMPORTANT: only contains items where the saver is a DIRECT friend of the
+// current user — never second-hop. Backend RPC enforces this. Do not write
+// to this cache from any other code path without preserving that invariant.
+let saverByItemIdCache = {};
 let currentSessionId = generateSessionId();
 let sessionMessages = [];
 
@@ -4194,6 +4202,9 @@ async function loadDiscoveries() {
                     savedRows.forEach(r => {
                         if (!saverByItemId[r.item_id]) saverByItemId[r.item_id] = r.saver_name || null;
                     });
+                    // Promote to module-level cache so the search path can reuse
+                    // the same first-hop friend lookup (avoids a second RPC call).
+                    saverByItemIdCache = saverByItemId;
                     const inheritedIds = savedRows
                         .map(r => r.item_id)
                         .filter(id => !seenIds.has(id));
@@ -6158,10 +6169,16 @@ async function sendMessage(text) {
             });
 
             // ── Anonymise extended circle items ──────────────────
-            // Sets _trust_level, clears identity fields, hides comments
+            // Sets _trust_level, clears identity fields, hides comments.
+            // For Save Inheritance items, look up the first-hop friend name
+            // from saverByItemIdCache so the card can render "Via [Name]".
+            // Defensive: only surface a name if it came from the cache (which
+            // is populated from a RPC that filters to direct friends only).
+            // If no entry exists, fall back to anonymous "Extended circle".
             currentResults = currentResults.map(r => {
                 if (r.trust_level === 'extended_circle' || r._trust_level === TRUST.EXTENDED) {
-                    return anonymiseForExtendedCircle(r);
+                    const viaName = saverByItemIdCache[r.id] || null;
+                    return anonymiseForExtendedCircle(r, viaName);
                 }
                 return r;
             });
