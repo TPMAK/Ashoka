@@ -6,9 +6,9 @@
     <title>Odin</title>
 
     <!-- ── Favicon & PWA icons ── -->
-    <link rel="icon" type="image/svg+xml" href="favicon.svg">
-    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180.png">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=2">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=2">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180.png?v=2">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#FAF6EE">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2810,10 +2810,36 @@
         <div id="onbStep1" class="onb-screen">
             <div class="onb-screen-inner">
                 <div class="onb-logo-mark">
-                    <svg width="36" height="36" viewBox="0 0 36 36" fill="none"><circle cx="18" cy="18" r="18" fill="#7B2D45"/><text x="18" y="24" text-anchor="middle" font-family="DM Serif Display, serif" font-size="20" fill="#FAF6EE">O</text></svg>
+                    <img src="icon-192.png" alt="Odin" width="56" height="56" style="border-radius:14px; display:block;">
                 </div>
                 <h1 class="onb-heading">Welcome to <span class="onb-brand">Odin</span>, <span id="onbUserName">friend</span>.</h1>
                 <p class="onb-body">This is your private discovery network — recommendations from people you actually trust.<br><br>No ads. No strangers. Just your circle.</p>
+
+                <!-- ── PWA install section (only renders on mobile, non-installed) ── -->
+                <div id="onbInstallSection" class="onb-install" style="display:none;">
+                    <div class="onb-install-label">Install Odin</div>
+
+                    <!-- Android: programmatic install -->
+                    <button id="onbInstallAndroidBtn" class="onb-install-btn" type="button" style="display:none;" onclick="onbInstallApp()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <span>Add to Home Screen</span>
+                    </button>
+
+                    <!-- iOS Safari: manual instructions -->
+                    <div id="onbInstallIOSSafari" class="onb-install-msg" style="display:none;">
+                        <span>Tap the Share icon</span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                        <span>at the bottom, then choose "Add to Home Screen".</span>
+                    </div>
+
+                    <!-- iOS Chrome / Firefox / Edge: must use Safari -->
+                    <div id="onbInstallIOSOther" class="onb-install-msg" style="display:none;">
+                        <span>To install Odin, open this page in Safari, then tap Share</span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                        <span>and "Add to Home Screen".</span>
+                    </div>
+                </div>
+
                 <button class="onb-btn-primary" onclick="onbGoStep(2)">Let's go →</button>
                 <div class="onb-dots">
                     <span class="onb-dot onb-dot-active"></span>
@@ -5156,46 +5182,134 @@
         <div id="coachMarkText"></div>
     </div>
 
-    <!-- ── PWA: Install prompt (Android/Chrome) + Service Worker ── -->
+    <!-- ── PWA: Install prompt (Android/Chrome) + iOS instructions + Service Worker ── -->
     <script>
       (function() {
+        // ── Shared platform detection ──
+        var ua = navigator.userAgent;
+        var isIOS = /iPhone|iPad|iPod/.test(ua);
+        var isIOSSafari = isIOS && /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
+        var isIOSOtherBrowser = isIOS && /CriOS|FxiOS|EdgiOS/.test(ua);
+        var isAndroid = /Android/i.test(ua);
+        var isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+                       || window.navigator.standalone === true;
+
+        // ── Shared deferred install prompt (Android/Chromium) ──
         var deferredPrompt = null;
-        var isAndroid = /android/i.test(navigator.userAgent);
-
-        // Only wire up on Android
-        if (!isAndroid) return;
-
-        var banner = document.getElementById('pwa-banner');
 
         window.addEventListener('beforeinstallprompt', function(e) {
           e.preventDefault();
           deferredPrompt = e;
-          // Show only if user hasn't already acted on it
-          if (!localStorage.getItem('pwaBannerDismissed')) {
-            banner.style.display = 'flex';
+
+          // Existing bottom banner (Android only, respects dismissal)
+          if (isAndroid && !isStandalone) {
+            var banner = document.getElementById('pwa-banner');
+            if (banner && !localStorage.getItem('pwaBannerDismissed')) {
+              banner.style.display = 'flex';
+            }
           }
+
+          // Welcome-modal section: reveal Android button if section is on screen
+          window.refreshOnbInstallSection && window.refreshOnbInstallSection();
         });
 
-        // Hide banner once app is actually installed
+        // Hide both banner + welcome section once app is actually installed
         window.addEventListener('appinstalled', function() {
           localStorage.setItem('pwaBannerDismissed', 'true');
-          banner.style.display = 'none';
+          var banner = document.getElementById('pwa-banner');
+          if (banner) banner.style.display = 'none';
+          var section = document.getElementById('onbInstallSection');
+          if (section) section.style.display = 'none';
+          deferredPrompt = null;
         });
 
+        // ── Bottom-banner controls (Android only) ──
         window.installPWA = function() {
           if (!deferredPrompt) return;
           deferredPrompt.prompt();
           deferredPrompt.userChoice.then(function() {
             localStorage.setItem('pwaBannerDismissed', 'true');
-            banner.style.display = 'none';
+            var banner = document.getElementById('pwa-banner');
+            if (banner) banner.style.display = 'none';
             deferredPrompt = null;
           });
         };
 
         window.dismissPWABanner = function() {
           localStorage.setItem('pwaBannerDismissed', 'true');
-          banner.style.display = 'none';
+          var banner = document.getElementById('pwa-banner');
+          if (banner) banner.style.display = 'none';
         };
+
+        // ══════════════════════════════════════════════════════════
+        // ── Welcome-modal install section (onbStep1) ──
+        // Three states: Android button, iOS Safari instructions,
+        // iOS-other-browser message. Hidden on desktop or standalone.
+        // ══════════════════════════════════════════════════════════
+        function setupOnbInstallSection() {
+          var section = document.getElementById('onbInstallSection');
+          if (!section) return;
+
+          // Hide entirely if already installed, or on desktop, or
+          // if user previously installed (banner dismissed via install).
+          if (isStandalone || (!isIOS && !isAndroid)) {
+            section.style.display = 'none';
+            return;
+          }
+
+          var androidBtn = document.getElementById('onbInstallAndroidBtn');
+          var iosSafari  = document.getElementById('onbInstallIOSSafari');
+          var iosOther   = document.getElementById('onbInstallIOSOther');
+          if (androidBtn) androidBtn.style.display = 'none';
+          if (iosSafari)  iosSafari.style.display  = 'none';
+          if (iosOther)   iosOther.style.display   = 'none';
+
+          if (isAndroid) {
+            // Show button only when prompt is available; otherwise fall back
+            // to iOS-Safari–style instructions (per spec).
+            if (deferredPrompt) {
+              section.style.display = 'flex';
+              if (androidBtn) androidBtn.style.display = 'inline-flex';
+            } else {
+              // Wait briefly for beforeinstallprompt; fall back if it doesn't fire.
+              section.style.display = 'flex';
+              if (iosSafari) iosSafari.style.display = 'inline-flex';
+              setTimeout(function() {
+                if (deferredPrompt) {
+                  if (iosSafari)  iosSafari.style.display  = 'none';
+                  if (androidBtn) androidBtn.style.display = 'inline-flex';
+                }
+              }, 1500);
+            }
+          } else if (isIOSSafari) {
+            section.style.display = 'flex';
+            if (iosSafari) iosSafari.style.display = 'inline-flex';
+          } else if (isIOSOtherBrowser) {
+            section.style.display = 'flex';
+            if (iosOther) iosOther.style.display = 'inline-flex';
+          }
+        }
+
+        // Expose so beforeinstallprompt + onbGoStep can refresh the section
+        window.refreshOnbInstallSection = setupOnbInstallSection;
+
+        // Android install handler (welcome section)
+        window.onbInstallApp = function() {
+          if (!deferredPrompt) return;
+          deferredPrompt.prompt();
+          deferredPrompt.userChoice.then(function() {
+            var section = document.getElementById('onbInstallSection');
+            if (section) section.style.display = 'none';
+            deferredPrompt = null;
+          });
+        };
+
+        // Run once on load (in case overlay is visible immediately)
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', setupOnbInstallSection);
+        } else {
+          setupOnbInstallSection();
+        }
       })();
 
       // ── Service Worker registration ──

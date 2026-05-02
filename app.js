@@ -8690,6 +8690,11 @@ async function onbGoStep(step) {
         const el = document.getElementById(`onbStep${n}`);
         if (el) el.style.display = n === step ? 'flex' : 'none';
     });
+
+    // Refresh PWA install section visibility when welcome step shows
+    if (step === 1 && typeof window.refreshOnbInstallSection === 'function') {
+        window.refreshOnbInstallSection();
+    }
 }
 
 async function onbAcceptInvite() {
