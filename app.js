@@ -8468,75 +8468,24 @@ let _onbInviterData = null; // { id, display_name }
 async function _processInviteTokenSilently(token) {
     if (!currentUser || !token) return;
     try {
-        // Use SECURITY DEFINER RPC — bypasses RLS so any authenticated user
-        // can look up the inviter even if they have no friends yet.
-        const inviter = await _lookupInviterProfile(token);
+        const { data, error } = await supabaseClient.rpc('accept_invite_and_connect', {
+            p_token: token,
+            p_new_user_id: currentUser.id
+        });
 
-        if (!inviter) {
-            // Token invalid, already used, or own link — clear storage
-            sessionStorage.removeItem('odin_invite_token');
-            localStorage.removeItem('odin_invite_token');
-            return;
+        if (data?.ok === true) {
+            friendsCache = null;
+            await Promise.all([loadFriends(), loadDiscoveries()]);
+            showToast('Connected! Check your profile.', 4000);
+        } else if (data?.error === 'token_expired') {
+            showToast('That invite link has expired. Ask your friend for a fresh one.', 5000);
         }
-
-        const inv = { inviter_id: inviter.id };
-
-        // Check not already friends (accepted)
-        const alreadyFriends = friendsCache.some(f => f.out_user_id === inv.inviter_id);
-        if (alreadyFriends) {
-            sessionStorage.removeItem('odin_invite_token');
-            localStorage.removeItem('odin_invite_token');
-            return;
-        }
-
-        // Check not already a pending request in either direction
-        const alreadyPendingOut = outgoingFriendRequests.has(inv.inviter_id);
-        const alreadyPendingIn  = pendingFriendRequests.some(r => r.out_requester_id === inv.inviter_id);
-        if (alreadyPendingOut || alreadyPendingIn) {
-            sessionStorage.removeItem('odin_invite_token');
-            localStorage.removeItem('odin_invite_token');
-            return;
-        }
-
-        // Send pending friend request: current user → inviter
-        const { error: friendErr } = await supabaseClient
-            .from('friendships')
-            .insert({ requester_id: currentUser.id, receiver_id: inv.inviter_id, status: 'pending' });
-
-        if (!friendErr) {
-            // Notify the inviter
-            const senderName = currentProfile?.display_name || currentUser.email?.split('@')[0] || 'Someone';
-            const inviterName = inviter.display_name || 'them';
-
-            await supabaseClient.rpc('notify_friend_request', {
-                p_receiver_id: inv.inviter_id,
-                p_actor_id:    currentUser.id,
-                p_message:     `${senderName} accepted your invite and wants to connect on Odin.`
-            });
-
-            // Mark token used
-            await supabaseClient
-                .from('invitations')
-                .update({ used: true })
-                .eq('token', token);
-
-            // Refresh so the profile page shows the new outgoing request immediately
-            await Promise.all([loadPendingFriendRequests(), loadOutgoingFriendRequests()]);
-
-            // Let the user know a friend request was sent on their behalf
-            showToast(`Friend request sent to ${inviterName}! Check your profile for updates.`, 5000);
-        } else if (friendErr.code === '23505') {
-            // Duplicate — request already exists, just mark token used cleanly
-            await supabaseClient
-                .from('invitations')
-                .update({ used: true })
-                .eq('token', token);
-        }
+        // Other errors fail silently — non-critical for returning users
 
         sessionStorage.removeItem('odin_invite_token');
         localStorage.removeItem('odin_invite_token');
     } catch (err) {
-        console.warn('Silent invite processing failed (non-critical):', err);
+        console.warn('Silent invite processing failed:', err);
     }
 }
 
@@ -8566,6 +8515,27 @@ function _populateStep2UI(inviter) {
     if (nameSpan)   nameSpan.textContent   = inviter.display_name || 'Someone';
     if (initSpan)   initSpan.textContent   = (inviter.display_name || '?')[0].toUpperCase();
     if (connectBtn) connectBtn.textContent = `Connect with ${(inviter.display_name || 'them').split(' ')[0]} →`;
+}
+
+// ── Invite helper: replace Step 2 with an "expired" message ──
+// Called when accept_invite_and_connect returns token_expired / token_used / invalid_token.
+function _showInviteExpiredMessage() {
+    const step2 = document.getElementById('onbStep2');
+    if (!step2) return;
+
+    step2.innerHTML = `
+        <div class="onb-expired" style="text-align:center; padding:32px;">
+            <h2 style="margin-bottom:16px;">This invite link has expired</h2>
+            <p style="margin-bottom:24px; color:#666;">
+                Invite links are valid for 3 days. Please ask your friend to send you a fresh link.
+            </p>
+            <button onclick="onbComplete()" class="onb-btn-primary">Got it</button>
+        </div>
+    `;
+
+    _onbInviteToken = null;
+    sessionStorage.removeItem('odin_invite_token');
+    localStorage.removeItem('odin_invite_token');
 }
 
 // ── Coach Marks ──
@@ -8704,70 +8674,46 @@ async function onbAcceptInvite() {
     }
 
     const btn = document.getElementById('onbConnectBtn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Sending request...'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Connecting...'; }
 
     try {
-        // Send a PENDING friend request to the inviter.
-        // Status = 'pending' so the inviter sees it in their Requests tab
-        // and gets a notification — matching the normal friendship flow.
-        // new user = requester, inviter = receiver
-        const { error: friendErr } = await supabaseClient
-            .from('friendships')
-            .insert({
-                requester_id: currentUser.id,
-                receiver_id: _onbInviterData.id,
-                status: 'pending'
-            });
+        const { data, error } = await supabaseClient.rpc('accept_invite_and_connect', {
+            p_token: _onbInviteToken,
+            p_new_user_id: currentUser.id
+        });
 
-        const succeeded = !friendErr || friendErr.code === '23505'; // success or already exists
+        if (data?.ok === true) {
+            sessionStorage.removeItem('odin_invite_token');
+            localStorage.removeItem('odin_invite_token');
 
-        if (!friendErr) {
-            // Notify the inviter via the existing secure RPC
-            const newUserName = currentProfile?.display_name ||
-                                currentUser?.user_metadata?.full_name ||
-                                currentUser?.email?.split('@')[0] || 'Someone';
-            await supabaseClient.rpc('notify_friend_request', {
-                p_receiver_id: _onbInviterData.id,
-                p_actor_id:    currentUser.id,
-                p_message:     `${newUserName} accepted your invite and wants to connect on Odin.`
-            });
-        } else if (!succeeded) {
-            console.warn('Friend request insert failed:', friendErr);
+            // Bust friend cache so KB count and feed update immediately
+            friendsCache = null;
+            await Promise.all([loadFriends(), loadDiscoveries()]);
+
+            if (btn) btn.textContent = 'Connected ✓';
+
+            setTimeout(() => {
+                if (currentProfile && currentProfile.onboarding_completed_at) {
+                    onbComplete();
+                } else {
+                    onbGoStep(3);
+                }
+            }, 1000);
+            return;
         }
 
-        if (succeeded) {
-            // Mark invite token as used
-            if (_onbInviteToken) {
-                await supabaseClient
-                    .from('invitations')
-                    .update({ used: true })
-                    .eq('token', _onbInviteToken);
-                sessionStorage.removeItem('odin_invite_token');
-                localStorage.removeItem('odin_invite_token');
-            }
-
-            // Refresh pending requests so the profile page shows the new outgoing request
-            await Promise.all([loadPendingFriendRequests(), loadOutgoingFriendRequests()]);
-
-            if (btn) btn.textContent = 'Request sent ✓';
+        // Handle errors
+        const errCode = data?.error || error?.message || 'unknown';
+        if (errCode === 'token_expired' || errCode === 'token_used' || errCode === 'invalid_token') {
+            _showInviteExpiredMessage();
         } else {
-            if (btn) btn.textContent = 'Could not send — skip';
+            console.warn('accept_invite_and_connect failed:', errCode);
+            if (btn) btn.textContent = 'Could not connect — skip';
         }
     } catch (err) {
-        console.warn('Auto-connect on invite failed:', err);
-        if (btn) btn.textContent = 'Could not send — skip';
+        console.warn('Auto-connect failed:', err);
+        if (btn) btn.textContent = 'Could not connect — skip';
     }
-
-    // Short pause so user sees the confirmation, then move on.
-    // For returning users (onboarding already done) just close the overlay.
-    // For new users, advance to Step 3 (Add first item).
-    setTimeout(() => {
-        if (currentProfile && currentProfile.onboarding_completed_at) {
-            onbComplete(); // just close
-        } else {
-            onbGoStep(3);
-        }
-    }, 1000);
 }
 
 // Called by "Skip for now" on Step 2.
