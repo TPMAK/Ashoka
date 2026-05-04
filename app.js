@@ -8476,6 +8476,9 @@ async function _processInviteTokenSilently(token) {
         if (data?.ok === true) {
             friendsCache = null;
             await Promise.all([loadFriends(), loadDiscoveries()]);
+            // Repaint count-driven views so the user doesn't have to reload.
+            try { if (typeof loadHomeStats === 'function')   await loadHomeStats(); }   catch (e) { console.warn('loadHomeStats refresh failed:', e); }
+            try { if (typeof loadProfilePage === 'function') await loadProfilePage(); } catch (e) { console.warn('loadProfilePage refresh failed:', e); }
             showToast('Connected! Check your profile.', 4000);
         } else if (data?.error === 'token_expired') {
             showToast('That invite link has expired. Ask your friend for a fresh one.', 5000);
@@ -8689,6 +8692,11 @@ async function onbAcceptInvite() {
             // Bust friend cache so KB count and feed update immediately
             friendsCache = null;
             await Promise.all([loadFriends(), loadDiscoveries()]);
+
+            // Repaint anything that displays friend-derived counts so the UI
+            // updates without needing a manual page reload.
+            try { if (typeof loadHomeStats === 'function')   await loadHomeStats(); }   catch (e) { console.warn('loadHomeStats refresh failed:', e); }
+            try { if (typeof loadProfilePage === 'function') await loadProfilePage(); } catch (e) { console.warn('loadProfilePage refresh failed:', e); }
 
             if (btn) btn.textContent = 'Connected ✓';
 
