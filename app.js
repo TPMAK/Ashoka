@@ -1975,9 +1975,27 @@ async function loadNotesForItem(itemId) {
     }
 }
 
-function renderNotesSection(itemId, notes, trustLevel) {
-    // Extended circle: comments are hidden — identity must not travel more than one hop
-    if (trustLevel === TRUST.EXTENDED) {
+// Visibility rule for comments: a viewer sees comments authored by themselves
+// OR by someone in their direct-friends list. Comments from non-friends are
+// noise and never surface — same rule applies whether the viewer is the item
+// owner, a direct friend, or a Save Inheritance viewer.
+//
+// Recomputed every render against the current friendsCache, so an unfriended
+// person's old comments disappear automatically.
+function filterNotesToDirectFriends(notes) {
+    if (!Array.isArray(notes) || notes.length === 0) return [];
+    const friendIdSet = new Set((friendsCache || []).map(f => f.out_user_id));
+    if (currentUser) friendIdSet.add(currentUser.id); // viewer's own comments always visible
+    return notes.filter(n => n.out_user_id && friendIdSet.has(n.out_user_id));
+}
+
+function renderNotesSection(itemId, notes, trustLevel, opts) {
+    opts = opts || {};
+    // True Extended Circle (FoF, NOT Save Inheritance): comments are hidden —
+    // identity must not travel more than one hop.
+    // Save Inheritance: caller has already filtered notes to direct friends of
+    // the viewer, so we render normally.
+    if (trustLevel === TRUST.EXTENDED && !opts.isSaveInheritance) {
         return `<div class="community-notes community-notes--hidden" id="communityNotes">
             <div class="extended-circle-notice">
                 💬 Comments are only visible between direct friends.
@@ -2005,6 +2023,8 @@ function renderNotesSection(itemId, notes, trustLevel) {
         </div>`;
     }).join('');
 
+    // Filtered count: notes is already filtered to viewer's direct-friend
+    // circle, so length here is the visible count (not the raw DB count).
     const commentCount = notes.length;
     const commentLabel = commentCount > 0 ? `Comments · ${commentCount}` : 'Comments';
 
@@ -2060,9 +2080,10 @@ async function submitNote(itemId) {
             return;
         }
 
-        // Clear input and reload notes
+        // Clear input and reload notes — apply universal direct-friend filter
         input.value = '';
-        const notes = await loadNotesForItem(itemId);
+        const rawNotes = await loadNotesForItem(itemId);
+        const notes = filterNotesToDirectFriends(rawNotes);
         const notesList = document.getElementById('notesList');
         if (notesList) {
             notesList.innerHTML = notes.map(n => {
@@ -2083,6 +2104,9 @@ async function submitNote(itemId) {
                 </div>`;
             }).join('') || '<div class="notes-empty">No notes yet. Be the first to share!</div>';
         }
+        // Also update the "Comments · N" badge to reflect the filtered count
+        const _label = document.querySelector('.community-notes-label');
+        if (_label) _label.textContent = notes.length > 0 ? `Comments · ${notes.length}` : 'Comments';
     } catch (err) {
         console.error('Error in submitNote:', err);
     }
@@ -2100,8 +2124,9 @@ async function deleteNote(noteId, itemId, event) {
             .eq('user_id', currentUser.id);
 
         if (!error) {
-            // Reload notes
-            const notes = await loadNotesForItem(itemId);
+            // Reload notes — apply universal direct-friend filter
+            const rawNotes = await loadNotesForItem(itemId);
+            const notes = filterNotesToDirectFriends(rawNotes);
             const notesList = document.getElementById('notesList');
             if (notesList) {
                 notesList.innerHTML = notes.map(n => {
@@ -2122,6 +2147,9 @@ async function deleteNote(noteId, itemId, event) {
                     </div>`;
                 }).join('') || '<div class="notes-empty">No notes yet. Be the first to share!</div>';
             }
+            // Update filtered count badge
+            const _label = document.querySelector('.community-notes-label');
+            if (_label) _label.textContent = notes.length > 0 ? `Comments · ${notes.length}` : 'Comments';
         }
     } catch (err) {
         console.error('Error deleting note:', err);
@@ -4142,21 +4170,37 @@ const TRUST = {
 // viaFriendName: the direct friend who saved the item (Save Inheritance only).
 //   For true FOF (trust_connections path) this is null — no name shown.
 function anonymiseForExtendedCircle(item, viaFriendName) {
-    return Object.assign({}, item, {
+    // Save Inheritance (1-hop via a direct friend's save) preserves the
+    // original item's *content* — only identity is anonymised. The personal
+    // note is content, so it must travel with the item.
+    //
+    // True Extended Circle (FoF via trust_connections, viaFriendName falsy)
+    // strips the personal note and hides comments — identity *and* private
+    // commentary should not leak two hops out.
+    const isSaveInheritance = !!viaFriendName;
+
+    const overrides = {
         _trust_level: TRUST.EXTENDED,
         added_by:      null,
         added_by_name: 'Someone in your circle',
         // _via_friend_name: name of the direct friend whose save surfaced this item.
         // Used to render "Via [Name]" on feed card and result card.
         _via_friend_name: viaFriendName || null,
-        // Wipe any personal note stored in metadata or top-level field
-        personal_note: null,
-        metadata: item.metadata
+    };
+
+    if (!isSaveInheritance) {
+        // True FoF: wipe any personal note stored in metadata or top-level field
+        overrides.personal_note = null;
+        overrides.metadata = item.metadata
             ? (() => { try { const m = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata; delete m.personal_note; return m; } catch(e) { return {}; } })()
-            : null,
+            : null;
         // Comments are hidden — flagged so the drawer can suppress them
-        _hide_comments: true,
-    });
+        overrides._hide_comments = true;
+    }
+    // For Save Inheritance: leave personal_note + metadata + comments intact.
+    // The drawer will further filter comments to direct friends of the viewer.
+
+    return Object.assign({}, item, overrides);
 }
 
 async function loadDiscoveries() {
@@ -4437,16 +4481,17 @@ function createCard(item, index) {
     // ── 2. The Word — 10-word truncated personal note (privacy-gated) ──
     // Friends see the note; extended circle sees a prompt to connect
     let wordHtml = '';
-    if (!isExtendedCircle && note) {
-        // Direct friend or owner — can see the note
+    if ((!isExtendedCircle || isSaveInheritance) && note) {
+        // Owner, direct friend, or Save Inheritance — note travels with the
+        // item (only identity is hidden). Show the truncated note.
         const words = note.trim().split(/\s+/);
         const truncated = words.slice(0, 10).join(' ') + (words.length > 10 ? '…' : '');
         wordHtml = `<div class="hf-card-word"><em>${escapeHtml(truncated)}</em></div>`;
-    } else if (isExtendedCircle) {
-        // Preserve existing privacy gate
+    } else if (isExtendedCircle && !isSaveInheritance) {
+        // True FoF — preserve privacy gate
         wordHtml = `<div class="hf-card-word hf-card-word--gated">Connect to see their story</div>`;
     }
-    // If no note at all and not extended circle, fall back silently (no word line shown)
+    // If no note at all (and not blocked by FoF), fall back silently (no word line shown)
 
     // ── 3. Save count — popularity signal for Discover ──
     const cachedEndorse = endorsementsCache[item.id] || { count: 0, names: [], ids: [] };
@@ -5209,17 +5254,19 @@ function openItemDrawer(item) {
         html += `<div class="hf-card-chips-row drawer-chips">${drawerCatChip}${drawerDistChip}${drawerPrivateChip}</div>`;
     }
 
-    // Circle trust signal — shown below address for non-owner items
-    if (isSaveInheritance) {
-        html += `<div class="drawer-circle-signal"><span class="rc-via-dot">&#9679;</span> Via ${escapeHtml(item._via_friend_name)}</div>`;
-    } else if (isExtendedCircle) {
+    // Circle trust signal — shown below address for non-owner items.
+    // For Save Inheritance the "Via [Name]" attribution lives in the footer
+    // row (with avatar), so we don't repeat it here.
+    if (isExtendedCircle && !isSaveInheritance) {
         html += `<div class="drawer-circle-signal"><span class="rc-circle-dot">&#9679;</span> Someone in your circle</div>`;
     }
-    // isDirectFriend: attribution shown in footer — removed duplicate here
+    // isDirectFriend & isSaveInheritance: attribution shown in footer — no duplicate here
 
     // === Extract personal note ===
+    // Save Inheritance preserves the note (content travels, identity doesn't),
+    // so we extract for everyone EXCEPT true Extended Circle (FoF).
     let note = null;
-    if (!isExtendedCircle) {
+    if (!isExtendedCircle || isSaveInheritance) {
         if (item.PersonalNote) note = item.PersonalNote;
         else if (item.personal_note) note = item.personal_note;
         else if (item.metadata) {
@@ -5265,8 +5312,18 @@ function openItemDrawer(item) {
         }
         html += `<button class="drawer-translate-btn" data-state="original" onclick="event.stopPropagation(); toggleDrawerLang(this)">${_translateBtnLabel}</button>`;
 
+    } else if (isSaveInheritance && note) {
+        // Scenario 4a: Save Inheritance with personal note — show THE WORD.
+        // Identity is hidden ("Via [Name]"), but the note is content and travels.
+        html += `<div class="drawer-quote">
+            <div class="drawer-quote-label">THE WORD</div>
+            <div class="drawer-quote-text drawer-story-text">${escapeHtml(note)}</div>
+        </div>`;
+        html += `<button class="drawer-translate-btn" data-state="original" onclick="event.stopPropagation(); toggleDrawerLang(this)">${_translateBtnLabel}</button>`;
+
     } else if (isSaveInheritance || isExtendedCircle) {
-        // Scenario 4: Save Inheritance — show feed_card_summary only, no personal note
+        // Scenario 4b: Save Inheritance with no note, OR true Extended Circle —
+        // show feed_card_summary in neutral style.
         const summary = item.feed_card_summary || item.description || '';
         if (summary) {
             html += `<div class="drawer-summary-block">
@@ -5421,16 +5478,22 @@ function openItemDrawer(item) {
     document.getElementById('drawerBackdrop').classList.add('active');
     document.getElementById('detailDrawer').classList.add('open');
 
-    // Load community notes asynchronously (extended circle sees locked message)
+    // Load community notes asynchronously.
+    //   • True Extended Circle (FoF, no via-friend) → locked message, no comments loaded
+    //   • Everyone else (owner, direct friend, Save Inheritance) → load comments
+    //     and filter to viewer's direct friends + viewer themselves.
+    //     This is the universal rule: each viewer only sees comments authored
+    //     by themselves or someone they're directly friends with.
     if (item.id) {
-        if (isExtendedCircle) {
+        if (isExtendedCircle && !isSaveInheritance) {
             const container = document.getElementById('communityNotesContainer');
-            if (container) container.innerHTML = renderNotesSection(item.id, [], TRUST.EXTENDED);
+            if (container) container.innerHTML = renderNotesSection(item.id, [], TRUST.EXTENDED, { isSaveInheritance: false });
         } else {
             loadNotesForItem(item.id).then(notes => {
+                const visibleNotes = filterNotesToDirectFriends(notes);
                 const container = document.getElementById('communityNotesContainer');
                 if (container) {
-                    container.innerHTML = renderNotesSection(item.id, notes, trustLevel);
+                    container.innerHTML = renderNotesSection(item.id, visibleNotes, trustLevel, { isSaveInheritance });
                 }
             });
         }
@@ -5947,9 +6010,11 @@ function startEditNote(noteId, itemId, currentText) {
 function cancelEditNote(noteId, itemId) {
     // Reload notes to restore original
     const trustLevel = currentDrawerItem?._trust_level || TRUST.FRIENDS;
+    const isSaveInheritance = !!(currentDrawerItem && currentDrawerItem._via_friend_name && trustLevel === TRUST.EXTENDED);
     loadNotesForItem(itemId).then(notes => {
+        const visibleNotes = filterNotesToDirectFriends(notes);
         const container = document.getElementById('communityNotesContainer');
-        if (container) container.innerHTML = renderNotesSection(itemId, notes, trustLevel);
+        if (container) container.innerHTML = renderNotesSection(itemId, visibleNotes, trustLevel, { isSaveInheritance });
     });
 }
 
@@ -5970,8 +6035,10 @@ async function saveEditNote(noteId, itemId) {
 
         const notes = await loadNotesForItem(itemId);
         const trustLevel = currentDrawerItem?._trust_level || TRUST.FRIENDS;
+        const isSaveInheritance = !!(currentDrawerItem && currentDrawerItem._via_friend_name && trustLevel === TRUST.EXTENDED);
+        const visibleNotes = filterNotesToDirectFriends(notes);
         const container = document.getElementById('communityNotesContainer');
-        if (container) container.innerHTML = renderNotesSection(itemId, notes, trustLevel);
+        if (container) container.innerHTML = renderNotesSection(itemId, visibleNotes, trustLevel, { isSaveInheritance });
         showToast('Comment updated!');
     } catch (err) {
         console.error('Error editing note:', err);
@@ -6234,16 +6301,18 @@ async function sendMessage(text) {
 
             const buildTopPick = (r, idx) => {
                 const isExt    = r._trust_level === TRUST.EXTENDED;
+                const isSaveInh = isExt && r._via_friend_name;
                 const photo    = r.photo_url ? `<img src="${escapeHtml(r.photo_url)}" onerror="this.outerHTML='<span style=\\'font-size:32px;color:#d1d5db\\'>📍</span>'">` : '<span style="font-size:32px;color:#d1d5db">📍</span>';
-                const rawNote  = isExt ? null : getPersonalNote(r);
-                const canSeeNote = rawNote && isFriend(r.added_by || r.added_by_name);
+                // Save Inheritance preserves the note (content travels); true FoF strips it.
+                const rawNote  = (isExt && !isSaveInh) ? null : getPersonalNote(r);
+                const canSeeNote = rawNote && (isSaveInh || isFriend(r.added_by || r.added_by_name));
                 const distText = formatDistance(r.distance_km);
-                const snippet      = isExt
+                const snippet      = (isExt && !isSaveInh)
                     ? (r.description || r.relevance_reason || '')
                     : (canSeeNote ? rawNote : (r.relevance_reason || r.description || ''));
-                const snippetLabel = isExt
+                const snippetLabel = (isExt && !isSaveInh)
                     ? 'Why this matches'
-                    : (canSeeNote ? 'Friend says' : 'Why this matches');
+                    : (canSeeNote ? (isSaveInh ? 'Their note' : 'Friend says') : 'Why this matches');
                 const viaName = r._via_friend_name || null;
                 const byLine = isExt
                     ? (viaName
@@ -6280,13 +6349,15 @@ async function sendMessage(text) {
 
             const buildCompactCard = (r, idx) => {
                 const isExt  = r._trust_level === TRUST.EXTENDED;
+                const isSaveInh = isExt && r._via_friend_name;
                 const photo  = r.photo_url
                     ? `<img src="${escapeHtml(r.photo_url)}" onerror="this.outerHTML='<span class=\\'compact-photo-placeholder\\'>📍</span>'">`
                     : '<span class="compact-photo-placeholder">📍</span>';
-                const rawNote    = isExt ? null : getPersonalNote(r);
-                const canSeeNote = rawNote && isFriend(r.added_by);
+                // Save Inheritance preserves the note (content travels); true FoF strips it.
+                const rawNote    = (isExt && !isSaveInh) ? null : getPersonalNote(r);
+                const canSeeNote = rawNote && (isSaveInh || isFriend(r.added_by));
                 const distText   = formatDistance(r.distance_km);
-                const snippet    = isExt
+                const snippet    = (isExt && !isSaveInh)
                     ? (r.description || r.relevance_reason || '')
                     : (canSeeNote ? rawNote : (r.relevance_reason || r.description || ''));
                 const saveLabel = getCircleSaveCount(r);
