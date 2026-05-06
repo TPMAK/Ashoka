@@ -4535,7 +4535,7 @@ function createCard(item, index) {
             ${/* AI subtitle (feed_card_summary) intentionally suppressed on Discover/home cards.
                   Heading shows place_name (or title fallback); personal note is rendered below as wordHtml. */ ''}
             ${wordHtml}
-            <div class="hf-card-chips-row">${catChip}${distChip}${privateChip}</div>
+            <div class="hf-card-chips-row">${distChip}${privateChip}</div>
             <div class="hf-card-adder">
                 ${adderAvatarHtml}
                 <span class="hf-card-person-name">${adderLabel}</span>
