@@ -2008,15 +2008,16 @@ function renderNotesSection(itemId, notes, trustLevel, opts) {
         const initial = (n.out_user_name || '?').charAt(0).toUpperCase();
         const timeAgo = getTimeAgo(n.out_created_at);
         const isOwn = currentUser && n.out_user_id === currentUser.id;
-        const editBtn = isOwn ? `<button class="note-edit" onclick="startEditNote('${n.out_id}', '${itemId}', \`${escapeHtml(n.out_note_text).replace(/`/g, '\\`')}\`)" title="Edit">✏️</button>` : '';
+        const editBtn = isOwn ? `<button class="note-edit" onclick="startEditNote('${n.out_id}', '${itemId}', \`${escapeHtml(n.out_note_text).replace(/`/g, '\\`')}\`)" title="Edit" aria-label="Edit comment"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>` : '';
         const deleteBtn = isOwn ? `<button class="note-delete" onclick="deleteNote('${n.out_id}', '${itemId}', event)" title="Delete">×</button>` : '';
+        const translateBtn = `<button class="note-translate" onclick="translateNote('${n.out_id}', this)" data-note-text="${escapeHtml(n.out_note_text)}" data-state="original" title="Translate" aria-label="Translate comment"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></button>`;
         return `<div class="note-item" data-note-id="${n.out_id}">
             <div class="note-avatar">${initial}</div>
             <div class="note-body">
                 <div class="note-header">
                     <span class="note-author">${escapeHtml(n.out_user_name)}</span>
                     <span class="note-time">${timeAgo}</span>
-                    ${editBtn}${deleteBtn}
+                    ${translateBtn}${editBtn}${deleteBtn}
                 </div>
                 <div class="note-text">${escapeHtml(n.out_note_text)}</div>
             </div>
@@ -2183,32 +2184,48 @@ const _NOTIFS_CLEARED_KEY = 'odin_notifs_cleared_at';
 // openNotifDrawer uses this so it never makes a second concurrent RPC call.
 let _notifCache = null;
 
+// Tracks the last unread count we observed, so we know when to invalidate
+// _notifCache (so the drawer re-fetches fresh notifications on next open).
+let _lastUnreadCount = null;
+
 async function checkUnreadNotifications() {
     const badge = document.getElementById('notifBadge');
-    if (!currentUser) {
-        if (badge) badge.style.display = 'none';
-        return;
-    }
+    if (!badge || !currentUser) return;
     try {
-        // Fetch actual notifications to check if any exist after clearedAt
-        const { data, error } = await supabaseClient.rpc('get_user_notifications', {
-            p_user_id: currentUser.id,
-            p_limit: 20
-        });
-        if (error) {
-            if (badge) badge.style.display = 'none';
-            return;
-        }
         const clearedAt = localStorage.getItem(_NOTIFS_CLEARED_KEY);
-        let filtered = data || [];
+        let query = supabaseClient
+            .from('notifications')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', currentUser.id)
+            .eq('read', false);
         if (clearedAt) {
-            const clearedDate = new Date(parseInt(clearedAt));
-            filtered = filtered.filter(n => new Date(n.created_at) > clearedDate);
+            // clearedAt is a millisecond timestamp; convert to ISO for the timestamptz column
+            query = query.gt('created_at', new Date(parseInt(clearedAt)).toISOString());
         }
-        // Update cache so loadNotifications() can render instantly without a new RPC
-        _notifCache = filtered;
-        let hasVisible = filtered.length > 0;
-        if (badge) badge.style.display = hasVisible ? 'block' : 'none';
+        const { count, error } = await query;
+        if (error) throw error;
+        const currentCount = count || 0;
+        // If the count changed since last poll, invalidate the drawer cache so
+        // the next openNotifDrawer fetches fresh rows instead of showing stale ones.
+        if (_lastUnreadCount !== null && _lastUnreadCount !== currentCount) {
+            _notifCache = null;
+        }
+        _lastUnreadCount = currentCount;
+        if (currentCount > 0) {
+            badge.textContent = currentCount > 9 ? '9+' : String(currentCount);
+            badge.style.display = 'inline-flex';
+            // Pulse once per session only
+            if (!badge.dataset.pulsed) {
+                badge.classList.remove('pulse');
+                void badge.offsetWidth; // reflow to restart animation
+                badge.classList.add('pulse');
+                badge.dataset.pulsed = '1';
+            }
+        } else {
+            badge.style.display = 'none';
+            badge.textContent = '';
+            delete badge.dataset.pulsed;
+        }
     } catch (err) {
         console.error('Error in checkUnreadNotifications:', err);
         if (badge) badge.style.display = 'none';
@@ -4512,7 +4529,8 @@ function createCard(item, index) {
         <div class="hf-card-media-wrap">${mediaHtml}</div>
         <div class="hf-card-body">
             <div class="hf-card-title">${escapeHtml(_hf.heading)}</div>
-            ${_hf.subtitle ? `<div class="hf-card-subtitle">${escapeHtml(_hf.subtitle)}</div>` : ''}
+            ${/* AI subtitle (feed_card_summary) intentionally suppressed on Discover/home cards.
+                  Heading shows place_name (or title fallback); personal note is rendered below as wordHtml. */ ''}
             ${wordHtml}
             <div class="hf-card-chips-row">${catChip}${distChip}${privateChip}</div>
             <div class="hf-card-adder">
@@ -6025,13 +6043,19 @@ async function saveEditNote(noteId, itemId) {
     if (!text) return;
 
     try {
-        const { error } = await supabaseClient
+        const { data, error } = await supabaseClient
             .from('item_notes')
             .update({ note_text: text })
             .eq('id', noteId)
-            .eq('user_id', currentUser.id);
+            .eq('user_id', currentUser.id)
+            .select();
 
         if (error) throw error;
+        if (!data || data.length === 0) {
+            console.error('Edit note: 0 rows updated — RLS or ownership mismatch', { noteId, itemId, userId: currentUser?.id });
+            showToast("Couldn't update — permission issue.");
+            return;
+        }
 
         const notes = await loadNotesForItem(itemId);
         const trustLevel = currentDrawerItem?._trust_level || TRUST.FRIENDS;
@@ -6042,6 +6066,58 @@ async function saveEditNote(noteId, itemId) {
         showToast('Comment updated!');
     } catch (err) {
         console.error('Error editing note:', err);
+        showToast('Could not update comment.');
+    }
+}
+
+// ===== TRANSLATE COMMENT (inline, mirrors result-card pattern) =====
+async function translateNote(noteId, btn) {
+    const noteEl = document.querySelector(`[data-note-id="${noteId}"]`);
+    if (!noteEl) return;
+    const textContainer = noteEl.querySelector('.note-text');
+    if (!textContainer) return;
+
+    const state = btn.dataset.state || 'original';
+    const targetLang = userPreferredLanguage || 'en';
+    const originalText = btn.dataset.noteText || '';
+
+    // Toggle off — remove translation block, restore button label
+    if (state === 'translated') {
+        const block = noteEl.querySelector('.note-translation-block');
+        if (block) block.remove();
+        btn.dataset.state = 'original';
+        btn.title = 'Translate';
+        return;
+    }
+
+    btn.classList.add('translate-loading');
+    btn.disabled = true;
+    try {
+        // Reuse translateItem — it expects an item-shaped object. We pack the
+        // comment as personal_note so the existing translate-card webhook
+        // returns a translated string in .personal_note (or .description).
+        const fakeItem = { id: 'note_' + noteId, personal_note: originalText };
+        const translated = await translateItem(fakeItem, targetLang);
+        const translatedText = translated && (translated.personal_note || translated.description);
+        if (!translatedText) throw new Error('No translation returned');
+
+        // Remove any existing translation block, then append a fresh one
+        const prev = noteEl.querySelector('.note-translation-block');
+        if (prev) prev.remove();
+        const block = document.createElement('div');
+        block.className = 'note-translation-block';
+        block.innerHTML = `<div class="note-translation-label">${escapeHtml(targetLang.toUpperCase())}</div>`
+            + `<div class="note-translation-text">${escapeHtml(translatedText)}</div>`;
+        textContainer.insertAdjacentElement('afterend', block);
+
+        btn.dataset.state = 'translated';
+        btn.title = 'Hide translation';
+    } catch (e) {
+        console.error('Translate note error:', e);
+        showToast('Could not translate comment.');
+    } finally {
+        btn.classList.remove('translate-loading');
+        btn.disabled = false;
     }
 }
 
