@@ -931,10 +931,12 @@ async function loadMyEndorsements() {
 
         container.innerHTML = sorted.map(item => {
             const _placeholder = getCategoryPlaceholder(item.type);
-            const _placeholderEsc = _placeholder.replace(/'/g, "\\'");
+            const _placeholderJS = getCategoryPlaceholderForJSString(item.type);
             const isMyAdd = item.added_by_name && addedIds.includes(item.id);
+            // onerror uses single-quoted attribute + double-quoted JS strings so the
+            // SVG's own double-quoted attributes don't terminate the outer attribute.
             const photo = item.photo_url
-                ? `<img src="${escapeHtml(item.photo_url)}" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','${_placeholderEsc}')">`
+                ? `<img src="${escapeHtml(item.photo_url)}" onerror='this.style.display="none";this.insertAdjacentHTML("afterend","${_placeholderJS}")'>`
                 : _placeholder;
             return `<div class="my-endorse-card" onclick="goToEndorsedItem('${item.id}')">
                 <div class="my-endorse-card-photo">${photo}</div>
@@ -1920,7 +1922,7 @@ async function openFriendProfile(userId, displayName) {
             let listCards = '';
             items.forEach(item => {
                 const photo = item.photo_url
-                    ? `<img src="${escapeHtml(item.photo_url)}" class="friend-item-photo" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','${getCategoryPlaceholder(item.type).replace(/'/g, "\\'")}')">`
+                    ? `<img src="${escapeHtml(item.photo_url)}" class="friend-item-photo" onerror='this.style.display="none";this.insertAdjacentHTML("afterend","${getCategoryPlaceholderForJSString(item.type)}")'>`
                     : getCategoryPlaceholder(item.type);
                 const typeTag = item.type ? `<span class="friend-item-type">${escapeHtml(item.type)}</span>` : '';
                 const desc = item.description ? escapeHtml(item.description).substring(0, 80) + (item.description.length > 80 ? '...' : '') : '';
@@ -2507,9 +2509,9 @@ function renderRecentlyViewed() {
         section.style.display = 'block';
         row.innerHTML = viewed.map(v => {
             const _ph = getCategoryPlaceholder(v.type);
-            const _phEsc = _ph.replace(/'/g, "\\'");
+            const _phJS = getCategoryPlaceholderForJSString(v.type);
             const photo = v.photo_url
-                ? `<img src="${escapeHtml(v.photo_url)}" alt="" onerror="this.style.display='none';this.parentElement.innerHTML='${_phEsc}'">`
+                ? `<img src="${escapeHtml(v.photo_url)}" alt="" onerror='this.style.display="none";this.parentElement.innerHTML="${_phJS}"'>`
                 : _ph;
             return `<div class="rv-item" title="${escapeHtml(v.title)}">
                 <div class="rv-thumb-wrap">
@@ -3313,6 +3315,16 @@ function getCategoryPlaceholder(type) {
 function getCategoryPlaceholderSVG(type) {
   var t = (type || 'other').toLowerCase();
   return CATEGORY_PLACEHOLDER_SVG[t] || CATEGORY_PLACEHOLDER_SVG['other'];
+}
+// Returns the placeholder HTML, escaped for embedding inside a JS string literal that
+// itself sits inside an HTML attribute. The plan: outer attribute is single-quoted
+// (onerror='...'), inner JS strings are double-quoted ("..."), so we only need to
+// escape `"` and `\` and `<\/script` for the JS string layer. The outer single-quoted
+// attribute survives because the SVG markup contains no literal single quotes.
+function getCategoryPlaceholderForJSString(type) {
+  return getCategoryPlaceholder(type)
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"');
 }
 
 function buildCollectionCards() {
@@ -4468,7 +4480,7 @@ function createCard(item, index) {
         // Carousel inherits .hf-card-media-wrap height; mark .carousel--inline-card to skip size hacks
         mediaHtml = renderPhotoCarousel(_cardPhotos, { imgClass: 'hf-card-img', inlineCard: true });
     } else if (_cardPhotos.length === 1) {
-        mediaHtml = `<img class="hf-card-img" src="${escapeHtml(_cardPhotos[0])}" alt="" loading="lazy" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','${getCategoryPlaceholder(_phType).replace(/'/g, "\\'")}')">`;
+        mediaHtml = `<img class="hf-card-img" src="${escapeHtml(_cardPhotos[0])}" alt="" loading="lazy" onerror='this.style.display="none";this.insertAdjacentHTML("afterend","${getCategoryPlaceholderForJSString(_phType)}")'>`;
     } else {
         mediaHtml = `<div class="hf-card-placeholder cat-placeholder cat-placeholder--${_phType}">${_phSVG}</div>`;
     }
@@ -6449,8 +6461,8 @@ async function sendMessage(text) {
                 const isExt    = r._trust_level === TRUST.EXTENDED;
                 const isSaveInh = isExt && r._via_friend_name;
                 const _topPickPh = getCategoryPlaceholder(r.type);
-                const _topPickPhEsc = _topPickPh.replace(/'/g, "\\'");
-                const photo    = r.photo_url ? `<img src="${escapeHtml(r.photo_url)}" onerror="this.outerHTML='${_topPickPhEsc}'">` : _topPickPh;
+                const _topPickPhJS = getCategoryPlaceholderForJSString(r.type);
+                const photo    = r.photo_url ? `<img src="${escapeHtml(r.photo_url)}" onerror='this.outerHTML="${_topPickPhJS}"'>` : _topPickPh;
                 // Save Inheritance preserves the note (content travels); true FoF strips it.
                 const rawNote  = (isExt && !isSaveInh) ? null : getPersonalNote(r);
                 const canSeeNote = rawNote && (isSaveInh || isFriend(r.added_by || r.added_by_name));
@@ -6499,9 +6511,9 @@ async function sendMessage(text) {
                 const isExt  = r._trust_level === TRUST.EXTENDED;
                 const isSaveInh = isExt && r._via_friend_name;
                 const _compactPh = getCategoryPlaceholder(r.type);
-                const _compactPhEsc = _compactPh.replace(/'/g, "\\'");
+                const _compactPhJS = getCategoryPlaceholderForJSString(r.type);
                 const photo  = r.photo_url
-                    ? `<img src="${escapeHtml(r.photo_url)}" onerror="this.outerHTML='${_compactPhEsc}'">`
+                    ? `<img src="${escapeHtml(r.photo_url)}" onerror='this.outerHTML="${_compactPhJS}"'>`
                     : _compactPh;
                 // Save Inheritance preserves the note (content travels); true FoF strips it.
                 const rawNote    = (isExt && !isSaveInh) ? null : getPersonalNote(r);
@@ -6668,9 +6680,9 @@ async function sendMessage(text) {
 
                     return window._searchPreviewItems.map((item, idx) => {
                         const _previewPh = getCategoryPlaceholder(item.type);
-                        const _previewPhEsc = _previewPh.replace(/'/g, "\\'");
+                        const _previewPhJS = getCategoryPlaceholderForJSString(item.type);
                         const photo = item.photo_url
-                            ? `<img src="${escapeHtml(item.photo_url)}" onerror="this.outerHTML='${_previewPhEsc}'">`
+                            ? `<img src="${escapeHtml(item.photo_url)}" onerror='this.outerHTML="${_previewPhJS}"'>`
                             : _previewPh;
                         const snippet = item.relevance_reason || item.description || '';
                         const dist = item.distance_km
@@ -8475,9 +8487,9 @@ async function loadSavedPage() {
         }
         list.innerHTML = items.map((item, idx) => {
             const _savedPh = getCategoryPlaceholder(item.type);
-            const _savedPhEsc = _savedPh.replace(/'/g, "\\'");
+            const _savedPhJS = getCategoryPlaceholderForJSString(item.type);
             const photo = item.photo_url
-                ? `<div class="saved-item-photo"><img src="${escapeHtml(item.photo_url)}" onerror="this.style.display='none';this.parentElement.insertAdjacentHTML('beforeend','${_savedPhEsc}')"></div>`
+                ? `<div class="saved-item-photo"><img src="${escapeHtml(item.photo_url)}" onerror='this.style.display="none";this.parentElement.insertAdjacentHTML("beforeend","${_savedPhJS}")'></div>`
                 : `<div class="saved-item-photo">${_savedPh}</div>`;
             const distText = item.distance_km
                 ? (item.distance_km < 1 ? Math.round(item.distance_km * 1000) + 'm' : item.distance_km.toFixed(1) + 'km')
