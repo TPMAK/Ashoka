@@ -11919,3 +11919,43 @@ body.map-view-open .content {
     line-height: 1.4;
     color: var(--text, inherit);
 }
+
+/* ── Category placeholder tiles ──
+   Branded SVG tile shown when a card has no photo. One per item type.
+   Day-mode = stone tones + Winterberry; dark-mode = dark navy + Burnt Orange.
+   The [data-theme="dark"] rules are inert until a dark-mode toggle is added,
+   but kept here so they're ready when it ships. */
+.cat-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+}
+/* Day mode backgrounds */
+.cat-placeholder--place   { background: #EDE8DF; color: #7B2D45; }
+.cat-placeholder--product { background: #E5DFD5; color: #7B2D45; }
+.cat-placeholder--service { background: #DDD7CC; color: #7B2D45; }
+.cat-placeholder--link,
+.cat-placeholder--media   { background: #E8E2D8; color: #7B2D45; }
+.cat-placeholder--other   { background: #EAE4DA; color: #7B2D45; }
+.cat-placeholder--advice  { background: #EDE8DF; color: #7B2D45; }
+/* Dark mode overrides */
+[data-theme="dark"] .cat-placeholder--place   { background: #1A1F2E; color: #D4622A; }
+[data-theme="dark"] .cat-placeholder--product { background: #161B29; color: #D4622A; }
+[data-theme="dark"] .cat-placeholder--service { background: #1C2030; color: #D4622A; }
+[data-theme="dark"] .cat-placeholder--link,
+[data-theme="dark"] .cat-placeholder--media   { background: #181D2C; color: #D4622A; }
+[data-theme="dark"] .cat-placeholder--other   { background: #1A1F2E; color: #D4622A; }
+[data-theme="dark"] .cat-placeholder--advice  { background: #1A1F2E; color: #D4622A; }
+/* Cap the inline 40×40 SVG so the tile stays inside narrow wrappers (chips, avatars).
+   The SVG floors at ~14px to remain legible. */
+.cat-placeholder svg {
+    width: 60%;
+    height: 60%;
+    max-width: 40px;
+    max-height: 40px;
+    min-width: 14px;
+    min-height: 14px;
+}
