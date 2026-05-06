@@ -909,10 +909,13 @@ async function loadMyEndorsements() {
         const missingIds = endorsedIds.filter(id => !addedIds.includes(id));
         let fetchedItems = [...addedItems];
         if (missingIds.length > 0) {
+            // Defence-in-depth: hydrating items the user previously endorsed.
+            // They were visible at save time; re-check in case visibility was changed to private since.
             const { data: more } = await supabaseClient
                 .from('knowledge_items')
                 .select('id, title, photo_url, added_by_name, type, created_at')
-                .in('id', missingIds);
+                .in('id', missingIds)
+                .or(`visibility.neq.private,added_by.eq.${currentUser.id}`);
             if (more) fetchedItems = [...fetchedItems, ...more];
         }
 
@@ -1850,11 +1853,14 @@ async function openFriendProfile(userId, displayName) {
 
     try {
         // Fetch items added by this friend + common saves in parallel
+        // Privacy: exclude `private` items unless current user is the adder
+        // (a user always sees their own private items on their own profile).
         const [itemsResult, friendEndorsementsResult, myEndorsementsResult] = await Promise.all([
             supabaseClient
                 .from('knowledge_items')
                 .select('*')
                 .eq('added_by', userId)
+                .or(`visibility.neq.private,added_by.eq.${currentUser.id}`)
                 .order('created_at', { ascending: false })
                 .limit(50),
             supabaseClient
@@ -1880,10 +1886,13 @@ async function openFriendProfile(userId, displayName) {
         let commonHtml = '';
         if (commonItemIds.length > 0) {
             // Fetch the common items details
+            // Defence-in-depth: even though commonItemIds came from the user's own endorsements,
+            // we belt-and-brace by excluding any `private` items not added by current user.
             const { data: commonItems } = await supabaseClient
                 .from('knowledge_items')
                 .select('id, title, type, photo_url')
                 .in('id', commonItemIds)
+                .or(`visibility.neq.private,added_by.eq.${currentUser.id}`)
                 .limit(20);
 
             if (commonItems && commonItems.length > 0) {
@@ -2431,6 +2440,7 @@ async function handleNotifClick(notifId, itemId) {
                     .from('knowledge_items')
                     .select('*')
                     .eq('id', itemId)
+                    .or(`visibility.neq.private,added_by.eq.${currentUser.id}`)
                     .single();
                 if (data) openItemDrawer(data);
             } catch (e) { /* ignore */ }
@@ -8415,7 +8425,8 @@ async function loadSavedPage() {
         const { data: items } = await supabaseClient
             .from('knowledge_items')
             .select('*')
-            .in('id', allIds);
+            .in('id', allIds)
+            .or(`visibility.neq.private,added_by.eq.${currentUser.id}`);
         if (!items || items.length === 0) {
             list.innerHTML = '<div class="activity-empty">No saves yet.</div>';
             return;
