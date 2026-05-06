@@ -2910,6 +2910,17 @@ async function toggleDrawerLang(btn) {
     if (!item) return;
     const state = btn.dataset.state;
 
+    // TEMP DEBUG — remove after diagnosing "your take" translation issue
+    console.log('[drawer-translate]', {
+        added_by: item.added_by,
+        added_by_user_id: item.added_by_user_id,
+        added_by_name: item.added_by_name,
+        currentUser_id: currentUser?.id,
+        isFriend_result: typeof isFriend === 'function' ? isFriend(item.added_by) : 'no-isFriend',
+        has_personal_note: !!(item.personal_note || (item.metadata && (typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata)?.personal_note)),
+        item_keys: Object.keys(item).filter(k => k.includes('add') || k.includes('user') || k.includes('note'))
+    });
+
     // Always use preferred language; fall back to query language if set
     const targetLang = userPreferredLanguage || item._queryLanguage || 'en';
     const langLabel = (typeof LANG_LABELS !== 'undefined' && LANG_LABELS[targetLang]) || targetLang.toUpperCase();
