@@ -930,14 +930,11 @@ async function loadMyEndorsements() {
         const sorted = allIds.map(id => itemMap[id]).filter(Boolean);
 
         container.innerHTML = sorted.map(item => {
-            const _placeholder = getCategoryPlaceholder(item.type);
-            const _placeholderJS = getCategoryPlaceholderForJSString(item.type);
+            const _emoji = getCategoryEmoji(item.type);
             const isMyAdd = item.added_by_name && addedIds.includes(item.id);
-            // onerror uses single-quoted attribute + double-quoted JS strings so the
-            // SVG's own double-quoted attributes don't terminate the outer attribute.
             const photo = item.photo_url
-                ? `<img src="${escapeHtml(item.photo_url)}" onerror='this.style.display="none";this.insertAdjacentHTML("afterend","${_placeholderJS}")'>`
-                : _placeholder;
+                ? `<img src="${escapeHtml(item.photo_url)}" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=\\'my-endorse-placeholder\\'>${_emoji}</span>')">`
+                : `<span class="my-endorse-placeholder">${_emoji}</span>`;
             return `<div class="my-endorse-card" onclick="goToEndorsedItem('${item.id}')">
                 <div class="my-endorse-card-photo">${photo}</div>
                 <div class="my-endorse-card-title">${escapeHtml(item.title)}</div>
@@ -1903,10 +1900,10 @@ async function openFriendProfile(userId, displayName) {
                     <div class="friend-common-header">${commonItems.length} save${commonItems.length !== 1 ? 's' : ''} in common</div>
                     <div class="friend-common-list">`;
                 commonItems.forEach(ci => {
-                    // .friend-common-emoji: 24×24 round chip; .cat-placeholder fills it via inherit.
+                    const emoji = getCategoryEmoji(ci.type);
                     const thumb = ci.photo_url
                         ? `<img src="${escapeHtml(ci.photo_url)}" class="friend-common-thumb">`
-                        : `<span class="friend-common-emoji">${getCategoryPlaceholder(ci.type)}</span>`;
+                        : `<span class="friend-common-emoji">${emoji}</span>`;
                     commonHtml += `<div class="friend-common-chip" onclick="closeFriendDrawer(); setTimeout(() => { const idx = allDiscoveries.findIndex(d => d.id === '${ci.id}'); if (idx >= 0) showDrawer(idx); else openItemDrawer(${JSON.stringify(ci).replace(/'/g, "\\'")}); }, 300);">
                         ${thumb}<span class="friend-common-name">${escapeHtml(ci.title)}</span>
                     </div>`;
@@ -1922,8 +1919,8 @@ async function openFriendProfile(userId, displayName) {
             let listCards = '';
             items.forEach(item => {
                 const photo = item.photo_url
-                    ? `<img src="${escapeHtml(item.photo_url)}" class="friend-item-photo" onerror='this.style.display="none";this.insertAdjacentHTML("afterend","${getCategoryPlaceholderForJSString(item.type)}")'>`
-                    : getCategoryPlaceholder(item.type);
+                    ? `<img src="${escapeHtml(item.photo_url)}" class="friend-item-photo">`
+                    : `<div class="friend-item-photo-placeholder">📍</div>`;
                 const typeTag = item.type ? `<span class="friend-item-type">${escapeHtml(item.type)}</span>` : '';
                 const desc = item.description ? escapeHtml(item.description).substring(0, 80) + (item.description.length > 80 ? '...' : '') : '';
 
@@ -2508,11 +2505,10 @@ function renderRecentlyViewed() {
         }
         section.style.display = 'block';
         row.innerHTML = viewed.map(v => {
-            const _ph = getCategoryPlaceholder(v.type);
-            const _phJS = getCategoryPlaceholderForJSString(v.type);
+            const emoji = getCategoryEmoji(v.type);
             const photo = v.photo_url
-                ? `<img src="${escapeHtml(v.photo_url)}" alt="" onerror='this.style.display="none";this.parentElement.innerHTML="${_phJS}"'>`
-                : _ph;
+                ? `<img src="${escapeHtml(v.photo_url)}" alt="" onerror="this.style.display='none';this.parentElement.innerHTML='<span class=\\'rv-placeholder\\'>${emoji}</span>'">`
+                : `<span class="rv-placeholder">${emoji}</span>`;
             return `<div class="rv-item" title="${escapeHtml(v.title)}">
                 <div class="rv-thumb-wrap">
                     <div class="rv-thumb" onclick="openRecentlyViewed('${v.id}')">${photo}</div>
@@ -2549,10 +2545,9 @@ function removeRecentlyViewed(itemId) {
     } catch (e) { /* ignore */ }
 }
 
-// DEPRECATED — superseded by getCategoryPlaceholder().
-// Kept as a thin alias so any stragglers still render a tile instead of an emoji.
 function getCategoryEmoji(type) {
-    return getCategoryPlaceholder(type);
+    const map = { place: '📍', product: '🛍️', service: '🔧', advice: '💡' };
+    return map[type] || '📍';
 }
 
 // ===== APP CONFIGURATION =====
@@ -3294,38 +3289,7 @@ function strColour(str) {
     return COLL_COLOURS[Math.abs(h) % COLL_COLOURS.length];
 }
 
-// ── Category placeholder SVGs ──
-// One branded SVG per item.type. Used by getCategoryPlaceholder() to build a
-// .cat-placeholder tile when a card has no photo. Icons only — no text.
-var CATEGORY_PLACEHOLDER_SVG = {
-  place: '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>',
-  product: '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>',
-  service: '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>',
-  link: '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16 10,8" fill="currentColor" stroke="none"/></svg>',
-  media: '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16 10,8" fill="currentColor" stroke="none"/></svg>',
-  advice: '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="3"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="2" y1="12" x2="3" y2="12"/><line x1="20.78" y1="4.22" x2="19.36" y2="5.64"/><line x1="22" y1="12" x2="21" y2="12"/><path d="M12 6a6 6 0 016 6c0 2.22-1.2 4.15-3 5.19V19a1 1 0 01-1 1h-4a1 1 0 01-1-1v-1.81A6 6 0 016 12a6 6 0 016-6z"/><line x1="10" y1="21" x2="14" y2="21"/></svg>',
-  other: '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>'
-};
-function getCategoryPlaceholder(type) {
-  var t = (type || 'other').toLowerCase();
-  var svg = CATEGORY_PLACEHOLDER_SVG[t] || CATEGORY_PLACEHOLDER_SVG['other'];
-  return '<div class="cat-placeholder cat-placeholder--' + t + '">' + svg + '</div>';
-}
-// Returns just the inner SVG for cases where the caller already provides the tile wrapper.
-function getCategoryPlaceholderSVG(type) {
-  var t = (type || 'other').toLowerCase();
-  return CATEGORY_PLACEHOLDER_SVG[t] || CATEGORY_PLACEHOLDER_SVG['other'];
-}
-// Returns the placeholder HTML, escaped for embedding inside a JS string literal that
-// itself sits inside an HTML attribute. The plan: outer attribute is single-quoted
-// (onerror='...'), inner JS strings are double-quoted ("..."), so we only need to
-// escape `"` and `\` and `<\/script` for the JS string layer. The outer single-quoted
-// attribute survives because the SVG markup contains no literal single quotes.
-function getCategoryPlaceholderForJSString(type) {
-  return getCategoryPlaceholder(type)
-    .replace(/\\/g, '\\\\')
-    .replace(/"/g, '\\"');
-}
+var CATEGORY_EMOJI = { place:'🍽️', product:'📦', service:'🔧', advice:'💡', book:'📚', experience:'✨' };
 
 function buildCollectionCards() {
     // If the new section tabs are present, delegate to the active section instead
@@ -3376,13 +3340,9 @@ function buildCollectionCards() {
 
         // Pick cover image from first item with a photo
         var coverItem = items.find(function(it){ return it.photo_url; });
-        // Placeholder uses the per-type SVG tile. groupName is the category key when grouping by category;
-        // when grouping by friend, fall back to 'other'. Keep .dc-coll-placeholder for legacy height rules.
-        var _placeholderType = ((collectionGrouping === 'friend') ? 'other' : groupName).toLowerCase();
-        var _phSVG = getCategoryPlaceholderSVG(_placeholderType);
         var coverHtml = coverItem
             ? '<img class="dc-coll-img" src="' + escapeHtml(coverItem.photo_url) + '" alt="' + escapeHtml(groupName) + '" loading="lazy">'
-            : '<div class="dc-coll-placeholder cat-placeholder cat-placeholder--' + _placeholderType + '">' + _phSVG + '</div>';
+            : '<div class="dc-coll-placeholder">' + (CATEGORY_EMOJI[groupName.toLowerCase()] || '📍') + '</div>';
 
         // Avatars — extended circle group gets a fixed blue anonymous avatar
         var avHtml;
@@ -4469,20 +4429,17 @@ function createCard(item, index) {
     card.onclick = () => showDrawer(index);
 
     // ── Photo / placeholder ──
-    // Multi-photo: render carousel for 2+ photos, plain img for 1, branded category tile for 0.
-    // Keeps .hf-card-placeholder for any legacy sizing rules; layers .cat-placeholder--<type>
-    // for the per-type background + Winterberry SVG icon.
+    // Multi-photo: render carousel for 2+ photos, plain img for 1, placeholder for 0.
+    const mediaSVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>';
     const _cardPhotos = getItemPhotos(item);
-    const _phType = ((item.type || 'other') + '').toLowerCase();
-    const _phSVG = getCategoryPlaceholderSVG(_phType);
     let mediaHtml;
     if (_cardPhotos.length >= 2) {
         // Carousel inherits .hf-card-media-wrap height; mark .carousel--inline-card to skip size hacks
         mediaHtml = renderPhotoCarousel(_cardPhotos, { imgClass: 'hf-card-img', inlineCard: true });
     } else if (_cardPhotos.length === 1) {
-        mediaHtml = `<img class="hf-card-img" src="${escapeHtml(_cardPhotos[0])}" alt="" loading="lazy" onerror='this.style.display="none";this.insertAdjacentHTML("afterend","${getCategoryPlaceholderForJSString(_phType)}")'>`;
+        mediaHtml = `<img class="hf-card-img" src="${escapeHtml(_cardPhotos[0])}" alt="" loading="lazy">`;
     } else {
-        mediaHtml = `<div class="hf-card-placeholder cat-placeholder cat-placeholder--${_phType}">${_phSVG}</div>`;
+        mediaHtml = `<div class="hf-card-placeholder">${mediaSVG}</div>`;
     }
 
     // ── Distance chip ──
@@ -4654,7 +4611,9 @@ function buildMapPanelList() {
             : '';
         var imgHtml = imgUrl
             ? '<img src="' + escapeHtml(imgUrl) + '" alt="" style="width:100%;height:100%;object-fit:cover;">'
-            : getCategoryPlaceholder(d.type || d.category);
+            : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:22px;">' +
+                ({'Place':'📍','Food':'🍽','Café':'☕','Service':'🏥','Advice':'💡','Product':'📦'}[catLabel] || '📍') +
+              '</div>';
 
         var card = document.createElement('div');
         card.className = 'dmap-panel-card';
@@ -4796,11 +4755,9 @@ function showMapPreviewCard(idx) {
         } else {
             imgEl.style.display = 'none';
             placeholderEl.style.display = 'flex';
-            // Branded category SVG fallback (replaces legacy emoji)
-            var _phType = ((d.type || d.category || 'other') + '').toLowerCase();
-            // Reset any prior cat-placeholder--* class from a recycled element
-            placeholderEl.className = (placeholderEl.className.replace(/cat-placeholder(--\S+)?/g, '').trim() + ' cat-placeholder cat-placeholder--' + _phType).trim();
-            placeholderEl.innerHTML = getCategoryPlaceholderSVG(_phType);
+            // Category emoji fallback
+            var catEmoji = { 'Place': '📍', 'Food': '🍽', 'Café': '☕', 'Service': '🏥', 'Advice': '💡', 'Product': '📦' };
+            placeholderEl.textContent = catEmoji[d.category] || catEmoji[d.type] || '📍';
         }
     }
 
@@ -4989,7 +4946,8 @@ function rebuildMapListsSorted(userLat, userLng) {
                 : '';
             var imgHtml2 = imgUrl2
                 ? '<img src="' + escapeHtml(imgUrl2) + '" alt="" style="width:100%;height:100%;object-fit:cover;">'
-                : getCategoryPlaceholder(d.type || d.category);
+                : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:22px;">' +
+                    ({'Place':'📍','Food':'🍽','Café':'☕','Service':'🏥','Advice':'💡','Product':'📦'}[catLabel] || '📍') + '</div>';
             var card2 = document.createElement('div');
             card2.className = 'dmap-panel-card';
             card2.id = 'dpi-' + idx;
@@ -5144,7 +5102,8 @@ function initDiscoverMap() {
                 : '';
             var pImgHtml = pImgUrl
                 ? '<img src="' + escapeHtml(pImgUrl) + '" alt="" style="width:100%;height:100%;object-fit:cover;">'
-                : getCategoryPlaceholder(d.type || d.category);
+                : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:22px;">' +
+                    ({'Place':'📍','Food':'🍽','Café':'☕','Service':'🏥','Advice':'💡','Product':'📦'}[pCatLabel] || '📍') + '</div>';
             var pc = document.createElement('div');
             pc.className = 'dmap-panel-card';
             pc.id = 'dpi-' + idx;
@@ -6460,9 +6419,7 @@ async function sendMessage(text) {
             const buildTopPick = (r, idx) => {
                 const isExt    = r._trust_level === TRUST.EXTENDED;
                 const isSaveInh = isExt && r._via_friend_name;
-                const _topPickPh = getCategoryPlaceholder(r.type);
-                const _topPickPhJS = getCategoryPlaceholderForJSString(r.type);
-                const photo    = r.photo_url ? `<img src="${escapeHtml(r.photo_url)}" onerror='this.outerHTML="${_topPickPhJS}"'>` : _topPickPh;
+                const photo    = r.photo_url ? `<img src="${escapeHtml(r.photo_url)}" onerror="this.outerHTML='<span style=\\'font-size:32px;color:#d1d5db\\'>📍</span>'">` : '<span style="font-size:32px;color:#d1d5db">📍</span>';
                 // Save Inheritance preserves the note (content travels); true FoF strips it.
                 const rawNote  = (isExt && !isSaveInh) ? null : getPersonalNote(r);
                 const canSeeNote = rawNote && (isSaveInh || isFriend(r.added_by || r.added_by_name));
@@ -6510,11 +6467,9 @@ async function sendMessage(text) {
             const buildCompactCard = (r, idx) => {
                 const isExt  = r._trust_level === TRUST.EXTENDED;
                 const isSaveInh = isExt && r._via_friend_name;
-                const _compactPh = getCategoryPlaceholder(r.type);
-                const _compactPhJS = getCategoryPlaceholderForJSString(r.type);
                 const photo  = r.photo_url
-                    ? `<img src="${escapeHtml(r.photo_url)}" onerror='this.outerHTML="${_compactPhJS}"'>`
-                    : _compactPh;
+                    ? `<img src="${escapeHtml(r.photo_url)}" onerror="this.outerHTML='<span class=\\'compact-photo-placeholder\\'>📍</span>'">`
+                    : '<span class="compact-photo-placeholder">📍</span>';
                 // Save Inheritance preserves the note (content travels); true FoF strips it.
                 const rawNote    = (isExt && !isSaveInh) ? null : getPersonalNote(r);
                 const canSeeNote = rawNote && (isSaveInh || isFriend(r.added_by));
@@ -6679,11 +6634,9 @@ async function sendMessage(text) {
                     });
 
                     return window._searchPreviewItems.map((item, idx) => {
-                        const _previewPh = getCategoryPlaceholder(item.type);
-                        const _previewPhJS = getCategoryPlaceholderForJSString(item.type);
                         const photo = item.photo_url
-                            ? `<img src="${escapeHtml(item.photo_url)}" onerror='this.outerHTML="${_previewPhJS}"'>`
-                            : _previewPh;
+                            ? `<img src="${escapeHtml(item.photo_url)}">`
+                            : '<span class="compact-photo-placeholder">📍</span>';
                         const snippet = item.relevance_reason || item.description || '';
                         const dist = item.distance_km
                             ? (item.distance_km < 1 ? Math.round(item.distance_km * 1000) + 'm' : item.distance_km.toFixed(1) + 'km')
@@ -6746,7 +6699,7 @@ async function sendMessage(text) {
                                 <div class="more-options-scroll">
                                     ${otherResults.slice(0, 3).map(r => `
                                         <div class="compact-card" style="opacity:0.8;">
-                                            <div class="compact-photo">${getCategoryPlaceholder(r.type)}</div>
+                                            <div class="compact-photo">📍</div>
                                             <div class="compact-title">${escapeHtml(r.title)}</div>
                                             <div class="compact-meta">${escapeHtml(r.type || '')}</div>
                                             <div class="compact-snippet" style="color:#aaa;font-style:italic;">
@@ -8486,11 +8439,9 @@ async function loadSavedPage() {
             });
         }
         list.innerHTML = items.map((item, idx) => {
-            const _savedPh = getCategoryPlaceholder(item.type);
-            const _savedPhJS = getCategoryPlaceholderForJSString(item.type);
             const photo = item.photo_url
-                ? `<div class="saved-item-photo"><img src="${escapeHtml(item.photo_url)}" onerror='this.style.display="none";this.parentElement.insertAdjacentHTML("beforeend","${_savedPhJS}")'></div>`
-                : `<div class="saved-item-photo">${_savedPh}</div>`;
+                ? `<div class="saved-item-photo"><img src="${escapeHtml(item.photo_url)}"></div>`
+                : `<div class="saved-item-photo saved-item-placeholder">${getCategoryEmoji(item.type)}</div>`;
             const distText = item.distance_km
                 ? (item.distance_km < 1 ? Math.round(item.distance_km * 1000) + 'm' : item.distance_km.toFixed(1) + 'km')
                 : '';
