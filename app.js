@@ -2010,7 +2010,7 @@ function renderNotesSection(itemId, notes, trustLevel, opts) {
         const isOwn = currentUser && n.out_user_id === currentUser.id;
         const editBtn = isOwn ? `<button class="note-edit" onclick="startEditNote('${n.out_id}', '${itemId}', \`${escapeHtml(n.out_note_text).replace(/`/g, '\\`')}\`)" title="Edit" aria-label="Edit comment"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>` : '';
         const deleteBtn = isOwn ? `<button class="note-delete" onclick="deleteNote('${n.out_id}', '${itemId}', event)" title="Delete">×</button>` : '';
-        const translateBtn = `<button class="note-translate" onclick="translateNote('${n.out_id}', this)" data-note-text="${escapeHtml(n.out_note_text)}" data-state="original" title="Translate" aria-label="Translate comment"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></button>`;
+        const translateBtn = `<button class="note-translate" onclick="translateNote('${n.out_id}', this)" data-note-text="${escapeHtml(n.out_note_text)}" data-state="original" title="Translate" aria-label="Translate comment">Translate</button>`;
         return `<div class="note-item" data-note-id="${n.out_id}">
             <div class="note-avatar">${initial}</div>
             <div class="note-body">
@@ -6070,7 +6070,11 @@ async function saveEditNote(noteId, itemId) {
     }
 }
 
-// ===== TRANSLATE COMMENT (inline, mirrors result-card pattern) =====
+// ===== TRANSLATE COMMENT (inline) =====
+// Calls the n8n translate-card webhook directly with the comment text.
+// We don't go through translateItem() because that helper gates personal_note
+// translation on isFriend(item.added_by) — comments don't carry that field,
+// and any viewer who can SEE the comment is allowed to translate it.
 async function translateNote(noteId, btn) {
     const noteEl = document.querySelector(`[data-note-id="${noteId}"]`);
     if (!noteEl) return;
@@ -6087,19 +6091,42 @@ async function translateNote(noteId, btn) {
         if (block) block.remove();
         btn.dataset.state = 'original';
         btn.title = 'Translate';
+        btn.textContent = 'Translate';
         return;
     }
+
+    if (!originalText.trim()) return;
 
     btn.classList.add('translate-loading');
     btn.disabled = true;
     try {
-        // Reuse translateItem — it expects an item-shaped object. We pack the
-        // comment as personal_note so the existing translate-card webhook
-        // returns a translated string in .personal_note (or .description).
-        const fakeItem = { id: 'note_' + noteId, personal_note: originalText };
-        const translated = await translateItem(fakeItem, targetLang);
-        const translatedText = translated && (translated.personal_note || translated.description);
-        if (!translatedText) throw new Error('No translation returned');
+        // Reuse the shared translationCache. Key: 'note_<id>_<lang>'.
+        const cacheKey = 'note_' + noteId + '_' + targetLang;
+        let translatedText;
+        if (translationCache && translationCache[cacheKey]) {
+            const cached = translationCache[cacheKey];
+            translatedText = cached.personal_note || cached.description || cached.text;
+        }
+
+        if (!translatedText) {
+            // Send as personal_note so the webhook returns translated.personal_note
+            const resp = await fetch(TRANSLATE_WEBHOOK, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    texts: { personal_note: originalText },
+                    target_language: targetLang
+                })
+            });
+            if (!resp.ok) throw new Error('Translate request failed: ' + resp.status);
+            const data = await resp.json();
+            const translated = data.translated || data;
+            translatedText = translated && (translated.personal_note || translated.description);
+            if (!translatedText) throw new Error('No translation in response');
+            if (typeof translationCache === 'object' && translationCache) {
+                translationCache[cacheKey] = translated;
+            }
+        }
 
         // Remove any existing translation block, then append a fresh one
         const prev = noteEl.querySelector('.note-translation-block');
@@ -6112,6 +6139,7 @@ async function translateNote(noteId, btn) {
 
         btn.dataset.state = 'translated';
         btn.title = 'Hide translation';
+        btn.textContent = 'Hide';
     } catch (e) {
         console.error('Translate note error:', e);
         showToast('Could not translate comment.');

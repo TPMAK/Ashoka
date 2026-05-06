@@ -11885,17 +11885,19 @@ body.map-view-open .content {
 .note-translate {
     background: none;
     border: none;
-    padding: 2px 4px;
+    padding: 2px 6px;
     margin-left: 4px;
     cursor: pointer;
-    font-size: 13px;
-    opacity: 0.6;
+    font-size: 12px;
+    font-family: 'Inter', sans-serif;
+    color: var(--wb, #7B2D45);
+    opacity: 0.75;
     transition: opacity 0.15s;
-    color: currentColor;
     line-height: 1;
 }
-.note-translate:hover { opacity: 1; }
+.note-translate:hover { opacity: 1; text-decoration: underline; }
 .note-translate.translate-loading { opacity: 0.4; cursor: wait; }
+.note-translate:disabled { cursor: wait; }
 
 .note-translation-block {
     margin-top: 6px;
