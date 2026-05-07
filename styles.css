@@ -2716,6 +2716,35 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
             box-shadow: 0 2px 8px rgba(123, 45, 69, 0.3);
+            margin-left: 4px;
+        }
+
+        .odin-response-box {
+            font-size: 15px;
+            font-weight: 500;
+            color: #3d2f1c;
+            background: #f5efe6;
+            border-left: 3px solid #7B2D45;
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin-bottom: 12px;
+            line-height: 1.5;
+        }
+
+        .follow-up-chip {
+            background: #fff;
+            border: 1px solid #d9cdb5;
+            border-radius: 16px;
+            padding: 5px 12px;
+            font-size: 12px;
+            color: #5a3e28;
+            cursor: pointer;
+            font-family: 'DM Sans', sans-serif;
+        }
+        .follow-up-chip:hover {
+            background: #f5efe6;
+            border-color: #7B2D45;
+            color: #7B2D45;
         }
 
         .top-pick-photo {

@@ -3451,6 +3451,15 @@ var userLocMarker = null;
 // Track active mode for pull-to-refresh
 var _currentMode = 'home';
 
+function setSearchQuery(text) {
+    const searchInput = document.querySelector('.search-input, #searchInput, input[type="search"]');
+    if (searchInput) {
+        searchInput.value = text;
+        searchInput.dispatchEvent(new Event('input'));
+        searchInput.focus();
+    }
+}
+
 function setMode(mode) {
     var _prevMode = _currentMode;
     _currentMode = mode;
@@ -6456,7 +6465,7 @@ async function sendMessage(text) {
                             ` : ''}
                             <div class="top-pick-footer">
                                 <span class="result-save-count">${saveLabel}</span>
-                                ${distText ? `<span class="result-save-count" style="color:#7a6550;">${distText}</span>` : ''}
+                                ${distText ? `<span class="result-save-count" style="color:#7a6550;font-weight:600;">${distText}</span>` : ''}
                                 <button class="card-translate-btn" data-idx="${idx}" data-state="original" onclick="event.stopPropagation(); toggleCardTranslate(this, ${idx})">${'Translate ' + TRANSLATE_ICON}</button>
                             </div>
                         </div>
@@ -6511,7 +6520,7 @@ async function sendMessage(text) {
                         <div class="compact-photo">${photo}</div>
                         <div class="compact-title">${escapeHtml(_cc.heading)}</div>
                         ${_cc.subtitle ? `<div class="compact-subtitle">${escapeHtml(_cc.subtitle).substring(0, 55)}${_cc.subtitle.length > 55 ? '…' : ''}</div>` : ''}
-                        ${snippet ? `<div class="compact-snippet">${escapeHtml(snippet).substring(0, 55)}${snippet.length > 55 ? '…' : ''}</div>` : ''}
+                        ${snippet ? `<div class="compact-snippet">${escapeHtml(snippet).substring(0, 80)}${snippet.length > 80 ? '…' : ''}</div>` : ''}
                         <div class="hf-card-chips-row cc-chips-row">${catChip}${distChip}${privateChip}</div>
                         ${adderRow}
                         <div class="cc-saves-row">
@@ -6537,7 +6546,7 @@ async function sendMessage(text) {
                 const headerText = data.text && data.text.length
                     ? data.text
                     : `Found ${currentResults.length} ${currentResults.length === 1 ? 'discovery' : 'discoveries'}:`;
-                let html = `<div class="message message-assistant"><div class="message-content">${escapeHtml(headerText)}</div><div class="results-section">`;
+                let html = `<div class="message message-assistant"><div class="odin-response-box">${escapeHtml(headerText)}</div><div class="results-section">`;
 
                 html += `
                     <div class="top-picks-section">
@@ -6582,7 +6591,7 @@ async function sendMessage(text) {
                     return !isNaN(lat) && !isNaN(lng) && (Math.abs(lat) > 0.01 || Math.abs(lng) > 0.01);
                 });
                 const mapId = 'searchMap_' + Date.now();
-                if (locatedResults.length >= 2) {
+                if (locatedResults.length >= 3) {
                     html += `<div class="search-map-container"><div id="${mapId}" style="width:100%;height:100%;"></div></div>`;
                 }
 
@@ -6594,6 +6603,12 @@ async function sendMessage(text) {
                         <button type="button" onclick="onSearchHelpful(this, true)" style="background:#fff;border:1px solid #d9cdb5;border-radius:14px;padding:4px 12px;cursor:pointer;font-size:13px;color:#3d2f1c;">Yes</button>
                         <button type="button" onclick="onSearchHelpful(this, false)" style="background:#fff;border:1px solid #d9cdb5;border-radius:14px;padding:4px 12px;cursor:pointer;font-size:13px;color:#3d2f1c;">No</button>
                     </div>`;
+                html += `
+                    <div class="follow-up-chips" style="display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px 4px 12px;">
+                        <button class="follow-up-chip" onclick="setSearchQuery('Show me more like this')">Show me more like this</button>
+                        <button class="follow-up-chip" onclick="setSearchQuery('What else is nearby?')">What else is nearby?</button>
+                        <button class="follow-up-chip" onclick="setMode('input')">+ Add something new</button>
+                    </div>`;
                 html += '</div>';
                 container.innerHTML += html;
                 container.scrollTop = container.scrollHeight;
@@ -6603,7 +6618,7 @@ async function sendMessage(text) {
                     moreScroll.addEventListener('scroll', function() { updateScrollArrows(moreScroll.id); });
                 }
 
-                if (locatedResults.length >= 2) {
+                if (locatedResults.length >= 3) {
                     setTimeout(function() { initSearchMap(mapId, currentResults); }, 100);
                 }
 
