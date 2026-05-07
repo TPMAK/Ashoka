@@ -3452,12 +3452,11 @@ var userLocMarker = null;
 var _currentMode = 'home';
 
 function setSearchQuery(text) {
-    const searchInput = document.querySelector('.search-input, #searchInput, input[type="search"]');
-    if (searchInput) {
-        searchInput.value = text;
-        searchInput.dispatchEvent(new Event('input'));
-        searchInput.focus();
-    }
+    const input = document.getElementById('messageInput');
+    if (!input) return;
+    input.value = text;
+    input.dispatchEvent(new Event('input'));
+    if (typeof sendMessage === 'function') sendMessage();
 }
 
 function setMode(mode) {
@@ -6604,10 +6603,10 @@ async function sendMessage(text) {
                         <button type="button" onclick="onSearchHelpful(this, false)" style="background:#fff;border:1px solid #d9cdb5;border-radius:14px;padding:4px 12px;cursor:pointer;font-size:13px;color:#3d2f1c;">No</button>
                     </div>`;
                 html += `
-                    <div class="follow-up-chips" style="display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px 4px 12px;">
-                        <button class="follow-up-chip" onclick="setSearchQuery('Show me more like this')">Show me more like this</button>
-                        <button class="follow-up-chip" onclick="setSearchQuery('What else is nearby?')">What else is nearby?</button>
-                        <button class="follow-up-chip" onclick="setMode('input')">+ Add something new</button>
+                    <div class="follow-up-chips">
+                        <button class="follow-up-chip" onclick="setSearchQuery('Find something nearby instead')">Find something nearby instead</button>
+                        <button class="follow-up-chip" onclick="setSearchQuery('More like this')">More like this</button>
+                        <button class="follow-up-chip follow-up-chip-reset" onclick="startNewSession()">New Search</button>
                     </div>`;
                 html += '</div>';
                 container.innerHTML += html;
