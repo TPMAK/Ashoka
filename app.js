@@ -6727,10 +6727,10 @@ async function sendMessage(text) {
             container.innerHTML += `
                 <div class="message message-assistant">
                     <div class="message-content">
-                        <strong>Nothing found for "${escapeHtml(query)}" in your network yet.</strong><br>
-                        ${allDiscoveries.length > 0
+                        <strong>${data.text && data.text.length ? escapeHtml(data.text) : 'Nothing found for "' + escapeHtml(query) + '" in your network yet.'}</strong><br>
+                        ${data.text && data.text.length ? '' : (allDiscoveries.length > 0
                             ? "Your friends haven't saved anything matching that — yet. Be the first to add it! 👇"
-                            : "Your network is empty. Invite friends to start building your shared discovery list! 🤝"}
+                            : "Your network is empty. Invite friends to start building your shared discovery list! 🤝")}
                     </div>
                     ${allDiscoveries.length > 0 ? `
                     <div style="padding: 8px 0;">
