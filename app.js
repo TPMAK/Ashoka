@@ -2618,6 +2618,7 @@ function logSearchFeedback(action, itemId, extraMeta) {
 
 // Called from the single "Was this helpful?" bar under each result set.
 // `helpful` is true for Yes, false for No. Replaces the bar with a thank-you.
+// Retained for any legacy callers; the new results footer uses onSearchThumb.
 window.onSearchHelpful = function(btn, helpful) {
     try {
         const bar = btn.closest('.search-helpful-bar');
@@ -2630,6 +2631,102 @@ window.onSearchHelpful = function(btn, helpful) {
             bar.innerHTML = '<span class="search-helpful-thanks">Thanks for the feedback.</span>';
         }
     } catch (e) { /* non-fatal */ }
+};
+
+// New results-footer thumb handler. Same backend as onSearchHelpful
+// (search_helpful / search_unhelpful) — no new endpoints, schema unchanged.
+// One tap per search: locks both thumb buttons after first interaction so
+// users can't toggle and we don't double-log.
+window.onSearchThumb = function(btn, helpful) {
+    try {
+        const feedback = btn.closest('.results-feedback');
+        if (feedback && feedback.dataset.locked === '1') return;
+        if (feedback) feedback.dataset.locked = '1';
+
+        // Visual confirmation: brief fill on the tapped button.
+        btn.classList.add('is-tapped');
+        // Lock both thumbs so the choice is final.
+        if (feedback) {
+            feedback.querySelectorAll('.results-feedback-btn').forEach(b => {
+                b.classList.add('is-locked');
+                b.disabled = true;
+            });
+        }
+
+        logSearchFeedback(helpful ? 'search_helpful' : 'search_unhelpful', null, {
+            query: (typeof sessionMessages !== 'undefined' && sessionMessages.length)
+                ? (sessionMessages[sessionMessages.length - 2] || {}).content || null
+                : null
+        });
+    } catch (e) { /* non-fatal */ }
+};
+
+// "Something else" chip: don't fire a query — focus the persistent search
+// bar, scroll it into view, and pulse its border to draw the eye.
+window.kxSomethingElse = function() {
+    try {
+        const input = document.getElementById('messageInput');
+        const inner = input ? input.closest('.search-input-inner') : null;
+        const target = inner || input;
+        if (target && typeof target.scrollIntoView === 'function') {
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        if (input) {
+            // Slight delay so focus lands after the scroll settles (mobile keyboard).
+            setTimeout(() => { try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); } }, 250);
+        }
+        if (inner) {
+            inner.classList.remove('kx-pulse');
+            // force reflow so the animation can replay if user taps again
+            void inner.offsetWidth;
+            inner.classList.add('kx-pulse');
+            setTimeout(() => inner.classList.remove('kx-pulse'), 1100);
+        }
+    } catch (e) { /* non-fatal */ }
+};
+
+// ── "Keep exploring" chip dispatchers ────────────────────────────
+// The chips ship the *previous user query* embedded in a framing
+// string so n8n can re-parse the original anchor (e.g. "in
+// Christchurch") via its existing location-extraction logic, rather
+// than the frontend trying to regex it out.
+//
+// If we can't find the previous query (edge case: refresh, race),
+// fall back to the bare token so the chip still does something
+// useful instead of silently doing nothing.
+// Skip chip labels when looking for the original anchor query — the chat
+// pill stores the friendly label ("Nearby", "More"), not the wrapped string
+// we sent to n8n, so we walk back past those labels to find the real query.
+const _KX_CHIP_LABELS = new Set(['Nearby', 'More']);
+function _kxPreviousQuery() {
+    try {
+        if (typeof sessionMessages === 'undefined' || !sessionMessages.length) return null;
+        for (let i = sessionMessages.length - 1; i >= 0; i--) {
+            const m = sessionMessages[i];
+            if (!m || m.role !== 'user' || typeof m.content !== 'string') continue;
+            const c = m.content.trim();
+            if (!c) continue;
+            if (_KX_CHIP_LABELS.has(c)) continue;
+            return c;
+        }
+    } catch (e) { /* non-fatal */ }
+    return null;
+}
+
+window.kxNearby = function() {
+    const prev = _kxPreviousQuery();
+    const q = prev
+        ? `More options near the same area as: ${prev}`
+        : 'Nearby';
+    sendMessage(q, 'Nearby');
+};
+
+window.kxMore = function() {
+    const prev = _kxPreviousQuery();
+    const q = prev
+        ? `Show me more options like: ${prev}`
+        : 'More';
+    sendMessage(q, 'More');
 };
 
 // ── LANGUAGE SYSTEM ──────────────────────────────────────────────
@@ -3450,6 +3547,14 @@ var userLocMarker = null;
 
 // Track active mode for pull-to-refresh
 var _currentMode = 'home';
+
+function setSearchQuery(text) {
+    const input = document.getElementById('messageInput');
+    if (!input) return;
+    input.value = text;
+    input.dispatchEvent(new Event('input'));
+    if (typeof sendMessage === 'function') sendMessage();
+}
 
 function setMode(mode) {
     var _prevMode = _currentMode;
@@ -6215,10 +6320,17 @@ function stopSearchMessages() {
     }
 }
 
-async function sendMessage(text) {
+async function sendMessage(text, displayLabel) {
     const input = document.getElementById('messageInput');
     const query = text || input.value.trim();
     if (!query) return;
+    // displayLabel: optional clean label shown in the chat pill + history
+    // when the actual query sent to n8n is a verbose wrapper string
+    // (e.g. "Show me more options like: coffee in Christchurch" → "More").
+    // If omitted, the chat pill shows the query as-is.
+    const shown = (typeof displayLabel === 'string' && displayLabel.trim())
+        ? displayLabel.trim()
+        : query;
 
     // Reset translation cache for new search
     translationCache = {};
@@ -6247,7 +6359,7 @@ async function sendMessage(text) {
     }
 
     const container = document.getElementById('chatContainer');
-    container.innerHTML += `<div class="message message-user"><div class="message-bubble">${escapeHtml(query)}</div></div>`;
+    container.innerHTML += `<div class="message message-user"><div class="message-bubble">${escapeHtml(shown)}</div></div>`;
     container.innerHTML += `<div class="message message-assistant" id="typing"><div class="typing-indicator"><div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div><span class="search-status-text">Searching...</span></div></div>`;
     container.scrollTop = container.scrollHeight;
     startSearchMessages();
@@ -6255,7 +6367,7 @@ async function sendMessage(text) {
 
     sessionMessages.push({
         role: 'user',
-        content: query,
+        content: shown,
         timestamp: Date.now()
     });
 
@@ -6456,7 +6568,7 @@ async function sendMessage(text) {
                             ` : ''}
                             <div class="top-pick-footer">
                                 <span class="result-save-count">${saveLabel}</span>
-                                ${distText ? `<span class="result-save-count" style="color:#7a6550;">${distText}</span>` : ''}
+                                ${distText ? `<span class="result-save-count" style="color:#7a6550;font-weight:600;">${distText}</span>` : ''}
                                 <button class="card-translate-btn" data-idx="${idx}" data-state="original" onclick="event.stopPropagation(); toggleCardTranslate(this, ${idx})">${'Translate ' + TRANSLATE_ICON}</button>
                             </div>
                         </div>
@@ -6511,7 +6623,7 @@ async function sendMessage(text) {
                         <div class="compact-photo">${photo}</div>
                         <div class="compact-title">${escapeHtml(_cc.heading)}</div>
                         ${_cc.subtitle ? `<div class="compact-subtitle">${escapeHtml(_cc.subtitle).substring(0, 55)}${_cc.subtitle.length > 55 ? '…' : ''}</div>` : ''}
-                        ${snippet ? `<div class="compact-snippet">${escapeHtml(snippet).substring(0, 55)}${snippet.length > 55 ? '…' : ''}</div>` : ''}
+                        ${snippet ? `<div class="compact-snippet">${escapeHtml(snippet).substring(0, 80)}${snippet.length > 80 ? '…' : ''}</div>` : ''}
                         <div class="hf-card-chips-row cc-chips-row">${catChip}${distChip}${privateChip}</div>
                         ${adderRow}
                         <div class="cc-saves-row">
@@ -6537,7 +6649,7 @@ async function sendMessage(text) {
                 const headerText = data.text && data.text.length
                     ? data.text
                     : `Found ${currentResults.length} ${currentResults.length === 1 ? 'discovery' : 'discoveries'}:`;
-                let html = `<div class="message message-assistant"><div class="message-content">${escapeHtml(headerText)}</div><div class="results-section">`;
+                let html = `<div class="message message-assistant"><div class="odin-response-box">${escapeHtml(headerText)}</div><div class="results-section">`;
 
                 html += `
                     <div class="top-picks-section">
@@ -6582,17 +6694,29 @@ async function sendMessage(text) {
                     return !isNaN(lat) && !isNaN(lng) && (Math.abs(lat) > 0.01 || Math.abs(lng) > 0.01);
                 });
                 const mapId = 'searchMap_' + Date.now();
-                if (locatedResults.length >= 2) {
+                if (locatedResults.length >= 3) {
                     html += `<div class="search-map-container"><div id="${mapId}" style="width:100%;height:100%;"></div></div>`;
                 }
 
                 html += '</div>';
-                // Single search-level feedback bar. One tap per search.
+                // Results footer: thumbs (left) + "Keep exploring" chips (right).
+                // Replaces old "Was this helpful?" bar + old 3-chip follow-up row.
                 html += `
-                    <div class="search-helpful-bar" style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-top:10px;border-top:1px solid #efe7d8;font-size:13px;color:#6b5a45;">
-                        <span>Was this helpful?</span>
-                        <button type="button" onclick="onSearchHelpful(this, true)" style="background:#fff;border:1px solid #d9cdb5;border-radius:14px;padding:4px 12px;cursor:pointer;font-size:13px;color:#3d2f1c;">Yes</button>
-                        <button type="button" onclick="onSearchHelpful(this, false)" style="background:#fff;border:1px solid #d9cdb5;border-radius:14px;padding:4px 12px;cursor:pointer;font-size:13px;color:#3d2f1c;">No</button>
+                    <div class="search-helpful-bar results-footer" role="group" aria-label="Search feedback and follow-up">
+                        <div class="results-feedback">
+                            <button type="button" class="results-feedback-btn" aria-label="Helpful" onclick="onSearchThumb(this, true)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H7V10l4.34-7.34A1.5 1.5 0 0 1 14 3.5z"/></svg>
+                            </button>
+                            <button type="button" class="results-feedback-btn" aria-label="Not helpful" onclick="onSearchThumb(this, false)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H17v12l-4.34 7.34A1.5 1.5 0 0 1 10 20.5z"/></svg>
+                            </button>
+                        </div>
+                        <span class="results-footer-divider" aria-hidden="true"></span>
+                        <div class="keep-exploring-chips">
+                            <button type="button" class="kx-chip" onclick="kxNearby()">Nearby</button>
+                            <button type="button" class="kx-chip" onclick="kxMore()">More</button>
+                            <button type="button" class="kx-chip" onclick="kxSomethingElse()">Something else</button>
+                        </div>
                     </div>`;
                 html += '</div>';
                 container.innerHTML += html;
@@ -6603,7 +6727,7 @@ async function sendMessage(text) {
                     moreScroll.addEventListener('scroll', function() { updateScrollArrows(moreScroll.id); });
                 }
 
-                if (locatedResults.length >= 2) {
+                if (locatedResults.length >= 3) {
                     setTimeout(function() { initSearchMap(mapId, currentResults); }, 100);
                 }
 
@@ -6679,10 +6803,15 @@ async function sendMessage(text) {
                                 </div>
                             </div>
                         </div>` : ''}
-                        <div class="search-helpful-bar" style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-top:10px;border-top:1px solid #efe7d8;font-size:13px;color:#6b5a45;">
-                            <span>Was this helpful?</span>
-                            <button type="button" onclick="onSearchHelpful(this, true)" style="background:#fff;border:1px solid #d9cdb5;border-radius:14px;padding:4px 12px;cursor:pointer;font-size:13px;color:#3d2f1c;">Yes</button>
-                            <button type="button" onclick="onSearchHelpful(this, false)" style="background:#fff;border:1px solid #d9cdb5;border-radius:14px;padding:4px 12px;cursor:pointer;font-size:13px;color:#3d2f1c;">No</button>
+                        <div class="search-helpful-bar results-footer" role="group" aria-label="Search feedback">
+                            <div class="results-feedback">
+                                <button type="button" class="results-feedback-btn" aria-label="Helpful" onclick="onSearchThumb(this, true)">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H7V10l4.34-7.34A1.5 1.5 0 0 1 14 3.5z"/></svg>
+                                </button>
+                                <button type="button" class="results-feedback-btn" aria-label="Not helpful" onclick="onSearchThumb(this, false)">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H17v12l-4.34 7.34A1.5 1.5 0 0 1 10 20.5z"/></svg>
+                                </button>
+                            </div>
                         </div>
                     </div>`;
 
@@ -6738,10 +6867,15 @@ async function sendMessage(text) {
                             ＋ Add a recommendation
                         </button>
                     </div>` : ''}
-                    <div class="search-helpful-bar" style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-top:10px;border-top:1px solid #efe7d8;font-size:13px;color:#6b5a45;">
-                        <span>Was this helpful?</span>
-                        <button type="button" onclick="onSearchHelpful(this, true)" style="background:#fff;border:1px solid #d9cdb5;border-radius:14px;padding:4px 12px;cursor:pointer;font-size:13px;color:#3d2f1c;">Yes</button>
-                        <button type="button" onclick="onSearchHelpful(this, false)" style="background:#fff;border:1px solid #d9cdb5;border-radius:14px;padding:4px 12px;cursor:pointer;font-size:13px;color:#3d2f1c;">No</button>
+                    <div class="search-helpful-bar results-footer" role="group" aria-label="Search feedback">
+                        <div class="results-feedback">
+                            <button type="button" class="results-feedback-btn" aria-label="Helpful" onclick="onSearchThumb(this, true)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H7V10l4.34-7.34A1.5 1.5 0 0 1 14 3.5z"/></svg>
+                            </button>
+                            <button type="button" class="results-feedback-btn" aria-label="Not helpful" onclick="onSearchThumb(this, false)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H17v12l-4.34 7.34A1.5 1.5 0 0 1 10 20.5z"/></svg>
+                            </button>
+                        </div>
                     </div>
                 </div>`;
 

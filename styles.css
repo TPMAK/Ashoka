@@ -2705,7 +2705,7 @@
 
         .top-pick-badge {
             position: absolute;
-            top: -8px;
+            top: -10px;
             left: 16px;
             background: linear-gradient(135deg, #7B2D45, #9B4D65);
             color: white;
@@ -2716,6 +2716,137 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
             box-shadow: 0 2px 8px rgba(123, 45, 69, 0.3);
+            z-index: 2;
+        }
+
+        /* Push the photo down so the absolute badge doesn't crowd it */
+        .top-pick-card {
+            padding-top: 18px !important;
+        }
+
+        /* Assistant reply bubble — mirrors .message-user .message-bubble, left-aligned */
+        .odin-response-box {
+            display: inline-block;
+            background: var(--mason);
+            color: var(--ink);
+            padding: 12px 16px;
+            border-radius: 18px;
+            max-width: 70%;
+            font-size: 15px;
+            line-height: 1.5;
+            margin-bottom: 14px;
+        }
+
+        /* ─────────────────────────────────────────────
+           Results footer (after the map)
+           One tight neutral row: thumbs │ chips
+           Replaces: old "Was this helpful?" bar + old follow-up-chips row
+           ───────────────────────────────────────────── */
+        .results-footer {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px 10px;        /* row-gap when it wraps, column-gap inline */
+            padding: 6px 4px;
+            margin-top: 10px;
+        }
+
+        .results-feedback {
+            display: inline-flex;
+            gap: 4px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .results-feedback-btn {
+            background: transparent;
+            border: none;
+            border-radius: 999px;
+            width: 28px;
+            height: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 0;
+            transition: color 0.15s, background 0.15s, transform 0.1s, opacity 0.15s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .results-feedback-btn:hover {
+            color: var(--ink);
+            background: rgba(42, 30, 20, 0.06);
+        }
+        .results-feedback-btn svg {
+            width: 16px;
+            height: 16px;
+            display: block;
+        }
+        /* Brief tap pulse — colourless, just darken to ink */
+        .results-feedback-btn.is-tapped {
+            color: var(--ink);
+            transform: scale(0.92);
+        }
+        /* After the user has registered a choice, both thumbs fade out. */
+        .results-feedback-btn.is-locked {
+            cursor: default;
+            opacity: 0.4;
+        }
+        .results-feedback-btn.is-locked.is-tapped {
+            opacity: 1;           /* keep the chosen one fully visible */
+        }
+
+        /* Vertical divider between thumbs and chips */
+        .results-footer-divider {
+            width: 1px;
+            height: 18px;
+            background: var(--border);
+            flex-shrink: 0;
+        }
+        /* Mobile: keep the divider visible — same row, tighter gap */
+        @media (max-width: 480px) {
+            .results-footer { gap: 6px 8px; }
+        }
+
+        .keep-exploring-chips {
+            display: inline-flex;
+            flex-wrap: nowrap;
+            gap: 6px;
+        }
+
+        /* Match the home-screen .suggestion-chip styling so the results
+           footer feels consistent with "Try asking" and "Recent". */
+        .kx-chip {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 4px 10px;
+            border-radius: 16px;
+            font-size: 12px;
+            color: var(--ink);
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            transition: border-color 0.15s, color 0.15s, background 0.15s, transform 0.1s;
+            white-space: nowrap;
+            line-height: 1.4;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .kx-chip:hover {
+            border-color: #7B2D45;
+            color: #7B2D45;
+            background: #F5EDE8;
+        }
+        .kx-chip:active {
+            transform: scale(0.97);
+        }
+
+        /* Pulse on the persistent search bar when "Something else" is tapped.
+           Neutral grey ring — no Winterberry. */
+        @keyframes kxSearchBarPulse {
+            0%   { box-shadow: 0 0 0 0 rgba(42, 30, 20, 0.35); }
+            70%  { box-shadow: 0 0 0 8px rgba(42, 30, 20, 0);  }
+            100% { box-shadow: 0 0 0 0 rgba(42, 30, 20, 0);    }
+        }
+        .kx-pulse {
+            animation: kxSearchBarPulse 1s ease-out 1;
         }
 
         .top-pick-photo {
