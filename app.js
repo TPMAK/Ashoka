@@ -2618,6 +2618,7 @@ function logSearchFeedback(action, itemId, extraMeta) {
 
 // Called from the single "Was this helpful?" bar under each result set.
 // `helpful` is true for Yes, false for No. Replaces the bar with a thank-you.
+// Retained for any legacy callers; the new results footer uses onSearchThumb.
 window.onSearchHelpful = function(btn, helpful) {
     try {
         const bar = btn.closest('.search-helpful-bar');
@@ -2630,6 +2631,97 @@ window.onSearchHelpful = function(btn, helpful) {
             bar.innerHTML = '<span class="search-helpful-thanks">Thanks for the feedback.</span>';
         }
     } catch (e) { /* non-fatal */ }
+};
+
+// New results-footer thumb handler. Same backend as onSearchHelpful
+// (search_helpful / search_unhelpful) — no new endpoints, schema unchanged.
+// One tap per search: locks both thumb buttons after first interaction so
+// users can't toggle and we don't double-log.
+window.onSearchThumb = function(btn, helpful) {
+    try {
+        const feedback = btn.closest('.results-feedback');
+        if (feedback && feedback.dataset.locked === '1') return;
+        if (feedback) feedback.dataset.locked = '1';
+
+        // Visual confirmation: brief fill on the tapped button.
+        btn.classList.add('is-tapped');
+        // Lock both thumbs so the choice is final.
+        if (feedback) {
+            feedback.querySelectorAll('.results-feedback-btn').forEach(b => {
+                b.classList.add('is-locked');
+                b.disabled = true;
+            });
+        }
+
+        logSearchFeedback(helpful ? 'search_helpful' : 'search_unhelpful', null, {
+            query: (typeof sessionMessages !== 'undefined' && sessionMessages.length)
+                ? (sessionMessages[sessionMessages.length - 2] || {}).content || null
+                : null
+        });
+    } catch (e) { /* non-fatal */ }
+};
+
+// "Something else" chip: don't fire a query — focus the persistent search
+// bar, scroll it into view, and pulse its border to draw the eye.
+window.kxSomethingElse = function() {
+    try {
+        const input = document.getElementById('messageInput');
+        const inner = input ? input.closest('.search-input-inner') : null;
+        const target = inner || input;
+        if (target && typeof target.scrollIntoView === 'function') {
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        if (input) {
+            // Slight delay so focus lands after the scroll settles (mobile keyboard).
+            setTimeout(() => { try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); } }, 250);
+        }
+        if (inner) {
+            inner.classList.remove('kx-pulse');
+            // force reflow so the animation can replay if user taps again
+            void inner.offsetWidth;
+            inner.classList.add('kx-pulse');
+            setTimeout(() => inner.classList.remove('kx-pulse'), 1100);
+        }
+    } catch (e) { /* non-fatal */ }
+};
+
+// ── "Keep exploring" chip dispatchers ────────────────────────────
+// The chips ship the *previous user query* embedded in a framing
+// string so n8n can re-parse the original anchor (e.g. "in
+// Christchurch") via its existing location-extraction logic, rather
+// than the frontend trying to regex it out.
+//
+// If we can't find the previous query (edge case: refresh, race),
+// fall back to the bare token so the chip still does something
+// useful instead of silently doing nothing.
+function _kxPreviousQuery() {
+    try {
+        if (typeof sessionMessages === 'undefined' || !sessionMessages.length) return null;
+        // Walk backwards to find the most recent user message.
+        for (let i = sessionMessages.length - 1; i >= 0; i--) {
+            const m = sessionMessages[i];
+            if (m && m.role === 'user' && typeof m.content === 'string' && m.content.trim()) {
+                return m.content.trim();
+            }
+        }
+    } catch (e) { /* non-fatal */ }
+    return null;
+}
+
+window.kxNearby = function() {
+    const prev = _kxPreviousQuery();
+    const q = prev
+        ? `More options near the same area as: ${prev}`
+        : 'Nearby';
+    setSearchQuery(q);
+};
+
+window.kxMore = function() {
+    const prev = _kxPreviousQuery();
+    const q = prev
+        ? `Show me more options like: ${prev}`
+        : 'More';
+    setSearchQuery(q);
 };
 
 // ── LANGUAGE SYSTEM ──────────────────────────────────────────────
@@ -6595,18 +6687,26 @@ async function sendMessage(text) {
                 }
 
                 html += '</div>';
-                // Single search-level feedback bar. One tap per search.
+                // Results footer: thumbs (left) + "Keep exploring" chips (right).
+                // Replaces old "Was this helpful?" bar + old 3-chip follow-up row.
                 html += `
-                    <div class="search-helpful-bar" style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-top:10px;border-top:1px solid #efe7d8;font-size:13px;color:#6b5a45;">
-                        <span>Was this helpful?</span>
-                        <button type="button" onclick="onSearchHelpful(this, true)" style="background:#fff;border:1px solid #d9cdb5;border-radius:14px;padding:4px 12px;cursor:pointer;font-size:13px;color:#3d2f1c;">Yes</button>
-                        <button type="button" onclick="onSearchHelpful(this, false)" style="background:#fff;border:1px solid #d9cdb5;border-radius:14px;padding:4px 12px;cursor:pointer;font-size:13px;color:#3d2f1c;">No</button>
-                    </div>`;
-                html += `
-                    <div class="follow-up-chips">
-                        <button class="follow-up-chip" onclick="setSearchQuery('Find something nearby instead')">Find something nearby instead</button>
-                        <button class="follow-up-chip" onclick="setSearchQuery('More like this')">More like this</button>
-                        <button class="follow-up-chip follow-up-chip-reset" onclick="startNewSession()">New Search</button>
+                    <div class="search-helpful-bar results-footer" role="group" aria-label="Search feedback and follow-up">
+                        <div class="results-feedback">
+                            <button type="button" class="results-feedback-btn" aria-label="Helpful" onclick="onSearchThumb(this, true)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H7V10l4.34-7.34A1.5 1.5 0 0 1 14 3.5z"/></svg>
+                            </button>
+                            <button type="button" class="results-feedback-btn" aria-label="Not helpful" onclick="onSearchThumb(this, false)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H17v12l-4.34 7.34A1.5 1.5 0 0 1 10 20.5z"/></svg>
+                            </button>
+                        </div>
+                        <div class="keep-exploring">
+                            <span class="keep-exploring-label">Keep exploring</span>
+                            <div class="keep-exploring-chips">
+                                <button type="button" class="kx-chip kx-chip-primary" onclick="kxNearby()">Nearby</button>
+                                <button type="button" class="kx-chip kx-chip-secondary" onclick="kxMore()">More</button>
+                                <button type="button" class="kx-chip kx-chip-secondary" onclick="kxSomethingElse()">Something else</button>
+                            </div>
+                        </div>
                     </div>`;
                 html += '</div>';
                 container.innerHTML += html;
@@ -6693,10 +6793,15 @@ async function sendMessage(text) {
                                 </div>
                             </div>
                         </div>` : ''}
-                        <div class="search-helpful-bar" style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-top:10px;border-top:1px solid #efe7d8;font-size:13px;color:#6b5a45;">
-                            <span>Was this helpful?</span>
-                            <button type="button" onclick="onSearchHelpful(this, true)" style="background:#fff;border:1px solid #d9cdb5;border-radius:14px;padding:4px 12px;cursor:pointer;font-size:13px;color:#3d2f1c;">Yes</button>
-                            <button type="button" onclick="onSearchHelpful(this, false)" style="background:#fff;border:1px solid #d9cdb5;border-radius:14px;padding:4px 12px;cursor:pointer;font-size:13px;color:#3d2f1c;">No</button>
+                        <div class="search-helpful-bar results-footer" role="group" aria-label="Search feedback">
+                            <div class="results-feedback">
+                                <button type="button" class="results-feedback-btn" aria-label="Helpful" onclick="onSearchThumb(this, true)">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H7V10l4.34-7.34A1.5 1.5 0 0 1 14 3.5z"/></svg>
+                                </button>
+                                <button type="button" class="results-feedback-btn" aria-label="Not helpful" onclick="onSearchThumb(this, false)">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H17v12l-4.34 7.34A1.5 1.5 0 0 1 10 20.5z"/></svg>
+                                </button>
+                            </div>
                         </div>
                     </div>`;
 
@@ -6752,10 +6857,15 @@ async function sendMessage(text) {
                             ＋ Add a recommendation
                         </button>
                     </div>` : ''}
-                    <div class="search-helpful-bar" style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-top:10px;border-top:1px solid #efe7d8;font-size:13px;color:#6b5a45;">
-                        <span>Was this helpful?</span>
-                        <button type="button" onclick="onSearchHelpful(this, true)" style="background:#fff;border:1px solid #d9cdb5;border-radius:14px;padding:4px 12px;cursor:pointer;font-size:13px;color:#3d2f1c;">Yes</button>
-                        <button type="button" onclick="onSearchHelpful(this, false)" style="background:#fff;border:1px solid #d9cdb5;border-radius:14px;padding:4px 12px;cursor:pointer;font-size:13px;color:#3d2f1c;">No</button>
+                    <div class="search-helpful-bar results-footer" role="group" aria-label="Search feedback">
+                        <div class="results-feedback">
+                            <button type="button" class="results-feedback-btn" aria-label="Helpful" onclick="onSearchThumb(this, true)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H7V10l4.34-7.34A1.5 1.5 0 0 1 14 3.5z"/></svg>
+                            </button>
+                            <button type="button" class="results-feedback-btn" aria-label="Not helpful" onclick="onSearchThumb(this, false)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H17v12l-4.34 7.34A1.5 1.5 0 0 1 10 20.5z"/></svg>
+                            </button>
+                        </div>
                     </div>
                 </div>`;
 

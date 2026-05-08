@@ -2737,39 +2737,158 @@
             margin-bottom: 14px;
         }
 
-        .follow-up-chips {
+        /* ─────────────────────────────────────────────
+           Results footer (after the map)
+           Thumbs (left) + "Keep exploring" chips (right)
+           Replaces: old "Was this helpful?" bar + old follow-up-chips row
+           ───────────────────────────────────────────── */
+        .results-footer {
             display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
             flex-wrap: wrap;
-            gap: 8px;
-            padding: 12px 14px;
+            gap: 16px;
+            padding: 14px 12px;
             margin-top: 14px;
-            background: #faf6ef;
-            border: 1px dashed #d9cdb5;
-            border-radius: 12px;
         }
-        .follow-up-chip {
-            background: #fff;
-            border: 1px solid #d9cdb5;
-            border-radius: 16px;
-            padding: 6px 12px;
-            font-size: 12px;
-            color: #5a3e28;
+        /* Mobile: stack thumbs above chips, never split chips across lines */
+        @media (max-width: 600px) {
+            .results-footer {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+
+        .results-feedback {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .results-feedback-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            width: 36px;
+            height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
             cursor: pointer;
-            font-family: 'DM Sans', sans-serif;
+            padding: 0;
+            transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+            -webkit-tap-highlight-color: transparent;
         }
-        .follow-up-chip:hover {
-            background: #f5efe6;
-            border-color: #7B2D45;
+        .results-feedback-btn:hover {
             color: #7B2D45;
+            border-color: #7B2D45;
         }
-        .follow-up-chip-reset {
+        .results-feedback-btn svg {
+            width: 18px;
+            height: 18px;
+            display: block;
+        }
+        /* Brief fill-colour change on tap to confirm registered */
+        .results-feedback-btn.is-tapped {
+            background: #7B2D45;
+            border-color: #7B2D45;
+            color: #fff;
+            transform: scale(0.95);
+        }
+        .results-feedback-btn.is-locked {
+            cursor: default;
+            opacity: 0.85;
+        }
+
+        .keep-exploring {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+        @media (max-width: 600px) {
+            .keep-exploring { align-items: flex-start; }
+        }
+        .keep-exploring-label {
+            font-family: 'DM Sans', 'Inter', sans-serif;
+            font-size: 12px;
+            color: var(--text-secondary);
+            letter-spacing: 0.2px;
+        }
+        .keep-exploring-chips {
+            display: flex;
+            flex-wrap: nowrap;
+            gap: 8px;
+        }
+        /* Wrap to a new line ONLY if the row truly cannot fit (very narrow) —
+           but never split chips across multiple lines. The brief says: keep
+           thumbs above chips on mobile and don't split chips. flex-wrap:nowrap
+           on the chip row enforces this; horizontal scroll is acceptable on
+           ultra-narrow viewports. */
+
+        .kx-chip {
+            font-family: 'DM Sans', 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            padding: 7px 14px;
+            border-radius: 16px;
+            cursor: pointer;
+            white-space: nowrap;
+            line-height: 1.2;
+            transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .kx-chip-primary {
             background: #7B2D45;
             color: #fff;
-            border-color: #7B2D45;
+            border: 1px solid #7B2D45;
         }
-        .follow-up-chip-reset:hover {
+        .kx-chip-primary:hover {
             background: #5e2235;
-            color: #fff;
+            border-color: #5e2235;
+        }
+        .kx-chip-primary:active { transform: scale(0.96); }
+        .kx-chip-secondary {
+            background: transparent;
+            color: #7B2D45;
+            border: 1px solid #7B2D45;
+        }
+        .kx-chip-secondary:hover {
+            background: #7B2D4514;
+        }
+        .kx-chip-secondary:active { transform: scale(0.96); }
+
+        /* Pulse on the persistent search bar when "Something else" is tapped */
+        @keyframes kxSearchBarPulse {
+            0%   { box-shadow: 0 0 0 0 rgba(123, 45, 69, 0.55); }
+            70%  { box-shadow: 0 0 0 8px rgba(123, 45, 69, 0);   }
+            100% { box-shadow: 0 0 0 0 rgba(123, 45, 69, 0);     }
+        }
+        .kx-pulse {
+            animation: kxSearchBarPulse 1s ease-out 1;
+            border-color: #7B2D45 !important;
+        }
+
+        /* Dark-mode override: Winterberry → Burnt Orange.
+           The codebase doesn't ship a dark-mode toggle today, but honouring
+           the brief: when the OS reports dark, swap the chip / pulse / hover
+           colour. If/when an explicit dark theme lands, mirror this rule
+           under the theme selector. */
+        @media (prefers-color-scheme: dark) {
+            .results-feedback-btn:hover { color: #D4622A; border-color: #D4622A; }
+            .results-feedback-btn.is-tapped { background: #D4622A; border-color: #D4622A; }
+            .kx-chip-primary { background: #D4622A; border-color: #D4622A; }
+            .kx-chip-primary:hover { background: #be561f; border-color: #be561f; }
+            .kx-chip-secondary { color: #D4622A; border-color: #D4622A; }
+            .kx-chip-secondary:hover { background: rgba(212, 98, 42, 0.10); }
+            @keyframes kxSearchBarPulse {
+                0%   { box-shadow: 0 0 0 0 rgba(212, 98, 42, 0.55); }
+                70%  { box-shadow: 0 0 0 8px rgba(212, 98, 42, 0);  }
+                100% { box-shadow: 0 0 0 0 rgba(212, 98, 42, 0);    }
+            }
+            .kx-pulse { border-color: #D4622A !important; }
         }
 
         .top-pick-photo {
