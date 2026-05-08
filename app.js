@@ -6711,13 +6711,11 @@ async function sendMessage(text, displayLabel) {
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H17v12l-4.34 7.34A1.5 1.5 0 0 1 10 20.5z"/></svg>
                             </button>
                         </div>
-                        <div class="keep-exploring">
-                            <span class="keep-exploring-label">Keep exploring</span>
-                            <div class="keep-exploring-chips">
-                                <button type="button" class="kx-chip kx-chip-primary" onclick="kxNearby()">Nearby</button>
-                                <button type="button" class="kx-chip kx-chip-secondary" onclick="kxMore()">More</button>
-                                <button type="button" class="kx-chip kx-chip-secondary" onclick="kxSomethingElse()">Something else</button>
-                            </div>
+                        <span class="results-footer-divider" aria-hidden="true"></span>
+                        <div class="keep-exploring-chips">
+                            <button type="button" class="kx-chip" onclick="kxNearby()">Nearby</button>
+                            <button type="button" class="kx-chip" onclick="kxMore()">More</button>
+                            <button type="button" class="kx-chip" onclick="kxSomethingElse()">Something else</button>
                         </div>
                     </div>`;
                 html += '</div>';

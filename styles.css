@@ -2739,156 +2739,113 @@
 
         /* ─────────────────────────────────────────────
            Results footer (after the map)
-           Thumbs (left) + "Keep exploring" chips (right)
+           One tight neutral row: thumbs │ chips
            Replaces: old "Was this helpful?" bar + old follow-up-chips row
            ───────────────────────────────────────────── */
         .results-footer {
             display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
+            align-items: center;
             flex-wrap: wrap;
-            gap: 16px;
-            padding: 14px 12px;
-            margin-top: 14px;
-        }
-        /* Mobile: stack thumbs above chips, never split chips across lines */
-        @media (max-width: 600px) {
-            .results-footer {
-                flex-direction: column;
-                align-items: stretch;
-            }
+            gap: 6px 10px;        /* row-gap when it wraps, column-gap inline */
+            padding: 6px 4px;
+            margin-top: 10px;
         }
 
         .results-feedback {
-            display: flex;
-            gap: 8px;
+            display: inline-flex;
+            gap: 4px;
             align-items: center;
             flex-shrink: 0;
         }
         .results-feedback-btn {
             background: transparent;
-            border: 1px solid var(--border);
+            border: none;
             border-radius: 999px;
-            width: 36px;
-            height: 36px;
+            width: 28px;
+            height: 28px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             color: var(--text-secondary);
             cursor: pointer;
             padding: 0;
-            transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+            transition: color 0.15s, background 0.15s, transform 0.1s, opacity 0.15s;
             -webkit-tap-highlight-color: transparent;
         }
         .results-feedback-btn:hover {
-            color: #7B2D45;
-            border-color: #7B2D45;
+            color: var(--ink);
+            background: rgba(42, 30, 20, 0.06);
         }
         .results-feedback-btn svg {
-            width: 18px;
-            height: 18px;
+            width: 16px;
+            height: 16px;
             display: block;
         }
-        /* Brief fill-colour change on tap to confirm registered */
+        /* Brief tap pulse — colourless, just darken to ink */
         .results-feedback-btn.is-tapped {
-            background: #7B2D45;
-            border-color: #7B2D45;
-            color: #fff;
-            transform: scale(0.95);
+            color: var(--ink);
+            transform: scale(0.92);
         }
+        /* After the user has registered a choice, both thumbs fade out. */
         .results-feedback-btn.is-locked {
             cursor: default;
-            opacity: 0.85;
+            opacity: 0.4;
+        }
+        .results-feedback-btn.is-locked.is-tapped {
+            opacity: 1;           /* keep the chosen one fully visible */
         }
 
-        .keep-exploring {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 6px;
+        /* Vertical divider between thumbs and chips */
+        .results-footer-divider {
+            width: 1px;
+            height: 18px;
+            background: var(--border);
             flex-shrink: 0;
         }
-        @media (max-width: 600px) {
-            .keep-exploring { align-items: flex-start; }
+        /* On wrap (narrow viewport), divider hides — chips fall to next line */
+        @media (max-width: 480px) {
+            .results-footer-divider { display: none; }
+            .results-footer { gap: 8px; }
         }
-        .keep-exploring-label {
-            font-family: 'DM Sans', 'Inter', sans-serif;
-            font-size: 12px;
-            color: var(--text-secondary);
-            letter-spacing: 0.2px;
-        }
+
         .keep-exploring-chips {
-            display: flex;
+            display: inline-flex;
             flex-wrap: nowrap;
-            gap: 8px;
+            gap: 6px;
         }
-        /* Wrap to a new line ONLY if the row truly cannot fit (very narrow) —
-           but never split chips across multiple lines. The brief says: keep
-           thumbs above chips on mobile and don't split chips. flex-wrap:nowrap
-           on the chip row enforces this; horizontal scroll is acceptable on
-           ultra-narrow viewports. */
 
         .kx-chip {
             font-family: 'DM Sans', 'Inter', sans-serif;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 500;
-            padding: 7px 14px;
-            border-radius: 16px;
+            padding: 5px 11px;
+            border-radius: 14px;
             cursor: pointer;
             white-space: nowrap;
-            line-height: 1.2;
-            transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+            line-height: 1.3;
+            background: transparent;
+            color: var(--ink);
+            border: none;
+            transition: background 0.15s, transform 0.1s;
             -webkit-tap-highlight-color: transparent;
         }
-        .kx-chip-primary {
-            background: #7B2D45;
-            color: #fff;
-            border: 1px solid #7B2D45;
+        .kx-chip:hover {
+            background: rgba(42, 30, 20, 0.06);
         }
-        .kx-chip-primary:hover {
-            background: #5e2235;
-            border-color: #5e2235;
+        .kx-chip:active {
+            background: rgba(42, 30, 20, 0.10);
+            transform: scale(0.97);
         }
-        .kx-chip-primary:active { transform: scale(0.96); }
-        .kx-chip-secondary {
-            background: transparent;
-            color: #7B2D45;
-            border: 1px solid #7B2D45;
-        }
-        .kx-chip-secondary:hover {
-            background: #7B2D4514;
-        }
-        .kx-chip-secondary:active { transform: scale(0.96); }
 
-        /* Pulse on the persistent search bar when "Something else" is tapped */
+        /* Pulse on the persistent search bar when "Something else" is tapped.
+           Neutral grey ring — no Winterberry. */
         @keyframes kxSearchBarPulse {
-            0%   { box-shadow: 0 0 0 0 rgba(123, 45, 69, 0.55); }
-            70%  { box-shadow: 0 0 0 8px rgba(123, 45, 69, 0);   }
-            100% { box-shadow: 0 0 0 0 rgba(123, 45, 69, 0);     }
+            0%   { box-shadow: 0 0 0 0 rgba(42, 30, 20, 0.35); }
+            70%  { box-shadow: 0 0 0 8px rgba(42, 30, 20, 0);  }
+            100% { box-shadow: 0 0 0 0 rgba(42, 30, 20, 0);    }
         }
         .kx-pulse {
             animation: kxSearchBarPulse 1s ease-out 1;
-            border-color: #7B2D45 !important;
-        }
-
-        /* Dark-mode override: Winterberry → Burnt Orange.
-           The codebase doesn't ship a dark-mode toggle today, but honouring
-           the brief: when the OS reports dark, swap the chip / pulse / hover
-           colour. If/when an explicit dark theme lands, mirror this rule
-           under the theme selector. */
-        @media (prefers-color-scheme: dark) {
-            .results-feedback-btn:hover { color: #D4622A; border-color: #D4622A; }
-            .results-feedback-btn.is-tapped { background: #D4622A; border-color: #D4622A; }
-            .kx-chip-primary { background: #D4622A; border-color: #D4622A; }
-            .kx-chip-primary:hover { background: #be561f; border-color: #be561f; }
-            .kx-chip-secondary { color: #D4622A; border-color: #D4622A; }
-            .kx-chip-secondary:hover { background: rgba(212, 98, 42, 0.10); }
-            @keyframes kxSearchBarPulse {
-                0%   { box-shadow: 0 0 0 0 rgba(212, 98, 42, 0.55); }
-                70%  { box-shadow: 0 0 0 8px rgba(212, 98, 42, 0);  }
-                100% { box-shadow: 0 0 0 0 rgba(212, 98, 42, 0);    }
-            }
-            .kx-pulse { border-color: #D4622A !important; }
         }
 
         .top-pick-photo {
