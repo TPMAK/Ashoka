@@ -2802,10 +2802,9 @@
             background: var(--border);
             flex-shrink: 0;
         }
-        /* On wrap (narrow viewport), divider hides — chips fall to next line */
+        /* Mobile: keep the divider visible — same row, tighter gap */
         @media (max-width: 480px) {
-            .results-footer-divider { display: none; }
-            .results-footer { gap: 8px; }
+            .results-footer { gap: 6px 8px; }
         }
 
         .keep-exploring-chips {
