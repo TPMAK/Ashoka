@@ -2694,15 +2694,20 @@ window.kxSomethingElse = function() {
 // If we can't find the previous query (edge case: refresh, race),
 // fall back to the bare token so the chip still does something
 // useful instead of silently doing nothing.
+// Skip chip labels when looking for the original anchor query — the chat
+// pill stores the friendly label ("Nearby", "More"), not the wrapped string
+// we sent to n8n, so we walk back past those labels to find the real query.
+const _KX_CHIP_LABELS = new Set(['Nearby', 'More']);
 function _kxPreviousQuery() {
     try {
         if (typeof sessionMessages === 'undefined' || !sessionMessages.length) return null;
-        // Walk backwards to find the most recent user message.
         for (let i = sessionMessages.length - 1; i >= 0; i--) {
             const m = sessionMessages[i];
-            if (m && m.role === 'user' && typeof m.content === 'string' && m.content.trim()) {
-                return m.content.trim();
-            }
+            if (!m || m.role !== 'user' || typeof m.content !== 'string') continue;
+            const c = m.content.trim();
+            if (!c) continue;
+            if (_KX_CHIP_LABELS.has(c)) continue;
+            return c;
         }
     } catch (e) { /* non-fatal */ }
     return null;
@@ -2713,7 +2718,7 @@ window.kxNearby = function() {
     const q = prev
         ? `More options near the same area as: ${prev}`
         : 'Nearby';
-    setSearchQuery(q);
+    sendMessage(q, 'Nearby');
 };
 
 window.kxMore = function() {
@@ -2721,7 +2726,7 @@ window.kxMore = function() {
     const q = prev
         ? `Show me more options like: ${prev}`
         : 'More';
-    setSearchQuery(q);
+    sendMessage(q, 'More');
 };
 
 // ── LANGUAGE SYSTEM ──────────────────────────────────────────────
@@ -6315,10 +6320,17 @@ function stopSearchMessages() {
     }
 }
 
-async function sendMessage(text) {
+async function sendMessage(text, displayLabel) {
     const input = document.getElementById('messageInput');
     const query = text || input.value.trim();
     if (!query) return;
+    // displayLabel: optional clean label shown in the chat pill + history
+    // when the actual query sent to n8n is a verbose wrapper string
+    // (e.g. "Show me more options like: coffee in Christchurch" → "More").
+    // If omitted, the chat pill shows the query as-is.
+    const shown = (typeof displayLabel === 'string' && displayLabel.trim())
+        ? displayLabel.trim()
+        : query;
 
     // Reset translation cache for new search
     translationCache = {};
@@ -6347,7 +6359,7 @@ async function sendMessage(text) {
     }
 
     const container = document.getElementById('chatContainer');
-    container.innerHTML += `<div class="message message-user"><div class="message-bubble">${escapeHtml(query)}</div></div>`;
+    container.innerHTML += `<div class="message message-user"><div class="message-bubble">${escapeHtml(shown)}</div></div>`;
     container.innerHTML += `<div class="message message-assistant" id="typing"><div class="typing-indicator"><div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div><span class="search-status-text">Searching...</span></div></div>`;
     container.scrollTop = container.scrollHeight;
     startSearchMessages();
@@ -6355,7 +6367,7 @@ async function sendMessage(text) {
 
     sessionMessages.push({
         role: 'user',
-        content: query,
+        content: shown,
         timestamp: Date.now()
     });
 
