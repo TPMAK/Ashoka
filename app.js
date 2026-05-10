@@ -5754,6 +5754,7 @@ function enterEditMode() {
 
     const categories = ['place', 'product', 'service', 'advice'];
     const currentType = (item.type || 'place').toLowerCase();
+    const isCategoryEditable = categories.includes(currentType);
     const categoryOptions = categories.map(c =>
         `<option value="${c}"${c === currentType ? ' selected' : ''}>${c.charAt(0).toUpperCase() + c.slice(1)}</option>`
     ).join('');
@@ -5782,8 +5783,10 @@ function enterEditMode() {
         <label class="edit-label">Personal Note</label>
         <textarea class="edit-textarea" id="editNote" rows="2" maxlength="500">${escapeHtml(note)}</textarea>
 
+        ${isCategoryEditable ? `
         <label class="edit-label">Category</label>
         <select class="edit-select" id="editCategory">${categoryOptions}</select>
+        ` : ''}
 
         <label class="edit-label">Address</label>
         <input class="edit-input" id="editAddress" value="${escapeHtml(item.address || '')}">
@@ -5891,7 +5894,8 @@ async function saveItemEdit(itemId) {
 
     const newTitle = document.getElementById('editTitle').value.trim();
     const newNote = document.getElementById('editNote').value.trim();
-    const newCategory = document.getElementById('editCategory').value;
+    const editCategoryEl = document.getElementById('editCategory');
+    const newCategory = editCategoryEl ? editCategoryEl.value : null;
     const newAddress = document.getElementById('editAddress').value.trim();
     const newUrl = document.getElementById('editUrl').value.trim();
     // place_name: optional venue name. Empty -> null. Approach A: silently kept on
@@ -5986,13 +5990,16 @@ async function saveItemEdit(itemId) {
             title: newTitle,
             photo_urls: finalPhotoUrls,                  // array (canonical)
             photo_url: finalPhotoUrls[0] || null,        // legacy mirror, kept in sync
-            type: newCategory,
             address: newAddress || null,
             URL: newUrl ? [newUrl] : [],
             personal_note: newNote || null,
             place_name: newPlaceName,
             visibility: newVisibility
         };
+        // Only write `type` if the Category dropdown was rendered (i.e. an editable type)
+        if (newCategory !== null) {
+            updateData.type = newCategory;
+        }
 
         // Also update metadata.personal_note
         let meta = {};
@@ -6034,7 +6041,7 @@ async function saveItemEdit(itemId) {
                     itemId: itemId,
                     title: newTitle,
                     personalNote: newNote || null,
-                    type: newCategory,
+                    type: newCategory !== null ? newCategory : (item.type || null),
                     UserID: currentUser.id
                 })
             }).catch(err => console.warn('Re-embed request failed (non-critical):', err));

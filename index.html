@@ -4455,9 +4455,12 @@
         var enc = (typeof endorsementsCache !== 'undefined') ? endorsementsCache[item.id] : null;
         var saverNames = [];
         if (enc && enc.names && enc.names.length > 0) {
-            enc.names.forEach(function(n){ if(n) saverNames.push(n); });
+            enc.names.forEach(function(n){
+                // Exclude the adder — they already appear in the "by X" byline
+                if (n && n !== item.added_by_name) saverNames.push(n);
+            });
         }
-        // If no endorsers yet, fall back to adder as the lone saver
+        // Fallback only if no OTHER savers exist
         if (saverNames.length === 0 && item.added_by_name) {
             saverNames = [item.added_by_name];
         }
