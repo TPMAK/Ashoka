@@ -4344,17 +4344,23 @@ async function loadDiscoveries() {
         twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 180);
 
         // ── Tier 1 & 2: Own items + direct-friend items ──────────
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/knowledge_items?select=*&order=created_at.desc`, {
-            headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+        // Server-side RLS now enforces this via SECURITY DEFINER RPC.
+        // The RPC returns only items where added_by = caller OR added_by is an accepted friend,
+        // within p_days, with private items hidden from non-owners.
+        const { data: feedData, error: feedError } = await supabaseClient.rpc('get_feed_items', {
+            p_user_id: currentUser.id,
+            p_days: 180
         });
+        if (feedError) {
+            console.error('Feed RPC error:', feedError.message);
+        }
+        let data = feedData || [];
 
-        let data = await response.json();
-        data = data.filter(item => new Date(item.created_at) >= twoWeeksAgo);
-
+        // Defence-in-depth: legacy JS-side trust filter retained as a safety net.
+        // After get_feed_items, this is a no-op for normal cases — if it ever
+        // removes rows, that signals an RLS regression worth investigating.
         const friendIds = new Set(friendsCache.map(f => f.out_user_id));
         if (currentUser) friendIds.add(currentUser.id);
-
-        // Keep own items + direct-friend items only (Private + Friends tiers)
         data = data.filter(item => item.added_by && friendIds.has(item.added_by));
 
         // Hide private items — only the owner sees their own private items
@@ -4401,12 +4407,17 @@ async function loadDiscoveries() {
                         .filter(id => !seenIds.has(id));
 
                     if (inheritedIds.length > 0) {
-                        // Fetch full item details — use anon key like Tier 1/2 above
-                        const inheritedResp = await fetch(
-                            `${SUPABASE_URL}/rest/v1/knowledge_items?select=*&id=in.(${inheritedIds.join(',')})&order=created_at.desc`,
-                            { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
-                        );
-                        const inheritedData = await inheritedResp.json();
+                        // Server-side anonymisation via SECURITY DEFINER RPC:
+                        // returns added_by = NULL and added_by_name = NULL for every row,
+                        // and only returns items genuinely endorsed by an accepted friend.
+                        // anonymiseForExtendedCircle() then layers the "Via [Name]" presentation.
+                        const { data: inheritedData, error: inhError } = await supabaseClient.rpc('get_inherited_items', {
+                            p_user_id: currentUser.id,
+                            p_item_ids: inheritedIds
+                        });
+                        if (inhError) {
+                            console.warn('Inherited items RPC error (non-critical):', inhError.message);
+                        }
                         if (Array.isArray(inheritedData) && inheritedData.length > 0) {
                             // Anonymise — strip original adder identity (save-inheritance rule)
                             // Pass the friend's name who made the save so "Via [Name]" renders
