@@ -7648,7 +7648,7 @@ function prefillCaptureLocation() {
         }
     }, () => {
         if (locStatus) locStatus.textContent = '';
-    }, { timeout: 8000 });
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
 }
 
 // ===== CAPTURE: ADDRESS AUTOCOMPLETE =====
