@@ -4338,6 +4338,37 @@ function anonymiseForExtendedCircle(item, viaFriendName) {
     return Object.assign({}, item, overrides);
 }
 
+// Defence-in-depth for search results.
+// The search RPC (search_knowledge_items_hybrid_v2) is the primary trust
+// boundary — this function re-applies field stripping client-side as a
+// belt-and-braces measure mirroring loadDiscoveries() / anonymiseForExtendedCircle().
+//
+// trust_level values from the RPC:
+//   'self'             → no stripping; viewer owns the item
+//   'friends'          → no stripping; direct friend's item
+//   'save_inheritance' → strip identity (added_by, added_by_name); preserve content per doc §3.
+//                        Set _via_friend_name from via_friend_name column.
+//   'extended_circle'  → legacy alias from old RPC; treat as save_inheritance.
+//   anything else      → defensive default: treat as save_inheritance with no via-friend.
+function anonymiseSearchResult(item) {
+    if (!item) return item;
+    const trust = item.trust_level || null;
+    // Tier 1 and Tier 2: pass through unchanged
+    if (trust === 'self' || trust === 'friends') {
+        return item;
+    }
+    // Tier 3 — Save Inheritance (or legacy 'extended_circle')
+    const viaName = item.via_friend_name || null;
+    return Object.assign({}, item, {
+        _trust_level: TRUST.EXTENDED,
+        added_by: null,
+        added_by_name: 'Someone in your circle',
+        _via_friend_name: viaName,
+        // Save Inheritance preserves personal_note + content per visibility doc §3.
+        // No further stripping. The drawer renders THE WORD with "Via [Name]" attribution.
+    });
+}
+
 async function loadDiscoveries() {
     try {
         const twoWeeksAgo = new Date();
@@ -6480,8 +6511,11 @@ async function sendMessage(text, displayLabel) {
             });
 
             // ── Hard privacy filter ───────────────────────────────
-            // Allowed: own items, direct friends' non-private, FOF 'friends'-visibility items
-            // FOF items come back from RPC with trust_level='extended_circle' + added_by=null
+            // Allowed: own items, direct friends' non-private, Save Inheritance items
+            // (Tier 3 rows from search_knowledge_items_hybrid_v2 come back with
+            // trust_level='save_inheritance' + added_by=null. Legacy 'extended_circle'
+            // is still accepted for backward compatibility during cutover.)
+            const isTier3Trust = (t) => t === 'save_inheritance' || t === 'extended_circle';
             const fofIdSet = new Set(
                 allDiscoveries
                     .filter(d => d._trust_level === TRUST.EXTENDED)
@@ -6489,35 +6523,27 @@ async function sendMessage(text, displayLabel) {
             );
             currentResults = currentResults.filter(r => {
                 if (!r.id) return false;
-                // RPC-anonymised FOF: added_by is null, trust_level is extended_circle
-                if (!r.added_by && r.trust_level === 'extended_circle') return true;
+                // RPC-anonymised Tier 3: added_by is null, trust_level is save_inheritance/extended_circle
+                if (!r.added_by && isTier3Trust(r.trust_level)) return true;
                 const owner = r.added_by;
                 if (!owner) return allDiscoveries.some(d => d.id === r.id);
                 // Private items: only visible to the owner
                 if (r.visibility === TRUST.PRIVATE && owner !== selfId) return false;
                 // Direct friends: allowed if not private
                 if (allowedIdSet.has(owner)) return true;
-                // FOF: allowed if RPC tagged it as extended_circle
-                if (r.trust_level === 'extended_circle') return true;
+                // Tier 3: allowed if RPC tagged it as save_inheritance/extended_circle
+                if (isTier3Trust(r.trust_level)) return true;
                 // FOF from feed cache
                 if (fofIdSet.has(r.id)) return true;
                 return false;
             });
 
-            // ── Anonymise extended circle items ──────────────────
-            // Sets _trust_level, clears identity fields, hides comments.
-            // For Save Inheritance items, look up the first-hop friend name
-            // from saverByItemIdCache so the card can render "Via [Name]".
-            // Defensive: only surface a name if it came from the cache (which
-            // is populated from a RPC that filters to direct friends only).
-            // If no entry exists, fall back to anonymous "Extended circle".
-            currentResults = currentResults.map(r => {
-                if (r.trust_level === 'extended_circle' || r._trust_level === TRUST.EXTENDED) {
-                    const viaName = saverByItemIdCache[r.id] || null;
-                    return anonymiseForExtendedCircle(r, viaName);
-                }
-                return r;
-            });
+            // ── Defence-in-depth: re-apply trust filtering client-side ──
+            // The RPC (search_knowledge_items_hybrid_v2) is the primary trust
+            // boundary. anonymiseSearchResult catches any regression by stripping
+            // identity fields on Tier 3 rows and reading via_friend_name from the
+            // RPC payload directly (no longer needs saverByItemIdCache for search).
+            currentResults = currentResults.map(r => anonymiseSearchResult(r));
 
             // Search v4: trust whatever the backend returns. No threshold, no drop check.
             // Backend already groups items into top_picks + more_options.
