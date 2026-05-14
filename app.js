@@ -8983,7 +8983,14 @@ async function _lookupInviterProfile(token) {
             .rpc('get_inviter_profile', { p_token: token });
         if (error || !data || data.length === 0) return null;
         const row = data[0];
-        return { id: row.inviter_id, display_name: row.display_name };
+        // knowledge_item_id is non-null only for SHARE tokens (regular invite
+        // tokens leave it NULL). Surfacing it here lets callers branch on
+        // "share vs invite" without a second round-trip.
+        return {
+            id: row.inviter_id,
+            display_name: row.display_name,
+            knowledge_item_id: row.knowledge_item_id || null
+        };
     } catch (e) {
         console.warn('_lookupInviterProfile failed:', e);
         return null;
@@ -9073,6 +9080,23 @@ async function checkOnboardingBanner() {
     if (currentProfile.onboarding_completed_at) {
         if (_onbInviteToken) {
             const inviter = await _lookupInviterProfile(_onbInviteToken);
+
+            // ── Share-token shortcut ──
+            // A share token (token tied to a specific knowledge_item) means the
+            // recipient is opening a shared item, not arriving via a fresh
+            // invite. Existing users already in the network shouldn't see the
+            // "Connect with X" Step 2 modal — that's a redundant interruption
+            // between them and the item. Process the friendship silently (no-op
+            // if already friends) and clear the token so the deeplink handler
+            // in showMainApp() opens the item drawer.
+            if (inviter && inviter.knowledge_item_id) {
+                await _processInviteTokenSilently(_onbInviteToken);
+                _onbInviteToken = null;
+                sessionStorage.removeItem('odin_invite_token');
+                localStorage.removeItem('odin_invite_token');
+                return;
+            }
+
             if (inviter) {
                 _onbInviterData = inviter;
                 _populateStep2UI(inviter);

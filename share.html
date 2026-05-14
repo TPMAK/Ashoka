@@ -254,8 +254,10 @@
         sessionStorage.setItem('odin_share_token', token);
         localStorage.setItem('odin_share_token', token);
 
-        // Fetch the item id so we can deeplink straight into the drawer
-        const { data: invData } = await sb.rpc('get_inviter_profile', { p_token: token });
+        // Fetch the item id so we can deeplink straight into the drawer.
+        // get_share_preview is the new SECURITY DEFINER pipe — bypasses RLS
+        // so we get the item id even though anon can't read knowledge_items.
+        const { data: invData } = await sb.rpc('get_share_preview', { p_token: token });
         const itemId = invData?.[0]?.knowledge_item_id;
 
         if (itemId) {
@@ -267,7 +269,9 @@
       }
 
       // 2. Not logged in — fetch sharer + item details for the preview
-      const { data: invData, error: invErr } = await sb.rpc('get_inviter_profile', { p_token: token });
+      //    in a single call (RLS on knowledge_items blocks anon reads,
+      //    so we go through this SECURITY DEFINER RPC).
+      const { data: invData, error: invErr } = await sb.rpc('get_share_preview', { p_token: token });
 
       if (invErr || !invData || invData.length === 0) {
         showError('This link has expired', 'Share links are valid for 7 days. Ask your friend to send you a fresh one.');
@@ -277,18 +281,18 @@
       const inv = invData[0];
       const sharerFirst = (inv.display_name || 'Someone').split(' ')[0];
 
-      let item = null;
-      if (inv.knowledge_item_id) {
-        const { data: itemData } = await sb
-          .from('knowledge_items')
-          .select('id, title, description, address, photo_url, type, personal_note, "PersonalNote"')
-          .eq('id', inv.knowledge_item_id)
-          .maybeSingle();
-        item = itemData;
-      }
+      // Item fields are flattened onto the same row by the RPC.
+      const item = inv.knowledge_item_id ? {
+        id: inv.knowledge_item_id,
+        title: inv.item_title,
+        type: inv.item_type,
+        address: inv.item_address,
+        photo_url: inv.item_photo_url,
+        personal_note: inv.item_personal_note
+      } : null;
 
       // 3. Render preview
-      const note = item?.personal_note || item?.PersonalNote || '';
+      const note = item?.personal_note || '';
       const photo = item?.photo_url || '';
       const address = item?.address || '';
       const typeLabel = item?.type
