@@ -8870,7 +8870,12 @@ async function shareItem(itemId) {
 
         if (error) throw error;
 
-        const shareUrl = `https://join-odin.com/share.html?token=${token}`;
+        // Use current origin so staging tests stay on staging and prod stays on prod.
+        // Falls back to www.join-odin.com if origin is unavailable for any reason.
+        const origin = (typeof window !== 'undefined' && window.location && window.location.origin)
+            ? window.location.origin
+            : 'https://www.join-odin.com';
+        const shareUrl = `${origin}/share.html?token=${token}`;
 
         // Native share sheet on iOS/Android — clipboard fallback on desktop
         if (navigator.share) {

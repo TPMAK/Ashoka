@@ -343,9 +343,17 @@
         localStorage.setItem('odin_share_item_id', itemId);
       }
 
+      // Return to whichever origin served share.html — staging stays on staging,
+      // www stays on www. Apex (join-odin.com without www) is not a valid
+      // Vercel deploy and would 404 after OAuth, so fall back to www in that case.
+      const rawOrigin = window.location.origin || 'https://www.join-odin.com';
+      const redirectTo = rawOrigin === 'https://join-odin.com'
+        ? 'https://www.join-odin.com/'
+        : rawOrigin + '/';
+
       const { error } = await sb.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: 'https://join-odin.com/' }
+        options: { redirectTo: redirectTo }
       });
 
       if (error) {
