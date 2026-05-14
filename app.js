@@ -224,6 +224,14 @@ async function showMainApp() {
     // ── Open item drawer after share-link arrival ──
     // Two sources: (1) ?item= URL param from share.html redirect for logged-in users,
     //              (2) odin_share_item_id storage from share.html before OAuth for new users.
+    //
+    // Lookup strategy: search the loaded feed (allDiscoveries) FIRST — it's
+    // already filtered by the correct trust rules including Save Inheritance,
+    // so it covers items added by friends-of-friends that direct knowledge_items
+    // reads cannot return (RLS only allows authenticated reads when the ADDER
+    // is a direct friend). Fall back to a direct read for own / direct-friend
+    // items. Poll briefly since _processInviteTokenSilently triggers a feed
+    // reload that may not have finished by the time we run.
     (async () => {
         const urlParams = new URLSearchParams(window.location.search);
         const urlItemId = urlParams.get('item');
@@ -237,21 +245,46 @@ async function showMainApp() {
         }
         sessionStorage.removeItem('odin_share_item_id');
         localStorage.removeItem('odin_share_item_id');
-        // Slight delay so app finishes rendering before drawer opens
-        setTimeout(async () => {
+
+        const findInFeed = () => {
+            if (typeof allDiscoveries !== 'undefined' && Array.isArray(allDiscoveries)) {
+                return allDiscoveries.find(d => d && d.id === deepItemId) || null;
+            }
+            return null;
+        };
+
+        let attempts = 0;
+        const MAX_ATTEMPTS = 8;     // 8 × 500ms = ~4s of polling
+        const INITIAL_DELAY = 1200; // let app finish rendering first
+
+        const tryOpen = async () => {
+            attempts++;
+            // 1. Prefer the in-memory feed — handles Save Inheritance correctly
+            const fromFeed = findInFeed();
+            if (fromFeed && typeof openItemDrawer === 'function') {
+                openItemDrawer(fromFeed);
+                return;
+            }
+            // 2. Fallback: direct fetch — works for own + direct-friend items only
             try {
-                const { data, error } = await supabaseClient
+                const { data } = await supabaseClient
                     .from('knowledge_items')
                     .select('*')
                     .eq('id', deepItemId)
-                    .single();
-                if (!error && data && typeof openItemDrawer === 'function') {
+                    .maybeSingle();
+                if (data && typeof openItemDrawer === 'function') {
                     openItemDrawer(data);
+                    return;
                 }
-            } catch (err) {
-                console.warn('Share deeplink failed (non-critical):', err);
+            } catch (e) { /* swallow — try again from feed */ }
+            // 3. Not there yet — retry while the feed reload finishes
+            if (attempts < MAX_ATTEMPTS) {
+                setTimeout(tryOpen, 500);
+            } else {
+                console.warn('Share deeplink: item not reachable after retries', deepItemId);
             }
-        }, 1200);
+        };
+        setTimeout(tryOpen, INITIAL_DELAY);
     })();
 
     // Navigate to home so header and layout match the Home tab state
@@ -8877,19 +8910,31 @@ async function shareItem(itemId) {
             : 'https://www.join-odin.com';
         const shareUrl = `${origin}/share.html?token=${token}`;
 
-        // Native share sheet on iOS/Android — clipboard fallback on desktop
+        // Try native share sheet first (iOS / Android / some desktop browsers).
+        // Fall back to clipboard if the sheet is unavailable OR fails for any
+        // reason other than user cancellation. This handles the macOS Chrome /
+        // Brave case where a rapid second call to navigator.share throws
+        // NotAllowedError because the prior share dialog hasn't fully released
+        // user activation — the row was already inserted, so we still hand the
+        // user a usable link via clipboard instead of a misleading error toast.
+        let sharedNatively = false;
         if (navigator.share) {
             try {
                 await navigator.share({
                     title: 'Check this out on Odin',
                     url: shareUrl
                 });
+                sharedNatively = true;
             } catch (shareErr) {
-                // User dismissed the share sheet — silent, no toast
+                // User dismissed the share sheet — silent, no toast.
                 if (shareErr?.name === 'AbortError') return;
-                throw shareErr;
+                // Any other failure (NotAllowed, InvalidState, etc.) — fall
+                // through to clipboard so the user still gets a working link.
+                console.warn('navigator.share failed, falling back to clipboard:', shareErr);
             }
-        } else {
+        }
+
+        if (!sharedNatively) {
             await navigator.clipboard.writeText(shareUrl);
             showToast('Link copied to clipboard!');
         }
