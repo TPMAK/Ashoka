@@ -211,6 +211,49 @@ async function showMainApp() {
     // Show onboarding banner for new users
     checkOnboardingBanner();
 
+    // ── Share token: stored by share.html before OAuth redirect ──
+    // Reuses existing invite token pipeline since share tokens ARE invite tokens.
+    const shareToken = sessionStorage.getItem('odin_share_token')
+                    || localStorage.getItem('odin_share_token');
+    if (shareToken) {
+        sessionStorage.removeItem('odin_share_token');
+        localStorage.removeItem('odin_share_token');
+        await _processInviteTokenSilently(shareToken);
+    }
+
+    // ── Open item drawer after share-link arrival ──
+    // Two sources: (1) ?item= URL param from share.html redirect for logged-in users,
+    //              (2) odin_share_item_id storage from share.html before OAuth for new users.
+    (async () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlItemId = urlParams.get('item');
+        const storedItemId = sessionStorage.getItem('odin_share_item_id')
+                          || localStorage.getItem('odin_share_item_id');
+        const deepItemId = urlItemId || storedItemId;
+        if (!deepItemId) return;
+        // Clean the URL and storage immediately
+        if (urlItemId) {
+            window.history.replaceState({}, '', window.location.pathname);
+        }
+        sessionStorage.removeItem('odin_share_item_id');
+        localStorage.removeItem('odin_share_item_id');
+        // Slight delay so app finishes rendering before drawer opens
+        setTimeout(async () => {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('knowledge_items')
+                    .select('*')
+                    .eq('id', deepItemId)
+                    .single();
+                if (!error && data && typeof openItemDrawer === 'function') {
+                    openItemDrawer(data);
+                }
+            } catch (err) {
+                console.warn('Share deeplink failed (non-critical):', err);
+            }
+        }, 1200);
+    })();
+
     // Navigate to home so header and layout match the Home tab state
     showHome();
 }
@@ -5529,7 +5572,10 @@ function openItemDrawer(item) {
     if (!url && item.url) url = item.url;
     if (!url && item.website) url = item.website;
 
-    if (url || item.address) {
+    // Quick-actions row: render whenever there is a URL, an address, OR
+    // a saved item id (Share button needs item.id and applies to ALL items —
+    // own, friend, inherited — no isOwner gate).
+    if (url || item.address || item.id) {
         const itemType = (item.type || item.category || '').toLowerCase();
         const isPlace = itemType === 'place' || (!itemType && item.address);
         const mapsUrl = item.address
@@ -5555,6 +5601,17 @@ function openItemDrawer(item) {
             if (mapsUrl) {
                 html += `<button class="drawer-btn-secondary" data-action="open-url" data-url="${escapeHtml(mapsUrl)}">${PIN_SVG_SM} Directions</button>`;
             }
+        }
+        // Share button — last button in the row. Renders for ALL items
+        // (own, friend, inherited). No isOwner gate.
+        if (item.id) {
+            html += `<button class="drawer-btn-secondary" onclick="event.stopPropagation(); shareItem('${item.id}')" aria-label="Share">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                    <polyline points="16 6 12 2 8 6"/>
+                    <line x1="12" y1="2" x2="12" y2="15"/>
+                </svg> Share
+            </button>`;
         }
         html += '</div></div>';
     }
@@ -8783,6 +8840,57 @@ async function generateInviteLink() {
     } catch (err) {
         console.error('Failed to generate invite link:', err);
         if (btn) { btn.textContent = 'Try again'; btn.disabled = false; }
+    }
+}
+
+// ══════════════════════════════════════════════════════════
+// SHARE ITEM FROM RESULT DRAWER
+// Generates an invitations row with knowledge_item_id set,
+// then triggers native share sheet (iOS/Android) or clipboard
+// fallback (desktop). Recipient lands on share.html.
+// May 2026
+// ══════════════════════════════════════════════════════════
+async function shareItem(itemId) {
+    if (!currentUser || !itemId) return;
+    try {
+        // Generate token — identical algorithm to generateInviteLink()
+        const token = Array.from(crypto.getRandomValues(new Uint8Array(9)))
+            .map(b => b.toString(36).padStart(2, '0'))
+            .join('')
+            .slice(0, 12);
+
+        // Insert into invitations with knowledge_item_id
+        const { error } = await supabaseClient
+            .from('invitations')
+            .insert({
+                token: token,
+                inviter_id: currentUser.id,
+                knowledge_item_id: itemId
+            });
+
+        if (error) throw error;
+
+        const shareUrl = `https://join-odin.com/share.html?token=${token}`;
+
+        // Native share sheet on iOS/Android — clipboard fallback on desktop
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'Check this out on Odin',
+                    url: shareUrl
+                });
+            } catch (shareErr) {
+                // User dismissed the share sheet — silent, no toast
+                if (shareErr?.name === 'AbortError') return;
+                throw shareErr;
+            }
+        } else {
+            await navigator.clipboard.writeText(shareUrl);
+            showToast('Link copied to clipboard!');
+        }
+    } catch (err) {
+        console.error('shareItem failed:', err);
+        showToast('Could not generate share link');
     }
 }
 

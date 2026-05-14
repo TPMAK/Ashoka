@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#F5F0EA">
+  <title>Odin — Someone shared this with you</title>
+
+  <!-- OG preview for iMessage / WhatsApp / Slack -->
+  <meta property="og:title" content="Someone shared a recommendation with you on Odin">
+  <meta property="og:description" content="Odin is a private discovery network. By invite only.">
+  <meta property="og:type" content="website">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #F5F0EA;
+      color: #1A1A1A;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px calc(48px + env(safe-area-inset-bottom));
+      min-height: 100vh;
+    }
+
+    .wordmark {
+      font-family: 'Fraunces', serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: #7B2D45;
+      margin-bottom: 28px;
+      letter-spacing: -0.5px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 440px;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+    }
+
+    .card-photo {
+      width: 100%;
+      aspect-ratio: 16 / 11;
+      object-fit: cover;
+      background: #E8E0D8;
+      display: block;
+    }
+
+    .card-photo-placeholder {
+      width: 100%;
+      aspect-ratio: 16 / 11;
+      background: linear-gradient(135deg, #E8E0D8 0%, #D8CCBE 100%);
+    }
+
+    .card-body { padding: 22px 20px 24px; }
+
+    .sharer-line {
+      font-size: 13px;
+      color: #777;
+      margin-bottom: 14px;
+      line-height: 1.4;
+    }
+    .sharer-line strong {
+      color: #1A1A1A;
+      font-weight: 600;
+    }
+
+    .card-title {
+      font-family: 'Fraunces', serif;
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 8px;
+      color: #1A1A1A;
+    }
+
+    .card-meta {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 18px;
+      line-height: 1.4;
+    }
+
+    .badge {
+      display: inline-block;
+      background: #7B2D45;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-right: 8px;
+      letter-spacing: 0.02em;
+    }
+
+    .the-word {
+      background: #F9F2EE;
+      border-left: 3px solid #7B2D45;
+      border-radius: 0 8px 8px 0;
+      padding: 12px 14px;
+      margin-bottom: 22px;
+    }
+    .the-word-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      color: #7B2D45;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .the-word-text {
+      font-size: 14px;
+      color: #3D2030;
+      font-style: italic;
+      line-height: 1.55;
+    }
+
+    .cta-primary {
+      display: block;
+      width: 100%;
+      background: #7B2D45;
+      color: #ffffff;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      border: none;
+      border-radius: 12px;
+      padding: 15px 16px;
+      cursor: pointer;
+      text-align: center;
+      margin-bottom: 8px;
+      transition: background 0.15s ease, transform 0.1s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .cta-primary:hover { background: #6A2539; }
+    .cta-primary:active { transform: scale(0.98); }
+    .cta-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .tagline {
+      font-size: 12px;
+      color: #999;
+      text-align: center;
+      line-height: 1.6;
+      margin-top: 22px;
+    }
+
+    .error-state {
+      text-align: center;
+      padding: 48px 20px;
+    }
+    .error-state h2 {
+      font-family: 'Fraunces', serif;
+      font-size: 22px;
+      margin-bottom: 12px;
+      color: #1A1A1A;
+    }
+    .error-state p {
+      font-size: 14px;
+      color: #888;
+      line-height: 1.6;
+    }
+
+    .loading {
+      font-size: 14px;
+      color: #888;
+      text-align: center;
+      margin-top: 80px;
+    }
+
+    /* Desktop polish */
+    @media (min-width: 600px) {
+      body { padding-top: 56px; }
+      .wordmark { font-size: 28px; margin-bottom: 36px; }
+      .card-title { font-size: 26px; }
+    }
+
+    /* Reduce motion */
+    @media (prefers-reduced-motion: reduce) {
+      .cta-primary { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wordmark">Odin</div>
+
+  <div class="container">
+    <div class="loading" id="loadingState">Loading…</div>
+    <div id="mainContent" style="display:none;"></div>
+  </div>
+
+  <script>
+    // Must match the SUPABASE_URL / SUPABASE_KEY in app.js byte-for-byte.
+    const SUPABASE_URL = 'https://hedywkwmgkvojujvczqr.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhlZHl3a3dtZ2t2b2p1anZjenFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2Mzg0OTMsImV4cCI6MjA3MjIxNDQ5M30.WdGHwr40REynSkC3T3t2nB97FsAH3M0NOE9gv_bLQA8';
+
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    function escHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function showError(heading, body) {
+      document.getElementById('loadingState').style.display = 'none';
+      const main = document.getElementById('mainContent');
+      main.style.display = 'block';
+      main.innerHTML = `
+        <div class="error-state">
+          <h2>${escHtml(heading)}</h2>
+          <p>${escHtml(body)}</p>
+        </div>`;
+    }
+
+    async function init() {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token');
+
+      if (!token) {
+        showError('Link not found', 'This share link appears to be incomplete.');
+        return;
+      }
+
+      // 1. Check for existing session — logged-in users skip the preview
+      let session = null;
+      try {
+        const { data } = await sb.auth.getSession();
+        session = data?.session || null;
+      } catch (e) { /* unauthenticated — fine */ }
+
+      if (session) {
+        // Stash token so app.js processes it via _processInviteTokenSilently
+        sessionStorage.setItem('odin_share_token', token);
+        localStorage.setItem('odin_share_token', token);
+
+        // Fetch the item id so we can deeplink straight into the drawer
+        const { data: invData } = await sb.rpc('get_inviter_profile', { p_token: token });
+        const itemId = invData?.[0]?.knowledge_item_id;
+
+        if (itemId) {
+          window.location.href = `/?item=${encodeURIComponent(itemId)}`;
+        } else {
+          window.location.href = '/';
+        }
+        return;
+      }
+
+      // 2. Not logged in — fetch sharer + item details for the preview
+      const { data: invData, error: invErr } = await sb.rpc('get_inviter_profile', { p_token: token });
+
+      if (invErr || !invData || invData.length === 0) {
+        showError('This link has expired', 'Share links are valid for 7 days. Ask your friend to send you a fresh one.');
+        return;
+      }
+
+      const inv = invData[0];
+      const sharerFirst = (inv.display_name || 'Someone').split(' ')[0];
+
+      let item = null;
+      if (inv.knowledge_item_id) {
+        const { data: itemData } = await sb
+          .from('knowledge_items')
+          .select('id, title, description, address, photo_url, type, personal_note, "PersonalNote"')
+          .eq('id', inv.knowledge_item_id)
+          .maybeSingle();
+        item = itemData;
+      }
+
+      // 3. Render preview
+      const note = item?.personal_note || item?.PersonalNote || '';
+      const photo = item?.photo_url || '';
+      const address = item?.address || '';
+      const typeLabel = item?.type
+        ? item.type.charAt(0).toUpperCase() + item.type.slice(1)
+        : '';
+
+      document.getElementById('loadingState').style.display = 'none';
+      const main = document.getElementById('mainContent');
+      main.style.display = 'block';
+      main.innerHTML = `
+        <div class="card">
+          ${photo
+            ? `<img class="card-photo" src="${escHtml(photo)}" alt="">`
+            : `<div class="card-photo-placeholder"></div>`}
+          <div class="card-body">
+            <div class="sharer-line">
+              <strong>${escHtml(sharerFirst)}</strong> thinks you'll like this
+            </div>
+            <h1 class="card-title">${escHtml(item?.title || 'A recommendation from your circle')}</h1>
+            <div class="card-meta">
+              ${typeLabel ? `<span class="badge">${escHtml(typeLabel)}</span>` : ''}
+              ${escHtml(address)}
+            </div>
+            ${note ? `
+            <div class="the-word">
+              <div class="the-word-label">The Word</div>
+              <div class="the-word-text">${escHtml(note)}</div>
+            </div>` : ''}
+            <button class="cta-primary" id="joinBtn">
+              Join Odin to see ${escHtml(sharerFirst)}'s circle
+            </button>
+          </div>
+        </div>
+        <p class="tagline">
+          Odin is a private discovery network.<br>
+          By invite only. No algorithms. No ads.
+        </p>
+      `;
+
+      document.getElementById('joinBtn').addEventListener('click', () => signIn(token, inv.knowledge_item_id));
+    }
+
+    async function signIn(token, itemId) {
+      const btn = document.getElementById('joinBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Opening sign-in…'; }
+
+      // Stash token AND item id in BOTH storages — survives OAuth redirect on iOS/Android/desktop
+      sessionStorage.setItem('odin_invite_token', token);
+      localStorage.setItem('odin_invite_token', token);
+      if (itemId) {
+        sessionStorage.setItem('odin_share_item_id', itemId);
+        localStorage.setItem('odin_share_item_id', itemId);
+      }
+
+      const { error } = await sb.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: 'https://join-odin.com/' }
+      });
+
+      if (error) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Try again'; }
+        alert('Could not start sign-in. Please try again.');
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
