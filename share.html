@@ -37,13 +37,25 @@
       min-height: 100vh;
     }
 
+    .brand-lockup {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .brand-lockup img {
+      width: 44px;
+      height: 44px;
+      border-radius: 11px;
+      display: block;
+    }
     .wordmark {
       font-family: 'Fraunces', serif;
-      font-size: 24px;
+      font-size: 26px;
       font-weight: 700;
       color: #7B2D45;
-      margin-bottom: 28px;
       letter-spacing: -0.5px;
+      line-height: 1;
     }
 
     .container {
@@ -190,7 +202,9 @@
     /* Desktop polish */
     @media (min-width: 600px) {
       body { padding-top: 56px; }
-      .wordmark { font-size: 28px; margin-bottom: 36px; }
+      .brand-lockup { margin-bottom: 36px; gap: 14px; }
+      .brand-lockup img { width: 52px; height: 52px; border-radius: 13px; }
+      .wordmark { font-size: 30px; }
       .card-title { font-size: 26px; }
     }
 
@@ -201,7 +215,10 @@
   </style>
 </head>
 <body>
-  <div class="wordmark">Odin</div>
+  <div class="brand-lockup">
+    <img src="icon-192.png" alt="Odin" width="44" height="44">
+    <span class="wordmark">Odin</span>
+  </div>
 
   <div class="container">
     <div class="loading" id="loadingState">Loading…</div>
