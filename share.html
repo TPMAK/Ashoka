@@ -13,17 +13,31 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=DM+Sans:wght@400;500;600&family=Inter:wght@500;700;800&display=swap" rel="stylesheet">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
+    /* Brand tokens — must stay in sync with index.html :root */
+    :root {
+      --wb:        #7B2D45;
+      --wb-light:  #9B4D65;
+      --wb-hover:  #5A1F30;
+      --ink:       #2A1E14;
+      --bg:        #FAF6EE;
+      --lp-surface:#FFFFFF;
+      --muted:     #9A8A7A;
+      --border:    #EAE0D2;
+      --mason:     #DDD0B8;
+      --dark:      #1A100A;
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     html, body {
-      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: #F5F0EA;
-      color: #1A1A1A;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--dark);
+      color: var(--bg);
       min-height: 100vh;
       -webkit-font-smoothing: antialiased;
       -webkit-tap-highlight-color: transparent;
@@ -33,15 +47,41 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 32px 16px calc(48px + env(safe-area-inset-bottom));
+      padding: 36px 16px calc(48px + env(safe-area-inset-bottom));
       min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* Winterberry radial glow — same recipe as the landing page left side */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 70% 60% at -5% 90%, rgba(123,45,69,0.20) 0%, transparent 60%),
+        radial-gradient(ellipse 40% 35% at 100% 5%, rgba(123,45,69,0.07) 0%, transparent 55%);
+    }
+    /* Subtle film-grain — keeps the dark surface from looking flat */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.45;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
     }
 
     .brand-lockup {
       display: flex;
       align-items: center;
       gap: 12px;
-      margin-bottom: 28px;
+      margin-bottom: 32px;
+      position: relative;
+      z-index: 2;
     }
     .brand-lockup img {
       width: 44px;
@@ -50,51 +90,56 @@
       display: block;
     }
     .wordmark {
-      font-family: 'Fraunces', serif;
-      font-size: 26px;
-      font-weight: 700;
-      color: #7B2D45;
-      letter-spacing: -0.5px;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 30px;
+      font-weight: 800;
+      letter-spacing: -0.06em;
       line-height: 1;
     }
+    /* Same split-colour treatment as the landing-page logo */
+    .wordmark .ws-o   { color: var(--wb); }
+    .wordmark .ws-din { color: var(--mason); }
 
     .container {
       width: 100%;
       max-width: 440px;
+      position: relative;
+      z-index: 2;
     }
 
     .card {
-      background: #ffffff;
+      background: var(--bg);
       border-radius: 16px;
       overflow: hidden;
-      box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.35), 0 2px 6px rgba(0,0,0,0.20);
     }
 
     .card-photo {
       width: 100%;
       aspect-ratio: 16 / 11;
       object-fit: cover;
-      background: #E8E0D8;
+      background: var(--mason);
       display: block;
     }
 
     .card-photo-placeholder {
       width: 100%;
       aspect-ratio: 16 / 11;
-      background: linear-gradient(135deg, #E8E0D8 0%, #D8CCBE 100%);
+      background: linear-gradient(135deg, var(--mason) 0%, #C9BBA5 100%);
     }
 
     .card-body { padding: 22px 20px 24px; }
 
     .sharer-line {
       font-size: 13px;
-      color: #777;
+      color: var(--muted);
       margin-bottom: 14px;
       line-height: 1.4;
+      font-weight: 500;
     }
     .sharer-line strong {
-      color: #1A1A1A;
-      font-weight: 600;
+      color: var(--ink);
+      font-weight: 700;
     }
 
     .card-title {
@@ -103,19 +148,19 @@
       font-weight: 700;
       line-height: 1.2;
       margin-bottom: 8px;
-      color: #1A1A1A;
+      color: var(--ink);
     }
 
     .card-meta {
       font-size: 13px;
-      color: #888;
+      color: var(--muted);
       margin-bottom: 18px;
       line-height: 1.4;
     }
 
     .badge {
       display: inline-block;
-      background: #7B2D45;
+      background: var(--wb);
       color: #fff;
       font-size: 11px;
       font-weight: 600;
@@ -126,23 +171,24 @@
     }
 
     .the-word {
-      background: #F9F2EE;
-      border-left: 3px solid #7B2D45;
+      background: rgba(123,45,69,0.06);
+      border-left: 3px solid var(--wb);
       border-radius: 0 8px 8px 0;
       padding: 12px 14px;
       margin-bottom: 22px;
     }
     .the-word-label {
       font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 0.1em;
-      color: #7B2D45;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: var(--wb);
       text-transform: uppercase;
       margin-bottom: 4px;
     }
     .the-word-text {
-      font-size: 14px;
-      color: #3D2030;
+      font-family: 'Fraunces', serif;
+      font-size: 15px;
+      color: var(--ink);
       font-style: italic;
       line-height: 1.55;
     }
@@ -150,9 +196,9 @@
     .cta-primary {
       display: block;
       width: 100%;
-      background: #7B2D45;
+      background: var(--wb);
       color: #ffffff;
-      font-family: 'DM Sans', sans-serif;
+      font-family: 'Inter', sans-serif;
       font-size: 15px;
       font-weight: 600;
       border: none;
@@ -163,48 +209,58 @@
       margin-bottom: 8px;
       transition: background 0.15s ease, transform 0.1s ease;
       -webkit-tap-highlight-color: transparent;
+      box-shadow: 0 2px 8px rgba(123,45,69,0.25);
     }
-    .cta-primary:hover { background: #6A2539; }
+    .cta-primary:hover { background: var(--wb-hover); }
     .cta-primary:active { transform: scale(0.98); }
     .cta-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 
     .tagline {
       font-size: 12px;
-      color: #999;
+      color: var(--mason);
       text-align: center;
-      line-height: 1.6;
-      margin-top: 22px;
+      line-height: 1.7;
+      margin-top: 24px;
+      opacity: 0.75;
+      letter-spacing: 0.01em;
+      position: relative;
+      z-index: 2;
     }
 
     .error-state {
       text-align: center;
       padding: 48px 20px;
+      background: var(--bg);
+      border-radius: 16px;
     }
     .error-state h2 {
       font-family: 'Fraunces', serif;
       font-size: 22px;
       margin-bottom: 12px;
-      color: #1A1A1A;
+      color: var(--ink);
     }
     .error-state p {
       font-size: 14px;
-      color: #888;
+      color: var(--muted);
       line-height: 1.6;
     }
 
     .loading {
       font-size: 14px;
-      color: #888;
+      color: var(--mason);
+      opacity: 0.7;
       text-align: center;
       margin-top: 80px;
+      position: relative;
+      z-index: 2;
     }
 
     /* Desktop polish */
     @media (min-width: 600px) {
-      body { padding-top: 56px; }
-      .brand-lockup { margin-bottom: 36px; gap: 14px; }
+      body { padding-top: 60px; }
+      .brand-lockup { margin-bottom: 40px; gap: 14px; }
       .brand-lockup img { width: 52px; height: 52px; border-radius: 13px; }
-      .wordmark { font-size: 30px; }
+      .wordmark { font-size: 34px; }
       .card-title { font-size: 26px; }
     }
 
@@ -217,7 +273,7 @@
 <body>
   <div class="brand-lockup">
     <img src="icon-192.png" alt="Odin" width="44" height="44">
-    <span class="wordmark">Odin</span>
+    <span class="wordmark"><span class="ws-o">O</span><span class="ws-din">din</span></span>
   </div>
 
   <div class="container">
