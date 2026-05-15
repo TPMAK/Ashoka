@@ -5636,8 +5636,17 @@ function openItemDrawer(item) {
             }
         }
         // Share button — last button in the row. Renders for ALL items
-        // (own, friend, inherited). No isOwner gate.
-        if (item.id) {
+        // (own, friend, inherited) EXCEPT private items.
+        //
+        // Why exclude private: share.html's preview uses a SECURITY DEFINER
+        // RPC that bypasses RLS, so a recipient WOULD see the item details
+        // pre-signin — but after they sign in, normal RLS blocks them from
+        // reading the item (the friend_circle policy explicitly excludes
+        // visibility='private'). Net effect: preview promises something the
+        // app can't deliver post-signin and the recipient lands on blank
+        // state. Gate at source until B (broader access model for shared
+        // private items) is decided.
+        if (item.id && item.visibility !== TRUST.PRIVATE) {
             html += `<button class="drawer-btn-secondary" onclick="event.stopPropagation(); shareItem('${item.id}')" aria-label="Share">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
@@ -9121,35 +9130,21 @@ async function checkOnboardingBanner() {
     _onbInviteToken = sessionStorage.getItem('odin_invite_token')
                    || localStorage.getItem('odin_invite_token') || null;
 
-    // Returning user: skip onboarding UI BUT show Step 2 if there's a valid token
+    // Returning user with an invite token — auto-friend silently.
+    //
+    // Per Stanley's trust rule (May 2026): arriving via someone's invitation
+    // link IS the act of agreeing to connect. The Step 2 "Connect with X"
+    // modal-as-choice was wrong — users were skipping it and ending up
+    // isolated in the app, which breaks the warm-circle premise harder than
+    // a blank canvas would. Process every invitation token (regular or
+    // share) silently and move on; the share-link deeplink handler in
+    // showMainApp() will open the item drawer afterward if applicable.
     if (currentProfile.onboarding_completed_at) {
         if (_onbInviteToken) {
-            const inviter = await _lookupInviterProfile(_onbInviteToken);
-
-            // ── Share-token shortcut ──
-            // A share token (token tied to a specific knowledge_item) means the
-            // recipient is opening a shared item, not arriving via a fresh
-            // invite. Existing users already in the network shouldn't see the
-            // "Connect with X" Step 2 modal — that's a redundant interruption
-            // between them and the item. Process the friendship silently (no-op
-            // if already friends) and clear the token so the deeplink handler
-            // in showMainApp() opens the item drawer.
-            if (inviter && inviter.knowledge_item_id) {
-                await _processInviteTokenSilently(_onbInviteToken);
-                _onbInviteToken = null;
-                sessionStorage.removeItem('odin_invite_token');
-                localStorage.removeItem('odin_invite_token');
-                return;
-            }
-
-            if (inviter) {
-                _onbInviterData = inviter;
-                _populateStep2UI(inviter);
-                onbGoStep(2);
-                return;
-            }
-            // Token invalid/used — process silently and move on
             await _processInviteTokenSilently(_onbInviteToken);
+            _onbInviteToken = null;
+            sessionStorage.removeItem('odin_invite_token');
+            localStorage.removeItem('odin_invite_token');
         }
         return;
     }
@@ -9161,12 +9156,26 @@ async function checkOnboardingBanner() {
         nameEl.textContent = firstName;
     }
 
-    // If we have a token, look up the inviter before showing step 2
+    // If we have a token, look up the inviter AND auto-friend silently.
+    //
+    // Per Stanley's trust rule (May 2026): arriving via someone's invitation
+    // link is implicit consent to connect. The Step 2 "Connect / Skip" choice
+    // was wrong — users skipped Connect and ended up isolated. Do the
+    // friendship invisibly here; Step 2 still displays as a confirmation
+    // moment ("you came in via Aden") but the connection is already made
+    // before the user can interact, and clicking Skip can no longer undo it.
     if (_onbInviteToken) {
         const inviter = await _lookupInviterProfile(_onbInviteToken);
         if (inviter) {
             _onbInviterData = inviter;
             _populateStep2UI(inviter);
+            // Fire-and-forget the silent connect — don't block onboarding
+            // render on the RPC. If it fails, the user can retry later via
+            // a fresh share/invite link; the worst case is "no connection",
+            // which is the same as the old skip-button outcome.
+            _processInviteTokenSilently(_onbInviteToken).catch(err =>
+                console.warn('Auto-connect on invitation failed (non-fatal):', err)
+            );
         } else {
             // Token invalid or already used — clear it
             _onbInviteToken = null;
