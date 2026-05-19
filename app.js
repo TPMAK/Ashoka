@@ -9085,13 +9085,16 @@ async function askFriendAboutItem(itemId, friendName, itemTitle, itemAddress) {
 
         const suburb = _extractSuburb(decodedAddress);
         const locator = suburb ? ` in ${suburb}` : '';
-        const messageText = `Hi ${decodedName} — saw your save on Odin: "${decodedTitle}"${locator}. What's the story?`;
+        // Keep the greeting nameless — the sender is already in WhatsApp,
+        // so the recipient knows who it's from. "Hi, saw your save..." is
+        // simpler and avoids awkward formal-name renders on group chats etc.
+        const messageText = `Hi, saw your save on Odin: "${decodedTitle}"${locator}. What's the story?`;
 
-        // Build the full payload up front: URL first, blank line, then the
-        // message text. macOS WhatsApp concatenates navigator.share's
-        // separate text+url fields with a single space rather than a newline,
-        // so we pass everything in `text` and skip the `url` field.
-        // WhatsApp still auto-renders the link preview from the URL in body.
+        // Build the full payload up front: URL first, then the message text.
+        // macOS WhatsApp concatenates navigator.share's title/text/url with
+        // spaces instead of newlines, so we pass everything in `text` and
+        // skip both `title` and `url`. WhatsApp still auto-renders the link
+        // preview from the URL in body.
         const sharePayload = `${shareUrl}\n\n${messageText}`;
 
         // Native share sheet — same defensive pattern as shareItem()
@@ -9099,7 +9102,6 @@ async function askFriendAboutItem(itemId, friendName, itemTitle, itemAddress) {
         if (navigator.share) {
             try {
                 await navigator.share({
-                    title: 'Ask about Odin recommendation',
                     text: sharePayload
                 });
                 sharedNatively = true;
