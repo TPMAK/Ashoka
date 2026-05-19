@@ -7933,6 +7933,40 @@ function prefillCaptureLocation() {
 })();
 
 /// ===== CAPTURE: URL OG PREFILL =====
+
+// ──────────────────────────────────────────────────────────
+// _cleanOGTitleForName — produce a clean short name from an OG title.
+// OG titles often carry taglines after `-`, `|`, `—`, `:`, `·`.
+// Examples:
+//   "Sony WH-1000XM5 Wireless Headphones | Sony NZ" → "Sony WH-1000XM5 Wireless Headphones"
+//   "Coursera Python for Everybody — Specialization" → "Coursera Python for Everybody"
+// Returns a trimmed, single-line string capped at 120 chars, or null if empty.
+// May 2026
+// ──────────────────────────────────────────────────────────
+function _cleanOGTitleForName(ogTitle) {
+    if (!ogTitle || typeof ogTitle !== 'string') return null;
+    let s = ogTitle.trim();
+    if (!s) return null;
+    // Split on common tagline separators; keep the first segment.
+    // Order matters: try longer/more-distinctive separators first.
+    const seps = [' — ', ' – ', ' | ', ' - ', ' · ', ' : '];
+    for (const sep of seps) {
+        const idx = s.indexOf(sep);
+        if (idx > 0) {
+            s = s.slice(0, idx);
+            break;
+        }
+    }
+    s = s.trim();
+    // Capitalize first letter if alphabetic and currently lowercase
+    if (s.length > 0 && /^[a-z]/.test(s)) {
+        s = s.charAt(0).toUpperCase() + s.slice(1);
+    }
+    // Cap at 120 chars to match the DB column / n8n cleanPlaceName limit
+    if (s.length > 120) s = s.slice(0, 120);
+    return s || null;
+}
+
 let _ogFetchInFlight = false;
 async function fetchAndPrefillOG(url) {
     if (!url || !url.startsWith('http')) return;
@@ -7982,6 +8016,15 @@ async function fetchAndPrefillOG(url) {
         if (didFillTitle) {
             titleField.value = og.title;
             if (titleField._autoGrow) titleField._autoGrow();
+        }
+        // Auto-prefill the Name field from the OG title (Link mode shows this field).
+        // Only fill if the user hasn't already typed something.
+        if (og.title) {
+            const nameField = document.getElementById('placeName');
+            if (nameField && !nameField.value.trim()) {
+                const cleaned = _cleanOGTitleForName(og.title);
+                if (cleaned) nameField.value = cleaned;
+            }
         }
         // Always open Details after fetch so user can see/fill the name field
         _openDetailsAfterOG(didFillTitle);
@@ -8302,6 +8345,9 @@ function clearPrefillFields() {
         if (titleField._autoGrow) titleField._autoGrow();
         titleField.focus();
     }
+    // Also clear the Name field if it was auto-filled by OG (Link mode)
+    const nameField = document.getElementById('placeName');
+    if (nameField) nameField.value = '';
     // Hide the clear button and autofill hint
     const clearBtn = document.getElementById('clearPrefillBtn');
     if (clearBtn) clearBtn.classList.add('hidden');
@@ -9791,10 +9837,10 @@ function dismissEmptyFriends() {
             wStep2.classList.remove('step-hidden');
             wStep2.classList.add('step-reveal');
         }
-        // Place name field — Photo + I'm here only (where user is at a venue)
+        // Name field — Photo, I'm here, AND Link modes. Link uses OG title as a prefill seed.
         const subPlaceName = document.getElementById('subPlaceName');
         if (subPlaceName) {
-            if (chip === 'photo' || chip === 'here') {
+            if (chip === 'photo' || chip === 'here' || chip === 'link') {
                 subPlaceName.classList.remove('step-hidden');
                 subPlaceName.classList.add('step-reveal');
             } else {
