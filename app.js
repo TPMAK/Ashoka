@@ -8949,8 +8949,10 @@ async function generateInviteLink() {
 // Generates an invitations row with knowledge_item_id set,
 // then triggers native share sheet (iOS/Android) or clipboard
 // fallback (desktop). Recipient lands on share.html.
-// May 2026 — v2: enriches message text with name, suburb,
-// and the personal note (or AI feed_card_summary as fallback).
+// May 2026 — v3: prefixes the message with the sender's first
+// name ("Stanley thinks you'll like this: …") and enriches the
+// body with item name, suburb, and the personal note (or AI
+// feed_card_summary as a fallback).
 // ══════════════════════════════════════════════════════════
 async function shareItem(itemId) {
     if (!currentUser || !itemId) return;
@@ -9026,12 +9028,23 @@ async function shareItem(itemId) {
             voiceLine = ` — ${capped}`;
         }
 
+        // Sender first name — matches the framing on share.html
+        // ("Stanley thinks you'll like this"). Uses the same lookup chain
+        // used elsewhere in the app, then takes the first whitespace-
+        // separated token. Falls back to "A friend" when no name is on file.
+        const _fullSenderName = (currentProfile?.display_name)
+            || (currentUser?.user_metadata?.full_name)
+            || '';
+        const senderFirst = (_fullSenderName.trim().split(/\s+/)[0]) || 'A friend';
+        const senderPrefix = `${senderFirst} thinks you'll like this: `;
+
         // Final shape:
-        //   With Word:    `"Kajiken" in Auckland CBD — "The personal note here"`
-        //   With AI line: `"Kajiken" in Auckland CBD — Hidden ramen counter in Auckland alley`
-        //   No address:   `"Sony WH-1000XM5" — "The personal note here"`
-        //   Bare:         `"Some item"`
-        const messageText = `"${itemName}"${locator}${voiceLine}`;
+        //   With Word:    `Stanley thinks you'll like this: "Kajiken" in Britomart — "The personal note here"`
+        //   With AI line: `Stanley thinks you'll like this: "Kajiken" in Britomart — Hidden ramen counter in Auckland alley`
+        //   No address:   `Stanley thinks you'll like this: "Sony WH-1000XM5" — "The personal note here"`
+        //   Bare:         `Stanley thinks you'll like this: "Some item"`
+        //   No sender:    `A friend thinks you'll like this: "Some item"`
+        const messageText = `${senderPrefix}"${itemName}"${locator}${voiceLine}`;
 
         // ── Native share sheet first (iOS / Android / some desktop browsers) ──
         // Same defensive pattern as before: silent on AbortError, fall through
