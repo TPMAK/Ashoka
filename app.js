@@ -8949,7 +8949,8 @@ async function generateInviteLink() {
 // Generates an invitations row with knowledge_item_id set,
 // then triggers native share sheet (iOS/Android) or clipboard
 // fallback (desktop). Recipient lands on share.html.
-// May 2026
+// May 2026 — v2: enriches message text with name, suburb,
+// and the personal note (or AI feed_card_summary as fallback).
 // ══════════════════════════════════════════════════════════
 async function shareItem(itemId) {
     if (!currentUser || !itemId) return;
@@ -8972,38 +8973,86 @@ async function shareItem(itemId) {
         if (error) throw error;
 
         // Use current origin so staging tests stay on staging and prod stays on prod.
-        // Falls back to www.join-odin.com if origin is unavailable for any reason.
         const origin = (typeof window !== 'undefined' && window.location && window.location.origin)
             ? window.location.origin
             : 'https://www.join-odin.com';
         const shareUrl = `${origin}/share.html?token=${token}`;
 
-        // Try native share sheet first (iOS / Android / some desktop browsers).
-        // Fall back to clipboard if the sheet is unavailable OR fails for any
-        // reason other than user cancellation. This handles the macOS Chrome /
-        // Brave case where a rapid second call to navigator.share throws
-        // NotAllowedError because the prior share dialog hasn't fully released
-        // user activation — the row was already inserted, so we still hand the
-        // user a usable link via clipboard instead of a misleading error toast.
+        // ── Build enriched message text from the currently-open drawer item ──
+        // currentDrawerItem is always populated when the Share button is visible,
+        // since the button only renders inside the open drawer.
+        const item = (typeof currentDrawerItem !== 'undefined' && currentDrawerItem) ? currentDrawerItem : {};
+
+        // Name resolution: prefer place_name, then title, then a generic fallback.
+        const itemName = (item.place_name && item.place_name.trim())
+            || (item.title && item.title.trim())
+            || 'this save';
+
+        // Suburb extraction — same logic as askFriendAboutItem v2.
+        // Turns "60 Picton Street, Howick, Auckland 2014" → "Howick".
+        // Returns null for non-place items, empty addresses, or unparseable cases.
+        function _extractSuburb(addr) {
+            if (!addr || typeof addr !== 'string') return null;
+            const parts = addr.split(',').map(s => s.trim()).filter(Boolean);
+            if (parts.length < 2) return null;
+            const STREET_TYPES = /\b(Road|Rd|Street|St|Lane|Ln|Drive|Dr|Avenue|Ave|Place|Pl|Court|Ct|Crescent|Cres|Boulevard|Blvd|Highway|Hwy|Way|Parade|Pde|Terrace|Tce|Close|Quay)\.?\b/i;
+            for (let i = 1; i < parts.length; i++) {
+                let candidate = parts[i];
+                candidate = candidate.replace(/\s+\d{3,5}\s*$/, '').trim();
+                if (candidate.length < 3) continue;
+                if (/^\d/.test(candidate)) continue;
+                if (STREET_TYPES.test(candidate)) continue;
+                if (/^\d+$/.test(candidate)) continue;
+                return candidate;
+            }
+            return null;
+        }
+        const suburb = _extractSuburb(item.address);
+        const locator = suburb ? ` in ${suburb}` : '';
+
+        // Voice line: prefer the personal note (The Word) if present, else fall back
+        // to AI-generated feed_card_summary. Personal note may live on either
+        // `personal_note` or `PersonalNote` depending on capture path; check both.
+        // Cap at 140 chars so the WhatsApp message stays one tap to read.
+        let voiceLine = '';
+        const word = (item.personal_note && item.personal_note.trim())
+            || (item.PersonalNote && item.PersonalNote.trim())
+            || '';
+        if (word) {
+            const capped = word.length > 140 ? word.slice(0, 137) + '…' : word;
+            voiceLine = ` — "${capped}"`;
+        } else if (item.feed_card_summary && item.feed_card_summary.trim()) {
+            const capped = item.feed_card_summary.trim();
+            voiceLine = ` — ${capped}`;
+        }
+
+        // Final shape:
+        //   With Word:    `"Kajiken" in Auckland CBD — "The personal note here"`
+        //   With AI line: `"Kajiken" in Auckland CBD — Hidden ramen counter in Auckland alley`
+        //   No address:   `"Sony WH-1000XM5" — "The personal note here"`
+        //   Bare:         `"Some item"`
+        const messageText = `"${itemName}"${locator}${voiceLine}`;
+
+        // ── Native share sheet first (iOS / Android / some desktop browsers) ──
+        // Same defensive pattern as before: silent on AbortError, fall through
+        // to clipboard on any other failure so the user always gets a working link.
         let sharedNatively = false;
         if (navigator.share) {
             try {
                 await navigator.share({
                     title: 'Check this out on Odin',
+                    text: messageText,
                     url: shareUrl
                 });
                 sharedNatively = true;
             } catch (shareErr) {
-                // User dismissed the share sheet — silent, no toast.
                 if (shareErr?.name === 'AbortError') return;
-                // Any other failure (NotAllowed, InvalidState, etc.) — fall
-                // through to clipboard so the user still gets a working link.
                 console.warn('navigator.share failed, falling back to clipboard:', shareErr);
             }
         }
 
         if (!sharedNatively) {
-            await navigator.clipboard.writeText(shareUrl);
+            await navigator.clipboard.writeText(`${messageText}\n\n${shareUrl}`);
             showToast('Link copied to clipboard!');
         }
     } catch (err) {
