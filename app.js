@@ -9064,8 +9064,13 @@ async function askFriendAboutItem(itemId, friendName, itemTitle, itemAddress) {
             const parts = addr.split(',').map(s => s.trim()).filter(Boolean);
             if (parts.length < 2) return null;
             const STREET_TYPES = /\b(Road|Rd|Street|St|Lane|Ln|Drive|Dr|Avenue|Ave|Place|Pl|Court|Ct|Crescent|Cres|Boulevard|Blvd|Highway|Hwy|Way|Parade|Pde|Terrace|Tce|Close|Quay)\.?\b/i;
-            // Skip the first part (the street). Walk the rest.
-            for (let i = 1; i < parts.length; i++) {
+            // If parts[0] is purely numeric (a house number on its own, like
+            // "208, Broadway, Newmarket, …"), then parts[1] is the street name
+            // and we should skip it. Otherwise parts[0] already contains the
+            // street (e.g. "60 Picton Street") and we just skip that one.
+            const firstIsHouseNumber = /^\d+$/.test(parts[0]);
+            const startIdx = firstIsHouseNumber ? 2 : 1;
+            for (let i = startIdx; i < parts.length; i++) {
                 let candidate = parts[i];
                 // Strip a trailing postcode (e.g. "Howick 2014" → "Howick", "Cromwell 9384" → "Cromwell")
                 candidate = candidate.replace(/\s+\d{3,5}\s*$/, '').trim();
@@ -9082,14 +9087,20 @@ async function askFriendAboutItem(itemId, friendName, itemTitle, itemAddress) {
         const locator = suburb ? ` in ${suburb}` : '';
         const messageText = `Hi ${decodedName} — saw your save on Odin: "${decodedTitle}"${locator}. What's the story?`;
 
+        // Build the full payload up front: URL first, blank line, then the
+        // message text. macOS WhatsApp concatenates navigator.share's
+        // separate text+url fields with a single space rather than a newline,
+        // so we pass everything in `text` and skip the `url` field.
+        // WhatsApp still auto-renders the link preview from the URL in body.
+        const sharePayload = `${shareUrl}\n\n${messageText}`;
+
         // Native share sheet — same defensive pattern as shareItem()
         let sharedNatively = false;
         if (navigator.share) {
             try {
                 await navigator.share({
                     title: 'Ask about Odin recommendation',
-                    text: messageText,
-                    url: shareUrl
+                    text: sharePayload
                 });
                 sharedNatively = true;
             } catch (shareErr) {
@@ -9099,7 +9110,7 @@ async function askFriendAboutItem(itemId, friendName, itemTitle, itemAddress) {
         }
 
         if (!sharedNatively) {
-            await navigator.clipboard.writeText(`${messageText}\n\n${shareUrl}`);
+            await navigator.clipboard.writeText(sharePayload);
             showToast('Message copied to clipboard!');
         }
     } catch (err) {
