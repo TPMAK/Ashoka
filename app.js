@@ -5735,16 +5735,28 @@ function openItemDrawer(item) {
         }
 
         // "Ask [Name] about this" — only for Scenario 3 (direct friend, no personal note)
+        // Opens native share sheet (WhatsApp/Messages/Mail/etc) with prefilled message + share link.
         let askCtaHtml = '';
         if (isDirectFriend && !note && item.added_by_name) {
-            const encodedName = encodeURIComponent(item.added_by_name);
-            askCtaHtml = `<button class="drawer-ask-btn" onclick="event.stopPropagation(); openAskFriendChat('${encodedName}', '${escapeHtml(item.title)}')">Ask ${friendName} about this</button>`;
+            askCtaHtml = `<button class="drawer-ask-btn" onclick="event.stopPropagation(); askFriendAboutItem('${item.id}', '${escapeHtml(friendName)}', '${escapeHtml(item.title)}')">Ask ${friendName} about this</button>`;
+        }
+
+        // Owner nudge — your own item has no personal note (The Word).
+        // Soft inline prompt that opens the existing edit flow.
+        let thinItemNudgeHtml = '';
+        if (isOwner && !note) {
+            thinItemNudgeHtml = `<div class="drawer-thin-nudge">
+                <svg class="drawer-thin-nudge-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7B2D45" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                <span class="drawer-thin-nudge-text">Add a word — your circle will trust this more.</span>
+                <button class="drawer-thin-nudge-btn" onclick="event.stopPropagation(); enterEditMode();">+ Add the Word</button>
+            </div>`;
         }
 
         currentDrawerItemId = item.id;
         html += `<div class="drawer-social">
             ${footerHtml}
             ${askCtaHtml}
+            ${thinItemNudgeHtml}
             <div class="drawer-comments" id="communityNotesContainer"><div class="notes-loading">Loading comments...</div></div>
         </div>`;
     }
@@ -8949,6 +8961,78 @@ async function shareItem(itemId) {
         }
     } catch (err) {
         console.error('shareItem failed:', err);
+        showToast('Could not generate share link');
+    }
+}
+
+// ══════════════════════════════════════════════════════════
+// ASK FRIEND ABOUT ITEM
+// Triggered by "Ask [friend] about this" button in the drawer.
+// Generates an invitations row with knowledge_item_id, then opens
+// native share sheet (iOS / Android / desktop) with prefilled
+// message + share URL. Recipient lands on share.html.
+// May 2026
+// ══════════════════════════════════════════════════════════
+async function askFriendAboutItem(itemId, friendName, itemTitle) {
+    if (!currentUser || !itemId) return;
+    try {
+        // Generate token — identical algorithm to shareItem() / generateInviteLink()
+        const token = Array.from(crypto.getRandomValues(new Uint8Array(9)))
+            .map(b => b.toString(36).padStart(2, '0'))
+            .join('')
+            .slice(0, 12);
+
+        // Insert into invitations with knowledge_item_id (same as shareItem)
+        const { error } = await supabaseClient
+            .from('invitations')
+            .insert({
+                token: token,
+                inviter_id: currentUser.id,
+                knowledge_item_id: itemId
+            });
+
+        if (error) throw error;
+
+        // Use current origin so staging tests stay on staging and prod stays on prod.
+        const origin = (typeof window !== 'undefined' && window.location && window.location.origin)
+            ? window.location.origin
+            : 'https://www.join-odin.com';
+        const shareUrl = `${origin}/share.html?token=${token}`;
+
+        // Decode HTML-escaped strings for the message payload.
+        // (friendName and itemTitle were escapeHtml'd at button-render time
+        // to be safe inside the onclick HTML attribute.)
+        const decodedName  = friendName.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+        const decodedTitle = itemTitle.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+
+        const messageText = `Hi ${decodedName} — saw your save on Odin: "${decodedTitle}". What's the story?`;
+
+        // Try native share sheet first (iOS / Android / some desktop browsers).
+        // Fall back to clipboard if unavailable OR fails for any reason other
+        // than user cancellation. Same defensive logic as shareItem().
+        let sharedNatively = false;
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'Ask about Odin recommendation',
+                    text: messageText,
+                    url: shareUrl
+                });
+                sharedNatively = true;
+            } catch (shareErr) {
+                if (shareErr?.name === 'AbortError') return;
+                console.warn('navigator.share failed, falling back to clipboard:', shareErr);
+            }
+        }
+
+        if (!sharedNatively) {
+            // Clipboard fallback — include the message + link so the user can
+            // paste into WhatsApp/Messages/wherever themselves.
+            await navigator.clipboard.writeText(`${messageText}\n\n${shareUrl}`);
+            showToast('Message copied to clipboard!');
+        }
+    } catch (err) {
+        console.error('askFriendAboutItem failed:', err);
         showToast('Could not generate share link');
     }
 }
