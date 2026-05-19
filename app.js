@@ -5738,7 +5738,8 @@ function openItemDrawer(item) {
         // Opens native share sheet (WhatsApp/Messages/Mail/etc) with prefilled message + share link.
         let askCtaHtml = '';
         if (isDirectFriend && !note && item.added_by_name) {
-            askCtaHtml = `<button class="drawer-ask-btn" onclick="event.stopPropagation(); askFriendAboutItem('${item.id}', '${escapeHtml(friendName)}', '${escapeHtml(item.title)}')">Ask ${friendName} about this</button>`;
+            const encodedAddress = escapeHtml(item.address || '');
+            askCtaHtml = `<button class="drawer-ask-btn" onclick="event.stopPropagation(); askFriendAboutItem('${item.id}', '${escapeHtml(friendName)}', '${escapeHtml(item.title)}', '${encodedAddress}')">Ask ${friendName} about this</button>`;
         }
 
         // Owner nudge — your own item has no personal note (The Word).
@@ -9017,18 +9018,17 @@ async function shareItem(itemId) {
 // Generates an invitations row with knowledge_item_id, then opens
 // native share sheet (iOS / Android / desktop) with prefilled
 // message + share URL. Recipient lands on share.html.
-// May 2026
+// May 2026 — v2: adds optional suburb locator to message
 // ══════════════════════════════════════════════════════════
-async function askFriendAboutItem(itemId, friendName, itemTitle) {
+async function askFriendAboutItem(itemId, friendName, itemTitle, itemAddress) {
     if (!currentUser || !itemId) return;
     try {
-        // Generate token — identical algorithm to shareItem() / generateInviteLink()
+        // Generate token — identical algorithm to shareItem()
         const token = Array.from(crypto.getRandomValues(new Uint8Array(9)))
             .map(b => b.toString(36).padStart(2, '0'))
             .join('')
             .slice(0, 12);
 
-        // Insert into invitations with knowledge_item_id (same as shareItem)
         const { error } = await supabaseClient
             .from('invitations')
             .insert({
@@ -9039,23 +9039,50 @@ async function askFriendAboutItem(itemId, friendName, itemTitle) {
 
         if (error) throw error;
 
-        // Use current origin so staging tests stay on staging and prod stays on prod.
         const origin = (typeof window !== 'undefined' && window.location && window.location.origin)
             ? window.location.origin
             : 'https://www.join-odin.com';
         const shareUrl = `${origin}/share.html?token=${token}`;
 
         // Decode HTML-escaped strings for the message payload.
-        // (friendName and itemTitle were escapeHtml'd at button-render time
-        // to be safe inside the onclick HTML attribute.)
-        const decodedName  = friendName.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
-        const decodedTitle = itemTitle.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+        function _decode(s) {
+            return (s || '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+        }
+        const decodedName    = _decode(friendName);
+        const decodedTitle   = _decode(itemTitle);
+        const decodedAddress = _decode(itemAddress);
 
-        const messageText = `Hi ${decodedName} — saw your save on Odin: "${decodedTitle}". What's the story?`;
+        // Extract a short locator (suburb / district) from the address.
+        // Goal: turn "60 Picton Street, Howick, Auckland 2014" into "Howick".
+        // Strategy: split on commas, find the first chunk after the street that:
+        //   - is mostly alphabetic (no leading number)
+        //   - is not a street-type token (Road, Street, Lane, Drive, Avenue, etc)
+        //   - has at least 3 chars
+        // Strip trailing postcodes. Returns null if no clean candidate.
+        function _extractSuburb(addr) {
+            if (!addr || typeof addr !== 'string') return null;
+            const parts = addr.split(',').map(s => s.trim()).filter(Boolean);
+            if (parts.length < 2) return null;
+            const STREET_TYPES = /\b(Road|Rd|Street|St|Lane|Ln|Drive|Dr|Avenue|Ave|Place|Pl|Court|Ct|Crescent|Cres|Boulevard|Blvd|Highway|Hwy|Way|Parade|Pde|Terrace|Tce|Close|Quay)\.?\b/i;
+            // Skip the first part (the street). Walk the rest.
+            for (let i = 1; i < parts.length; i++) {
+                let candidate = parts[i];
+                // Strip a trailing postcode (e.g. "Howick 2014" → "Howick", "Cromwell 9384" → "Cromwell")
+                candidate = candidate.replace(/\s+\d{3,5}\s*$/, '').trim();
+                if (candidate.length < 3) continue;
+                if (/^\d/.test(candidate)) continue;          // skip "595", "7992 Inoucho"
+                if (STREET_TYPES.test(candidate)) continue;   // skip "Fencible Dr"
+                if (/^\d+$/.test(candidate)) continue;        // pure number
+                return candidate;
+            }
+            return null;
+        }
 
-        // Try native share sheet first (iOS / Android / some desktop browsers).
-        // Fall back to clipboard if unavailable OR fails for any reason other
-        // than user cancellation. Same defensive logic as shareItem().
+        const suburb = _extractSuburb(decodedAddress);
+        const locator = suburb ? ` in ${suburb}` : '';
+        const messageText = `Hi ${decodedName} — saw your save on Odin: "${decodedTitle}"${locator}. What's the story?`;
+
+        // Native share sheet — same defensive pattern as shareItem()
         let sharedNatively = false;
         if (navigator.share) {
             try {
@@ -9072,8 +9099,6 @@ async function askFriendAboutItem(itemId, friendName, itemTitle) {
         }
 
         if (!sharedNatively) {
-            // Clipboard fallback — include the message + link so the user can
-            // paste into WhatsApp/Messages/wherever themselves.
             await navigator.clipboard.writeText(`${messageText}\n\n${shareUrl}`);
             showToast('Message copied to clipboard!');
         }
