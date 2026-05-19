@@ -9046,6 +9046,16 @@ async function shareItem(itemId) {
         //   No sender:    `A friend thinks you'll like this: "Some item"`
         const messageText = `${senderPrefix}"${itemName}"${locator}${voiceLine}`;
 
+        // ── Compose the final payload ──
+        // Order: URL first, blank line, then sender prefix + body. WhatsApp /
+        // iMessage auto-detect the URL inside text and still render the OG
+        // preview card. Putting URL + body into a single `text` field (and
+        // dropping the separate `url` field) prevents WhatsApp on macOS from
+        // reordering them — without this, the share sheet sometimes pastes
+        // URL above the message with no blank line, which makes the
+        // "Stanley thinks…" line read like a stray afterthought.
+        const sharePayload = `${shareUrl}\n\n${messageText}`;
+
         // ── Native share sheet first (iOS / Android / some desktop browsers) ──
         // Same defensive pattern as before: silent on AbortError, fall through
         // to clipboard on any other failure so the user always gets a working link.
@@ -9054,8 +9064,7 @@ async function shareItem(itemId) {
             try {
                 await navigator.share({
                     title: 'Check this out on Odin',
-                    text: messageText,
-                    url: shareUrl
+                    text: sharePayload
                 });
                 sharedNatively = true;
             } catch (shareErr) {
@@ -9065,7 +9074,7 @@ async function shareItem(itemId) {
         }
 
         if (!sharedNatively) {
-            await navigator.clipboard.writeText(`${messageText}\n\n${shareUrl}`);
+            await navigator.clipboard.writeText(sharePayload);
             showToast('Link copied to clipboard!');
         }
     } catch (err) {

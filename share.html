@@ -10,6 +10,18 @@
   <meta property="og:title" content="Someone shared a recommendation with you on Odin">
   <meta property="og:description" content="Odin is a private discovery network. By invite only.">
   <meta property="og:type" content="website">
+  <!-- Static Odin logo for the link-preview thumbnail. Hardcoded to the
+       production host so WhatsApp / iMessage crawlers can always fetch it,
+       even when the share URL itself is on staging. Same logo file in both
+       environments, so there is no cross-env mismatch. Per-item dynamic OG
+       (the actual food / place photo) is a separate, deferred ticket. -->
+  <meta property="og:image" content="https://www.join-odin.com/icon-512.png">
+  <meta property="og:image:secure_url" content="https://www.join-odin.com/icon-512.png">
+  <meta property="og:image:width" content="512">
+  <meta property="og:image:height" content="512">
+  <meta property="og:image:alt" content="Odin">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:image" content="https://www.join-odin.com/icon-512.png">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
