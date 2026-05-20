@@ -11539,6 +11539,41 @@ body.map-view-open .content {
     color: #FAF6EE;
 }
 
+/* Owner nudge — thin-item banner ("Add a word…") */
+.drawer-thin-nudge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    margin-top: 12px;
+    background: #FAF6EE;          /* warm cream — matches the THE WORD block */
+    border: 1px solid #EAE0D2;
+    border-radius: 10px;
+}
+.drawer-thin-nudge-icon {
+    flex-shrink: 0;
+    color: #7B2D45;
+}
+.drawer-thin-nudge-text {
+    flex: 1;
+    font-size: 14px;
+    line-height: 1.4;
+    color: #4A3A2E;
+}
+.drawer-thin-nudge-btn {
+    flex-shrink: 0;
+    background: #7B2D45;
+    color: #FFF;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.drawer-thin-nudge-btn:hover { background: #6A2438; }
+
 /* Hide legacy duplicate address line in drawer */
 .drawer-address-line-legacy {
     display: none;

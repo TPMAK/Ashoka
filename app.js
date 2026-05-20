@@ -211,6 +211,82 @@ async function showMainApp() {
     // Show onboarding banner for new users
     checkOnboardingBanner();
 
+    // ── Share token: stored by share.html before OAuth redirect ──
+    // Reuses existing invite token pipeline since share tokens ARE invite tokens.
+    const shareToken = sessionStorage.getItem('odin_share_token')
+                    || localStorage.getItem('odin_share_token');
+    if (shareToken) {
+        sessionStorage.removeItem('odin_share_token');
+        localStorage.removeItem('odin_share_token');
+        await _processInviteTokenSilently(shareToken);
+    }
+
+    // ── Open item drawer after share-link arrival ──
+    // Two sources: (1) ?item= URL param from share.html redirect for logged-in users,
+    //              (2) odin_share_item_id storage from share.html before OAuth for new users.
+    //
+    // Lookup strategy: search the loaded feed (allDiscoveries) FIRST — it's
+    // already filtered by the correct trust rules including Save Inheritance,
+    // so it covers items added by friends-of-friends that direct knowledge_items
+    // reads cannot return (RLS only allows authenticated reads when the ADDER
+    // is a direct friend). Fall back to a direct read for own / direct-friend
+    // items. Poll briefly since _processInviteTokenSilently triggers a feed
+    // reload that may not have finished by the time we run.
+    (async () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlItemId = urlParams.get('item');
+        const storedItemId = sessionStorage.getItem('odin_share_item_id')
+                          || localStorage.getItem('odin_share_item_id');
+        const deepItemId = urlItemId || storedItemId;
+        if (!deepItemId) return;
+        // Clean the URL and storage immediately
+        if (urlItemId) {
+            window.history.replaceState({}, '', window.location.pathname);
+        }
+        sessionStorage.removeItem('odin_share_item_id');
+        localStorage.removeItem('odin_share_item_id');
+
+        const findInFeed = () => {
+            if (typeof allDiscoveries !== 'undefined' && Array.isArray(allDiscoveries)) {
+                return allDiscoveries.find(d => d && d.id === deepItemId) || null;
+            }
+            return null;
+        };
+
+        let attempts = 0;
+        const MAX_ATTEMPTS = 8;     // 8 × 500ms = ~4s of polling
+        const INITIAL_DELAY = 1200; // let app finish rendering first
+
+        const tryOpen = async () => {
+            attempts++;
+            // 1. Prefer the in-memory feed — handles Save Inheritance correctly
+            const fromFeed = findInFeed();
+            if (fromFeed && typeof openItemDrawer === 'function') {
+                openItemDrawer(fromFeed);
+                return;
+            }
+            // 2. Fallback: direct fetch — works for own + direct-friend items only
+            try {
+                const { data } = await supabaseClient
+                    .from('knowledge_items')
+                    .select('*')
+                    .eq('id', deepItemId)
+                    .maybeSingle();
+                if (data && typeof openItemDrawer === 'function') {
+                    openItemDrawer(data);
+                    return;
+                }
+            } catch (e) { /* swallow — try again from feed */ }
+            // 3. Not there yet — retry while the feed reload finishes
+            if (attempts < MAX_ATTEMPTS) {
+                setTimeout(tryOpen, 500);
+            } else {
+                console.warn('Share deeplink: item not reachable after retries', deepItemId);
+            }
+        };
+        setTimeout(tryOpen, INITIAL_DELAY);
+    })();
+
     // Navigate to home so header and layout match the Home tab state
     showHome();
 }
@@ -4338,6 +4414,37 @@ function anonymiseForExtendedCircle(item, viaFriendName) {
     return Object.assign({}, item, overrides);
 }
 
+// Defence-in-depth for search results.
+// The search RPC (search_knowledge_items_hybrid_v2) is the primary trust
+// boundary — this function re-applies field stripping client-side as a
+// belt-and-braces measure mirroring loadDiscoveries() / anonymiseForExtendedCircle().
+//
+// trust_level values from the RPC:
+//   'self'             → no stripping; viewer owns the item
+//   'friends'          → no stripping; direct friend's item
+//   'save_inheritance' → strip identity (added_by, added_by_name); preserve content per doc §3.
+//                        Set _via_friend_name from via_friend_name column.
+//   'extended_circle'  → legacy alias from old RPC; treat as save_inheritance.
+//   anything else      → defensive default: treat as save_inheritance with no via-friend.
+function anonymiseSearchResult(item) {
+    if (!item) return item;
+    const trust = item.trust_level || null;
+    // Tier 1 and Tier 2: pass through unchanged
+    if (trust === 'self' || trust === 'friends') {
+        return item;
+    }
+    // Tier 3 — Save Inheritance (or legacy 'extended_circle')
+    const viaName = item.via_friend_name || null;
+    return Object.assign({}, item, {
+        _trust_level: TRUST.EXTENDED,
+        added_by: null,
+        added_by_name: 'Someone in your circle',
+        _via_friend_name: viaName,
+        // Save Inheritance preserves personal_note + content per visibility doc §3.
+        // No further stripping. The drawer renders THE WORD with "Via [Name]" attribution.
+    });
+}
+
 async function loadDiscoveries() {
     try {
         const twoWeeksAgo = new Date();
@@ -5498,7 +5605,10 @@ function openItemDrawer(item) {
     if (!url && item.url) url = item.url;
     if (!url && item.website) url = item.website;
 
-    if (url || item.address) {
+    // Quick-actions row: render whenever there is a URL, an address, OR
+    // a saved item id (Share button needs item.id and applies to ALL items —
+    // own, friend, inherited — no isOwner gate).
+    if (url || item.address || item.id) {
         const itemType = (item.type || item.category || '').toLowerCase();
         const isPlace = itemType === 'place' || (!itemType && item.address);
         const mapsUrl = item.address
@@ -5524,6 +5634,26 @@ function openItemDrawer(item) {
             if (mapsUrl) {
                 html += `<button class="drawer-btn-secondary" data-action="open-url" data-url="${escapeHtml(mapsUrl)}">${PIN_SVG_SM} Directions</button>`;
             }
+        }
+        // Share button — last button in the row. Renders for ALL items
+        // (own, friend, inherited) EXCEPT private items.
+        //
+        // Why exclude private: share.html's preview uses a SECURITY DEFINER
+        // RPC that bypasses RLS, so a recipient WOULD see the item details
+        // pre-signin — but after they sign in, normal RLS blocks them from
+        // reading the item (the friend_circle policy explicitly excludes
+        // visibility='private'). Net effect: preview promises something the
+        // app can't deliver post-signin and the recipient lands on blank
+        // state. Gate at source until B (broader access model for shared
+        // private items) is decided.
+        if (item.id && item.visibility !== TRUST.PRIVATE) {
+            html += `<button class="drawer-btn-secondary" onclick="event.stopPropagation(); shareItem('${item.id}')" aria-label="Share">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                    <polyline points="16 6 12 2 8 6"/>
+                    <line x1="12" y1="2" x2="12" y2="15"/>
+                </svg> Share
+            </button>`;
         }
         html += '</div></div>';
     }
@@ -5605,16 +5735,29 @@ function openItemDrawer(item) {
         }
 
         // "Ask [Name] about this" — only for Scenario 3 (direct friend, no personal note)
+        // Opens native share sheet (WhatsApp/Messages/Mail/etc) with prefilled message + share link.
         let askCtaHtml = '';
         if (isDirectFriend && !note && item.added_by_name) {
-            const encodedName = encodeURIComponent(item.added_by_name);
-            askCtaHtml = `<button class="drawer-ask-btn" onclick="event.stopPropagation(); openAskFriendChat('${encodedName}', '${escapeHtml(item.title)}')">Ask ${friendName} about this</button>`;
+            const encodedAddress = escapeHtml(item.address || '');
+            askCtaHtml = `<button class="drawer-ask-btn" onclick="event.stopPropagation(); askFriendAboutItem('${item.id}', '${escapeHtml(friendName)}', '${escapeHtml(item.title)}', '${encodedAddress}')">Ask ${friendName} about this</button>`;
+        }
+
+        // Owner nudge — your own item has no personal note (The Word).
+        // Soft inline prompt that opens the existing edit flow.
+        let thinItemNudgeHtml = '';
+        if (isOwner && !note) {
+            thinItemNudgeHtml = `<div class="drawer-thin-nudge">
+                <svg class="drawer-thin-nudge-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7B2D45" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                <span class="drawer-thin-nudge-text">Add a word — your circle will trust this more.</span>
+                <button class="drawer-thin-nudge-btn" onclick="event.stopPropagation(); enterEditMode();">+ Add the Word</button>
+            </div>`;
         }
 
         currentDrawerItemId = item.id;
         html += `<div class="drawer-social">
             ${footerHtml}
             ${askCtaHtml}
+            ${thinItemNudgeHtml}
             <div class="drawer-comments" id="communityNotesContainer"><div class="notes-loading">Loading comments...</div></div>
         </div>`;
     }
@@ -6480,8 +6623,11 @@ async function sendMessage(text, displayLabel) {
             });
 
             // ── Hard privacy filter ───────────────────────────────
-            // Allowed: own items, direct friends' non-private, FOF 'friends'-visibility items
-            // FOF items come back from RPC with trust_level='extended_circle' + added_by=null
+            // Allowed: own items, direct friends' non-private, Save Inheritance items
+            // (Tier 3 rows from search_knowledge_items_hybrid_v2 come back with
+            // trust_level='save_inheritance' + added_by=null. Legacy 'extended_circle'
+            // is still accepted for backward compatibility during cutover.)
+            const isTier3Trust = (t) => t === 'save_inheritance' || t === 'extended_circle';
             const fofIdSet = new Set(
                 allDiscoveries
                     .filter(d => d._trust_level === TRUST.EXTENDED)
@@ -6489,35 +6635,27 @@ async function sendMessage(text, displayLabel) {
             );
             currentResults = currentResults.filter(r => {
                 if (!r.id) return false;
-                // RPC-anonymised FOF: added_by is null, trust_level is extended_circle
-                if (!r.added_by && r.trust_level === 'extended_circle') return true;
+                // RPC-anonymised Tier 3: added_by is null, trust_level is save_inheritance/extended_circle
+                if (!r.added_by && isTier3Trust(r.trust_level)) return true;
                 const owner = r.added_by;
                 if (!owner) return allDiscoveries.some(d => d.id === r.id);
                 // Private items: only visible to the owner
                 if (r.visibility === TRUST.PRIVATE && owner !== selfId) return false;
                 // Direct friends: allowed if not private
                 if (allowedIdSet.has(owner)) return true;
-                // FOF: allowed if RPC tagged it as extended_circle
-                if (r.trust_level === 'extended_circle') return true;
+                // Tier 3: allowed if RPC tagged it as save_inheritance/extended_circle
+                if (isTier3Trust(r.trust_level)) return true;
                 // FOF from feed cache
                 if (fofIdSet.has(r.id)) return true;
                 return false;
             });
 
-            // ── Anonymise extended circle items ──────────────────
-            // Sets _trust_level, clears identity fields, hides comments.
-            // For Save Inheritance items, look up the first-hop friend name
-            // from saverByItemIdCache so the card can render "Via [Name]".
-            // Defensive: only surface a name if it came from the cache (which
-            // is populated from a RPC that filters to direct friends only).
-            // If no entry exists, fall back to anonymous "Extended circle".
-            currentResults = currentResults.map(r => {
-                if (r.trust_level === 'extended_circle' || r._trust_level === TRUST.EXTENDED) {
-                    const viaName = saverByItemIdCache[r.id] || null;
-                    return anonymiseForExtendedCircle(r, viaName);
-                }
-                return r;
-            });
+            // ── Defence-in-depth: re-apply trust filtering client-side ──
+            // The RPC (search_knowledge_items_hybrid_v2) is the primary trust
+            // boundary. anonymiseSearchResult catches any regression by stripping
+            // identity fields on Tier 3 rows and reading via_friend_name from the
+            // RPC payload directly (no longer needs saverByItemIdCache for search).
+            currentResults = currentResults.map(r => anonymiseSearchResult(r));
 
             // Search v4: trust whatever the backend returns. No threshold, no drop check.
             // Backend already groups items into top_picks + more_options.
@@ -7648,7 +7786,7 @@ function prefillCaptureLocation() {
         }
     }, () => {
         if (locStatus) locStatus.textContent = '';
-    }, { timeout: 8000 });
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
 }
 
 // ===== CAPTURE: ADDRESS AUTOCOMPLETE =====
@@ -7796,6 +7934,40 @@ function prefillCaptureLocation() {
 })();
 
 /// ===== CAPTURE: URL OG PREFILL =====
+
+// ──────────────────────────────────────────────────────────
+// _cleanOGTitleForName — produce a clean short name from an OG title.
+// OG titles often carry taglines after `-`, `|`, `—`, `:`, `·`.
+// Examples:
+//   "Sony WH-1000XM5 Wireless Headphones | Sony NZ" → "Sony WH-1000XM5 Wireless Headphones"
+//   "Coursera Python for Everybody — Specialization" → "Coursera Python for Everybody"
+// Returns a trimmed, single-line string capped at 120 chars, or null if empty.
+// May 2026
+// ──────────────────────────────────────────────────────────
+function _cleanOGTitleForName(ogTitle) {
+    if (!ogTitle || typeof ogTitle !== 'string') return null;
+    let s = ogTitle.trim();
+    if (!s) return null;
+    // Split on common tagline separators; keep the first segment.
+    // Order matters: try longer/more-distinctive separators first.
+    const seps = [' — ', ' – ', ' | ', ' - ', ' · ', ' : '];
+    for (const sep of seps) {
+        const idx = s.indexOf(sep);
+        if (idx > 0) {
+            s = s.slice(0, idx);
+            break;
+        }
+    }
+    s = s.trim();
+    // Capitalize first letter if alphabetic and currently lowercase
+    if (s.length > 0 && /^[a-z]/.test(s)) {
+        s = s.charAt(0).toUpperCase() + s.slice(1);
+    }
+    // Cap at 120 chars to match the DB column / n8n cleanPlaceName limit
+    if (s.length > 120) s = s.slice(0, 120);
+    return s || null;
+}
+
 let _ogFetchInFlight = false;
 async function fetchAndPrefillOG(url) {
     if (!url || !url.startsWith('http')) return;
@@ -7845,6 +8017,15 @@ async function fetchAndPrefillOG(url) {
         if (didFillTitle) {
             titleField.value = og.title;
             if (titleField._autoGrow) titleField._autoGrow();
+        }
+        // Auto-prefill the Name field from the OG title (Link mode shows this field).
+        // Only fill if the user hasn't already typed something.
+        if (og.title) {
+            const nameField = document.getElementById('placeName');
+            if (nameField && !nameField.value.trim()) {
+                const cleaned = _cleanOGTitleForName(og.title);
+                if (cleaned) nameField.value = cleaned;
+            }
         }
         // Always open Details after fetch so user can see/fill the name field
         _openDetailsAfterOG(didFillTitle);
@@ -8165,6 +8346,9 @@ function clearPrefillFields() {
         if (titleField._autoGrow) titleField._autoGrow();
         titleField.focus();
     }
+    // Also clear the Name field if it was auto-filled by OG (Link mode)
+    const nameField = document.getElementById('placeName');
+    if (nameField) nameField.value = '';
     // Hide the clear button and autofill hint
     const clearBtn = document.getElementById('clearPrefillBtn');
     if (clearBtn) clearBtn.classList.add('hidden');
@@ -8760,6 +8944,254 @@ async function generateInviteLink() {
     }
 }
 
+// ══════════════════════════════════════════════════════════
+// SHARE ITEM FROM RESULT DRAWER
+// Generates an invitations row with knowledge_item_id set,
+// then triggers native share sheet (iOS/Android) or clipboard
+// fallback (desktop). Recipient lands on share.html.
+// May 2026 — v3: prefixes the message with the sender's first
+// name ("Stanley thinks you'll like this: …") and enriches the
+// body with item name, suburb, and the personal note (or AI
+// feed_card_summary as a fallback).
+// ══════════════════════════════════════════════════════════
+async function shareItem(itemId) {
+    if (!currentUser || !itemId) return;
+    try {
+        // Generate token — identical algorithm to generateInviteLink()
+        const token = Array.from(crypto.getRandomValues(new Uint8Array(9)))
+            .map(b => b.toString(36).padStart(2, '0'))
+            .join('')
+            .slice(0, 12);
+
+        // Insert into invitations with knowledge_item_id
+        const { error } = await supabaseClient
+            .from('invitations')
+            .insert({
+                token: token,
+                inviter_id: currentUser.id,
+                knowledge_item_id: itemId
+            });
+
+        if (error) throw error;
+
+        // Use current origin so staging tests stay on staging and prod stays on prod.
+        const origin = (typeof window !== 'undefined' && window.location && window.location.origin)
+            ? window.location.origin
+            : 'https://www.join-odin.com';
+        const shareUrl = `${origin}/share.html?token=${token}`;
+
+        // ── Build enriched message text from the currently-open drawer item ──
+        // currentDrawerItem is always populated when the Share button is visible,
+        // since the button only renders inside the open drawer.
+        const item = (typeof currentDrawerItem !== 'undefined' && currentDrawerItem) ? currentDrawerItem : {};
+
+        // Name resolution: prefer place_name, then title, then a generic fallback.
+        const itemName = (item.place_name && item.place_name.trim())
+            || (item.title && item.title.trim())
+            || 'this save';
+
+        // Suburb extraction — same logic as askFriendAboutItem v2.
+        // Turns "60 Picton Street, Howick, Auckland 2014" → "Howick".
+        // Returns null for non-place items, empty addresses, or unparseable cases.
+        function _extractSuburb(addr) {
+            if (!addr || typeof addr !== 'string') return null;
+            const parts = addr.split(',').map(s => s.trim()).filter(Boolean);
+            if (parts.length < 2) return null;
+            const STREET_TYPES = /\b(Road|Rd|Street|St|Lane|Ln|Drive|Dr|Avenue|Ave|Place|Pl|Court|Ct|Crescent|Cres|Boulevard|Blvd|Highway|Hwy|Way|Parade|Pde|Terrace|Tce|Close|Quay)\.?\b/i;
+            for (let i = 1; i < parts.length; i++) {
+                let candidate = parts[i];
+                candidate = candidate.replace(/\s+\d{3,5}\s*$/, '').trim();
+                if (candidate.length < 3) continue;
+                if (/^\d/.test(candidate)) continue;
+                if (STREET_TYPES.test(candidate)) continue;
+                if (/^\d+$/.test(candidate)) continue;
+                return candidate;
+            }
+            return null;
+        }
+        const suburb = _extractSuburb(item.address);
+        const locator = suburb ? ` in ${suburb}` : '';
+
+        // Voice line: prefer the personal note (The Word) if present, else fall back
+        // to AI-generated feed_card_summary. Personal note may live on either
+        // `personal_note` or `PersonalNote` depending on capture path; check both.
+        // Cap at 140 chars so the WhatsApp message stays one tap to read.
+        let voiceLine = '';
+        const word = (item.personal_note && item.personal_note.trim())
+            || (item.PersonalNote && item.PersonalNote.trim())
+            || '';
+        if (word) {
+            const capped = word.length > 140 ? word.slice(0, 137) + '…' : word;
+            voiceLine = ` — "${capped}"`;
+        } else if (item.feed_card_summary && item.feed_card_summary.trim()) {
+            const capped = item.feed_card_summary.trim();
+            voiceLine = ` — ${capped}`;
+        }
+
+        // Sender first name — matches the framing on share.html
+        // ("Stanley thinks you'll like this"). Uses the same lookup chain
+        // used elsewhere in the app, then takes the first whitespace-
+        // separated token. Falls back to "A friend" when no name is on file.
+        const _fullSenderName = (currentProfile?.display_name)
+            || (currentUser?.user_metadata?.full_name)
+            || '';
+        const senderFirst = (_fullSenderName.trim().split(/\s+/)[0]) || 'A friend';
+        const senderPrefix = `${senderFirst} thinks you'll like this: `;
+
+        // Final shape:
+        //   With Word:    `Stanley thinks you'll like this: "Kajiken" in Britomart — "The personal note here"`
+        //   With AI line: `Stanley thinks you'll like this: "Kajiken" in Britomart — Hidden ramen counter in Auckland alley`
+        //   No address:   `Stanley thinks you'll like this: "Sony WH-1000XM5" — "The personal note here"`
+        //   Bare:         `Stanley thinks you'll like this: "Some item"`
+        //   No sender:    `A friend thinks you'll like this: "Some item"`
+        const messageText = `${senderPrefix}"${itemName}"${locator}${voiceLine}`;
+
+        // ── Compose the final payload ──
+        // Order: URL first, blank line, then sender prefix + body. WhatsApp /
+        // iMessage auto-detect the URL inside text and still render the OG
+        // preview card. Putting URL + body into a single `text` field (and
+        // dropping the separate `url` field) prevents WhatsApp on macOS from
+        // reordering them — without this, the share sheet sometimes pastes
+        // URL above the message with no blank line, which makes the
+        // "Stanley thinks…" line read like a stray afterthought.
+        const sharePayload = `${shareUrl}\n\n${messageText}`;
+
+        // ── Native share sheet first (iOS / Android / some desktop browsers) ──
+        // Same defensive pattern as before: silent on AbortError, fall through
+        // to clipboard on any other failure so the user always gets a working link.
+        let sharedNatively = false;
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'Check this out on Odin',
+                    text: sharePayload
+                });
+                sharedNatively = true;
+            } catch (shareErr) {
+                if (shareErr?.name === 'AbortError') return;
+                console.warn('navigator.share failed, falling back to clipboard:', shareErr);
+            }
+        }
+
+        if (!sharedNatively) {
+            await navigator.clipboard.writeText(sharePayload);
+            showToast('Link copied to clipboard!');
+        }
+    } catch (err) {
+        console.error('shareItem failed:', err);
+        showToast('Could not generate share link');
+    }
+}
+
+// ══════════════════════════════════════════════════════════
+// ASK FRIEND ABOUT ITEM
+// Triggered by "Ask [friend] about this" button in the drawer.
+// Generates an invitations row with knowledge_item_id, then opens
+// native share sheet (iOS / Android / desktop) with prefilled
+// message + share URL. Recipient lands on share.html.
+// May 2026 — v2: adds optional suburb locator to message
+// ══════════════════════════════════════════════════════════
+async function askFriendAboutItem(itemId, friendName, itemTitle, itemAddress) {
+    if (!currentUser || !itemId) return;
+    try {
+        // Generate token — identical algorithm to shareItem()
+        const token = Array.from(crypto.getRandomValues(new Uint8Array(9)))
+            .map(b => b.toString(36).padStart(2, '0'))
+            .join('')
+            .slice(0, 12);
+
+        const { error } = await supabaseClient
+            .from('invitations')
+            .insert({
+                token: token,
+                inviter_id: currentUser.id,
+                knowledge_item_id: itemId
+            });
+
+        if (error) throw error;
+
+        const origin = (typeof window !== 'undefined' && window.location && window.location.origin)
+            ? window.location.origin
+            : 'https://www.join-odin.com';
+        const shareUrl = `${origin}/share.html?token=${token}`;
+
+        // Decode HTML-escaped strings for the message payload.
+        function _decode(s) {
+            return (s || '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+        }
+        const decodedName    = _decode(friendName);
+        const decodedTitle   = _decode(itemTitle);
+        const decodedAddress = _decode(itemAddress);
+
+        // Extract a short locator (suburb / district) from the address.
+        // Goal: turn "60 Picton Street, Howick, Auckland 2014" into "Howick".
+        // Strategy: split on commas, find the first chunk after the street that:
+        //   - is mostly alphabetic (no leading number)
+        //   - is not a street-type token (Road, Street, Lane, Drive, Avenue, etc)
+        //   - has at least 3 chars
+        // Strip trailing postcodes. Returns null if no clean candidate.
+        function _extractSuburb(addr) {
+            if (!addr || typeof addr !== 'string') return null;
+            const parts = addr.split(',').map(s => s.trim()).filter(Boolean);
+            if (parts.length < 2) return null;
+            const STREET_TYPES = /\b(Road|Rd|Street|St|Lane|Ln|Drive|Dr|Avenue|Ave|Place|Pl|Court|Ct|Crescent|Cres|Boulevard|Blvd|Highway|Hwy|Way|Parade|Pde|Terrace|Tce|Close|Quay)\.?\b/i;
+            // If parts[0] is purely numeric (a house number on its own, like
+            // "208, Broadway, Newmarket, …"), then parts[1] is the street name
+            // and we should skip it. Otherwise parts[0] already contains the
+            // street (e.g. "60 Picton Street") and we just skip that one.
+            const firstIsHouseNumber = /^\d+$/.test(parts[0]);
+            const startIdx = firstIsHouseNumber ? 2 : 1;
+            for (let i = startIdx; i < parts.length; i++) {
+                let candidate = parts[i];
+                // Strip a trailing postcode (e.g. "Howick 2014" → "Howick", "Cromwell 9384" → "Cromwell")
+                candidate = candidate.replace(/\s+\d{3,5}\s*$/, '').trim();
+                if (candidate.length < 3) continue;
+                if (/^\d/.test(candidate)) continue;          // skip "595", "7992 Inoucho"
+                if (STREET_TYPES.test(candidate)) continue;   // skip "Fencible Dr"
+                if (/^\d+$/.test(candidate)) continue;        // pure number
+                return candidate;
+            }
+            return null;
+        }
+
+        const suburb = _extractSuburb(decodedAddress);
+        const locator = suburb ? ` in ${suburb}` : '';
+        // Keep the greeting nameless — the sender is already in WhatsApp,
+        // so the recipient knows who it's from. "Hi, saw your save..." is
+        // simpler and avoids awkward formal-name renders on group chats etc.
+        const messageText = `Hi, saw your save on Odin: "${decodedTitle}"${locator}. What's the story?`;
+
+        // Build the full payload up front: URL first, then the message text.
+        // macOS WhatsApp concatenates navigator.share's title/text/url with
+        // spaces instead of newlines, so we pass everything in `text` and
+        // skip both `title` and `url`. WhatsApp still auto-renders the link
+        // preview from the URL in body.
+        const sharePayload = `${shareUrl}\n\n${messageText}`;
+
+        // Native share sheet — same defensive pattern as shareItem()
+        let sharedNatively = false;
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    text: sharePayload
+                });
+                sharedNatively = true;
+            } catch (shareErr) {
+                if (shareErr?.name === 'AbortError') return;
+                console.warn('navigator.share failed, falling back to clipboard:', shareErr);
+            }
+        }
+
+        if (!sharedNatively) {
+            await navigator.clipboard.writeText(sharePayload);
+            showToast('Message copied to clipboard!');
+        }
+    } catch (err) {
+        console.error('askFriendAboutItem failed:', err);
+        showToast('Could not generate share link');
+    }
+}
+
 function copyInviteLink() {
     const urlEl = document.getElementById('inviteLinkUrl');
     const copyBtn = document.getElementById('inviteLinkCopy');
@@ -8844,7 +9276,14 @@ async function _lookupInviterProfile(token) {
             .rpc('get_inviter_profile', { p_token: token });
         if (error || !data || data.length === 0) return null;
         const row = data[0];
-        return { id: row.inviter_id, display_name: row.display_name };
+        // knowledge_item_id is non-null only for SHARE tokens (regular invite
+        // tokens leave it NULL). Surfacing it here lets callers branch on
+        // "share vs invite" without a second round-trip.
+        return {
+            id: row.inviter_id,
+            display_name: row.display_name,
+            knowledge_item_id: row.knowledge_item_id || null
+        };
     } catch (e) {
         console.warn('_lookupInviterProfile failed:', e);
         return null;
@@ -8930,18 +9369,21 @@ async function checkOnboardingBanner() {
     _onbInviteToken = sessionStorage.getItem('odin_invite_token')
                    || localStorage.getItem('odin_invite_token') || null;
 
-    // Returning user: skip onboarding UI BUT show Step 2 if there's a valid token
+    // Returning user with an invite token — auto-friend silently.
+    //
+    // Per Stanley's trust rule (May 2026): arriving via someone's invitation
+    // link IS the act of agreeing to connect. The Step 2 "Connect with X"
+    // modal-as-choice was wrong — users were skipping it and ending up
+    // isolated in the app, which breaks the warm-circle premise harder than
+    // a blank canvas would. Process every invitation token (regular or
+    // share) silently and move on; the share-link deeplink handler in
+    // showMainApp() will open the item drawer afterward if applicable.
     if (currentProfile.onboarding_completed_at) {
         if (_onbInviteToken) {
-            const inviter = await _lookupInviterProfile(_onbInviteToken);
-            if (inviter) {
-                _onbInviterData = inviter;
-                _populateStep2UI(inviter);
-                onbGoStep(2);
-                return;
-            }
-            // Token invalid/used — process silently and move on
             await _processInviteTokenSilently(_onbInviteToken);
+            _onbInviteToken = null;
+            sessionStorage.removeItem('odin_invite_token');
+            localStorage.removeItem('odin_invite_token');
         }
         return;
     }
@@ -8953,12 +9395,26 @@ async function checkOnboardingBanner() {
         nameEl.textContent = firstName;
     }
 
-    // If we have a token, look up the inviter before showing step 2
+    // If we have a token, look up the inviter AND auto-friend silently.
+    //
+    // Per Stanley's trust rule (May 2026): arriving via someone's invitation
+    // link is implicit consent to connect. The Step 2 "Connect / Skip" choice
+    // was wrong — users skipped Connect and ended up isolated. Do the
+    // friendship invisibly here; Step 2 still displays as a confirmation
+    // moment ("you came in via Aden") but the connection is already made
+    // before the user can interact, and clicking Skip can no longer undo it.
     if (_onbInviteToken) {
         const inviter = await _lookupInviterProfile(_onbInviteToken);
         if (inviter) {
             _onbInviterData = inviter;
             _populateStep2UI(inviter);
+            // Fire-and-forget the silent connect — don't block onboarding
+            // render on the RPC. If it fails, the user can retry later via
+            // a fresh share/invite link; the worst case is "no connection",
+            // which is the same as the old skip-button outcome.
+            _processInviteTokenSilently(_onbInviteToken).catch(err =>
+                console.warn('Auto-connect on invitation failed (non-fatal):', err)
+            );
         } else {
             // Token invalid or already used — clear it
             _onbInviteToken = null;
@@ -9490,10 +9946,10 @@ function dismissEmptyFriends() {
             wStep2.classList.remove('step-hidden');
             wStep2.classList.add('step-reveal');
         }
-        // Place name field — Photo + I'm here only (where user is at a venue)
+        // Name field — Photo, I'm here, AND Link modes. Link uses OG title as a prefill seed.
         const subPlaceName = document.getElementById('subPlaceName');
         if (subPlaceName) {
-            if (chip === 'photo' || chip === 'here') {
+            if (chip === 'photo' || chip === 'here' || chip === 'link') {
                 subPlaceName.classList.remove('step-hidden');
                 subPlaceName.classList.add('step-reveal');
             } else {
