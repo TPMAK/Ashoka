@@ -4509,7 +4509,7 @@
         if (typeof currentUser === 'undefined' || !currentUser) return;
 
         // Wait for friendsCache to be populated (it loads async on app init)
-        var friends = (typeof friendsCache !== 'undefined') ? friendsCache : [];
+        var friends = Array.isArray(friendsCache) ? friendsCache : [];
 
         if (friends.length === 0) {
             if (feedSection) feedSection.style.display  = 'none';
@@ -4871,7 +4871,7 @@
             startPlaceholderCycle();
             // Wait for friendsCache before loading feed so it doesn't flash then vanish
             var waitForFriends = function(attempts) {
-                if (typeof friendsCache !== 'undefined' && friendsCache.length > 0) {
+                if (Array.isArray(friendsCache) && friendsCache.length > 0) {
                     loadFriendFeed().then(function() { initFeedScrollHint(); });
                 } else if (attempts > 0) {
                     setTimeout(function() { waitForFriends(attempts - 1); }, 300);
@@ -5071,7 +5071,7 @@
         // Circle count
         var circleEl = document.getElementById('pboxCircleCount');
         if (circleEl) {
-            var count = (typeof friendsCache !== 'undefined') ? friendsCache.length : 0;
+            var count = Array.isArray(friendsCache) ? friendsCache.length : 0;
             circleEl.textContent = count > 0 ? count + ' friend' + (count !== 1 ? 's' : '') : '';
         }
     }
@@ -5081,7 +5081,7 @@
         var _origUpdateFriendsDisplay = updateFriendsDisplay;
         updateFriendsDisplay = function() {
             _origUpdateFriendsDisplay();
-            var count = (typeof friendsCache !== 'undefined') ? friendsCache.length : 0;
+            var count = Array.isArray(friendsCache) ? friendsCache.length : 0;
             var el = document.getElementById('profilePeopleCount');
             if (el) el.textContent = count;
             var badge = document.getElementById('friendsCountBadge');
@@ -5095,7 +5095,7 @@
         var _origLoadProfilePage = loadProfilePage;
         loadProfilePage = async function() {
             await _origLoadProfilePage();
-            var count = (typeof friendsCache !== 'undefined') ? friendsCache.length : 0;
+            var count = Array.isArray(friendsCache) ? friendsCache.length : 0;
             var el = document.getElementById('profilePeopleCount');
             if (el) el.textContent = count;
             var badge = document.getElementById('friendsCountBadge');
