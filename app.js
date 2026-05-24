@@ -5525,7 +5525,8 @@ function openItemDrawer(item) {
     const _heroPhotos = getItemPhotos(item);
     if (_heroPhotos.length === 1) {
         html += `<div class="drawer-hero" onclick="event.stopPropagation(); openLightbox('${escapeHtml(_heroPhotos[0])}');">
-            <img src="${escapeHtml(_heroPhotos[0])}">
+            <div class="drawer-hero-blur" style="background-image:url('${escapeHtml(_heroPhotos[0])}')"></div>
+            <img class="drawer-hero-photo" src="${escapeHtml(_heroPhotos[0])}">
             <div class="drawer-hero-fade"></div>
         </div>`;
     } else if (_heroPhotos.length >= 2) {
