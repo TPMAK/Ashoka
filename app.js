@@ -4358,9 +4358,17 @@ function filterAndRender() {
         }
         if (filters.searchText) {
             const text = filters.searchText;
-            const title = (item.title || '').toLowerCase();
-            const desc = (item.description || '').toLowerCase();
-            if (!title.includes(text) && !desc.includes(text)) return false;
+            const note = (typeof getPersonalNoteGlobal === 'function')
+                ? (getPersonalNoteGlobal(item) || '')
+                : (item.personal_note || item.PersonalNote || '');
+            const haystack = [
+                item.title,
+                item.description,
+                item.place_name,
+                note,
+                item.address
+            ].map(v => (v || '').toLowerCase()).join('  ');
+            if (!haystack.includes(text)) return false;
         }
         return true;
     });
