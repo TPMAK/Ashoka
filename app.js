@@ -3956,6 +3956,21 @@ function initCarousel(id, opts) {
 let _lightboxPhotos = [];
 let _lightboxIdx = 0;
 
+function _renderLightbox() {
+    if (_lightboxPhotos.length === 0) return;
+    document.getElementById('lightboxImg').src = _lightboxPhotos[_lightboxIdx];
+    const multi = _lightboxPhotos.length > 1;
+    const counter = document.getElementById('lightboxCounter');
+    const prevBtn = document.querySelector('.lightbox-arrow--prev');
+    const nextBtn = document.querySelector('.lightbox-arrow--next');
+    if (counter) {
+        counter.textContent = multi ? (_lightboxIdx + 1) + '/' + _lightboxPhotos.length : '';
+        counter.style.display = multi ? 'block' : 'none';
+    }
+    if (prevBtn) prevBtn.style.display = multi ? 'flex' : 'none';
+    if (nextBtn) nextBtn.style.display = multi ? 'flex' : 'none';
+}
+
 function openLightboxMulti(photosJson, startIdx) {
     try {
         _lightboxPhotos = JSON.parse(decodeURIComponent(photosJson));
@@ -3964,18 +3979,50 @@ function openLightboxMulti(photosJson, startIdx) {
     }
     _lightboxIdx = startIdx || 0;
     if (_lightboxPhotos.length === 0) return;
-    document.getElementById('lightboxImg').src = _lightboxPhotos[_lightboxIdx];
+    _renderLightbox();
     document.getElementById('photoLightbox').classList.add('active');
 }
 
 function openLightbox(photoUrl) {
-    document.getElementById('lightboxImg').src = photoUrl;
+    _lightboxPhotos = [photoUrl];
+    _lightboxIdx = 0;
+    _renderLightbox();
     document.getElementById('photoLightbox').classList.add('active');
+}
+
+function lightboxNext() {
+    if (_lightboxPhotos.length < 2) return;
+    _lightboxIdx = (_lightboxIdx + 1) % _lightboxPhotos.length;
+    _renderLightbox();
+}
+
+function lightboxPrev() {
+    if (_lightboxPhotos.length < 2) return;
+    _lightboxIdx = (_lightboxIdx - 1 + _lightboxPhotos.length) % _lightboxPhotos.length;
+    _renderLightbox();
 }
 
 function closeLightbox() {
     document.getElementById('photoLightbox').classList.remove('active');
 }
+
+// Swipe support for the lightbox on touch devices.
+(function() {
+    let _lbStartX = 0, _lbStartY = 0;
+    const lb = document.getElementById('photoLightbox');
+    if (!lb) return;
+    lb.addEventListener('touchstart', function(e) {
+        _lbStartX = e.changedTouches[0].clientX;
+        _lbStartY = e.changedTouches[0].clientY;
+    }, { passive: true });
+    lb.addEventListener('touchend', function(e) {
+        const dx = e.changedTouches[0].clientX - _lbStartX;
+        const dy = e.changedTouches[0].clientY - _lbStartY;
+        if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+            if (dx < 0) lightboxNext(); else lightboxPrev();
+        }
+    }, { passive: true });
+})();
 
 function openFilterModal() {
     document.getElementById('filterBackdrop').classList.add('active');
