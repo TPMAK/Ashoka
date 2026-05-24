@@ -8733,7 +8733,7 @@ function getDisplayHeading(item) {
     const placeName = (item.place_name || '').trim();
     const fcs = (item.feed_card_summary || '').trim();
     const fallback = fcs || item.title || 'Untitled';
-    if (item.type === 'place' && placeName) {
+    if ((item.type === 'place' || item.type === 'service') && placeName) {
         // Suppress subtitle if it's just the place name again (or fully contains it)
         const sub = (fcs && fcs.toLowerCase() !== placeName.toLowerCase()) ? fcs : null;
         return { heading: placeName, subtitle: sub };
