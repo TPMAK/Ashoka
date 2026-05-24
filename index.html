@@ -3073,62 +3073,102 @@
     var _SEARCH_CHIP_POOLS = {
     morning: {
         en: [
-            { q: 'Where should I get coffee this morning?',        label: 'Coffee this morning' },
-            { q: 'Good breakfast spot my friends recommend',        label: 'Good breakfast spot' },
-            { q: 'Where do my friends go for morning coffee?',      label: "Friends' coffee picks" },
+            'Where should I get coffee this morning?',
+            'Good breakfast spot my friends like',
+            'Where do my friends go for morning coffee?',
+            'Where can I get good coffee near me?',
+            'Where do my friends go for breakfast?',
         ],
         zh: [
-            { q: '附近邊度飲咖啡好？',                              label: '附近飲咖啡' },
-            { q: '朋友推介邊度食早餐？',                            label: '朋友早餐推薦' },
-            { q: '有冇好嘅café推薦？',                              label: '好café推薦' },
+            '附近邊度飲咖啡好？',
+            '朋友去邊度食早餐？',
+            '附近有冇好café？',
+            '附近邊度有好咖啡？',
+            '朋友去邊度食早餐好？',
         ],
     },
     lunch: {
         en: [
-            { q: 'Good Japanese for lunch',                        label: 'Japanese for lunch' },
-            { q: 'Quick lunch spot nearby',                        label: 'Quick lunch nearby' },
-            { q: 'Noodles my friends saved',                       label: "Friends' noodle picks" },
+            'Good Japanese for lunch',
+            'Quick lunch spot nearby',
+            'Noodles my friends saved',
+            'Where can I find good sushi near me?',
+            'Where is a good spot for lunch nearby?',
         ],
         zh: [
-            { q: '朋友推介邊度食lunch？',                           label: '朋友lunch推薦' },
-            { q: '附近有冇好拉麵或烏冬？',                          label: '附近麵食推薦' },
-            { q: '去邊度食中午好？',                                label: '今日食乜lunch' },
+            '朋友去邊度食lunch？',
+            '附近有冇好拉麵或烏冬？',
+            '去邊度食中午好？',
+            '附近邊度有好壽司？',
+            '附近邊度食lunch好？',
         ],
     },
     afternoon: {
         en: [
-            { q: 'Good café to sit and work this afternoon',       label: 'Café to work in' },
-            { q: 'Dessert or gelato nearby',                       label: 'Dessert nearby' },
-            { q: 'Afternoon coffee my friends recommend',          label: 'Afternoon coffee picks' },
+            'Good café to sit and work this afternoon',
+            'Dessert or gelato nearby',
+            'Afternoon coffee my friends like',
+            'Where can I get dessert or gelato near me?',
+            'Where do parents take kids nearby?',
         ],
         zh: [
-            { q: '下午茶去邊好？',                                  label: '下午茶推薦' },
-            { q: '有冇舒服咖啡廳可以坐低做嘢？',                    label: '舒適咖啡廳' },
-            { q: '附近有咩甜品或雪糕推薦？',                        label: '附近甜品推薦' },
+            '下午茶去邊好？',
+            '有冇舒服咖啡廳可以坐低做嘢？',
+            '附近有咩甜品或雪糕好食？',
+            '附近邊度有甜品或者雪糕？',
+            '平日帶小朋友去邊度好？',
         ],
     },
     evening: {
         en: [
-            { q: 'Good dinner spot for tonight',                   label: 'Good dinner tonight' },
-            { q: 'Italian restaurant my friends like',             label: 'Italian my friends like' },
-            { q: 'Somewhere good for a steak tonight',             label: 'Good steak tonight' },
+            'Good dinner spot for tonight',
+            'Italian restaurant my friends like',
+            'Somewhere good for a steak tonight',
+            'Where should I go for dinner tonight?',
+            'Good Italian or Japanese near me?',
         ],
         zh: [
-            { q: '今晚食乜好？',                                    label: '今晚食乜好' },
-            { q: '朋友推介嘅晚餐係邊間？',                          label: '朋友晚餐推薦' },
-            { q: '有冇好嘅中餐廳或日本餐廳推薦？',                  label: '晚餐餐廳推薦' },
+            '今晚食乜好？',
+            '朋友去邊度食晚餐？',
+            '有冇好嘅中餐廳或日本餐廳？',
+            '今晚去邊度食好？',
+            '附近有好嘅意大利菜或者日本菜？',
         ],
     },
     latenight: {
         en: [
-            { q: 'Late night food my friends know',                label: 'Late night food' },
-            { q: 'Bar my friends actually recommend',              label: "Friends' bar picks" },
-            { q: 'Where to get cocktails tonight',                 label: 'Cocktails tonight' },
+            'Late night food my friends know',
+            'Bar my friends actually like',
+            'Where to get cocktails tonight',
+            'Where can I get late-night food near me?',
+            'Bar or drinks nearby tonight?',
         ],
         zh: [
-            { q: '夜晚食宵夜去邊好？',                              label: '宵夜去邊好' },
-            { q: '朋友推薦嘅酒吧係邊間？',                          label: '朋友推薦酒吧' },
-            { q: '夜晚有咩好去處？',                                label: '夜晚好去處' },
+            '夜晚食宵夜去邊好？',
+            '朋友會去邊間酒吧？',
+            '夜晚有咩好去處？',
+            '夜晚邊度有宵夜食？',
+            '附近有咩酒吧或者飲嘢地方？',
+        ],
+    },
+    anytime: {
+        en: [
+            'Doctor or dentist my friends trust',
+            'Tradie my circle has used',
+            'A recipe someone in my circle cooks',
+            'Supermarket find my friends rate',
+            'Something to learn or watch',
+            'Parenting tip from my friends',
+            'Massage or spa my friends rate',
+        ],
+        zh: [
+            '朋友睇開嘅醫生或牙醫',
+            '朋友用過嘅師傅（水電、地板、清潔）',
+            '朋友屋企整嘅食譜',
+            '朋友會喺超市買嘅好嘢',
+            '有咩好嘢可以學下或者睇下？',
+            '朋友分享過嘅湊仔心得',
+            '朋友按摩或者spa去邊間？',
         ],
     },
     };
@@ -3157,22 +3197,29 @@
         var container = document.getElementById('searchSuggestions');
         if (!container) return;
         container.innerHTML = '';
-        var pool = _getChipPool();
-        // 3 English + 3 Chinese, randomly picked, interleaved for visual variety
-        var enPicks = _shufflePick(pool.en, 3);
-        var zhPicks = _shufflePick(pool.zh, 3);
-        // Interleave: en, zh, en, zh, en, zh
+        var pool    = _getChipPool();
+        var anytime = _SEARCH_CHIP_POOLS.anytime;
+
+        // 8 chips: 3 en + 3 zh from the time bucket (place-first core),
+        // then 1 en + 1 zh from the anytime pool (broadened scope, at the tail).
+        var enTime = _shufflePick(pool.en, 3);
+        var zhTime = _shufflePick(pool.zh, 3);
+        var enAny  = _shufflePick(anytime.en, 1);
+        var zhAny  = _shufflePick(anytime.zh, 1);
+
         var chips = [];
         for (var i = 0; i < 3; i++) {
-            if (enPicks[i]) chips.push(enPicks[i]);
-            if (zhPicks[i]) chips.push(zhPicks[i]);
+            if (enTime[i]) chips.push(enTime[i]);
+            if (zhTime[i]) chips.push(zhTime[i]);
         }
-        chips.forEach(function(item) {
+        if (enAny[0]) chips.push(enAny[0]);
+        if (zhAny[0]) chips.push(zhAny[0]);
+
+        chips.forEach(function(q) {
             var span = document.createElement('span');
             span.className = 'suggestion-chip';
-            // Show exactly what will be searched — no label mismatch
-            span.textContent = item.q;
-            span.onclick = (function(q) { return function() { sendMessage(q); }; })(item.q);
+            span.textContent = q;
+            span.onclick = (function(query) { return function() { sendMessage(query); }; })(q);
             container.appendChild(span);
         });
     }
