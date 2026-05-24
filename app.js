@@ -4358,9 +4358,17 @@ function filterAndRender() {
         }
         if (filters.searchText) {
             const text = filters.searchText;
-            const title = (item.title || '').toLowerCase();
-            const desc = (item.description || '').toLowerCase();
-            if (!title.includes(text) && !desc.includes(text)) return false;
+            const note = (typeof getPersonalNoteGlobal === 'function')
+                ? (getPersonalNoteGlobal(item) || '')
+                : (item.personal_note || item.PersonalNote || '');
+            const haystack = [
+                item.title,
+                item.description,
+                item.place_name,
+                note,
+                item.address
+            ].map(v => (v || '').toLowerCase()).join('  ');
+            if (!haystack.includes(text)) return false;
         }
         return true;
     });
@@ -5525,7 +5533,8 @@ function openItemDrawer(item) {
     const _heroPhotos = getItemPhotos(item);
     if (_heroPhotos.length === 1) {
         html += `<div class="drawer-hero" onclick="event.stopPropagation(); openLightbox('${escapeHtml(_heroPhotos[0])}');">
-            <img src="${escapeHtml(_heroPhotos[0])}">
+            <div class="drawer-hero-blur" style="background-image:url('${escapeHtml(_heroPhotos[0])}')"></div>
+            <img class="drawer-hero-photo" src="${escapeHtml(_heroPhotos[0])}">
             <div class="drawer-hero-fade"></div>
         </div>`;
     } else if (_heroPhotos.length >= 2) {

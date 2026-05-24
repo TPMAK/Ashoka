@@ -3500,7 +3500,23 @@
             cursor: pointer;
             background: var(--border);
         }
-        .drawer-hero img {
+        .drawer-hero-blur {
+            position: absolute;
+            inset: 0;
+            background-size: cover;
+            background-position: center;
+            filter: blur(24px);
+            transform: scale(1.15);
+        }
+        .drawer-hero-photo {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            z-index: 1;
+        }
+        /* carousel (2+ photos) keeps cover fill */
+        .drawer-hero img:not(.drawer-hero-photo) {
             width: 100%;
             height: 100%;
             object-fit: cover;
