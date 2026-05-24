@@ -4092,6 +4092,18 @@ function updateFilterState() {
     }
 }
 
+// Single safe path to re-render the Discover map after a filter/search change.
+function refreshDiscoverMap() {
+    discoverMapInitialized = false;
+    if (discoverMap) { try { discoverMap.remove(); } catch(e) {} discoverMap = null; }
+    userLocMarker = null;
+    setTimeout(function() {
+        setMapScreenHeight();
+        initDiscoverMap();
+    }, 100);
+}
+
+
 function clearFilters() {
     filters = { categories: [], users: [], distances: [], endorsed: false, searchText: '' };
     document.querySelectorAll('.filter-option input').forEach(cb => cb.checked = false);
@@ -4101,24 +4113,17 @@ function clearFilters() {
     // Reset inline UI
     document.querySelectorAll('.dc-dist-pill').forEach(function(p) { p.classList.remove('active'); });
     buildFriendsRow();
-    // Restore collections view
-    var ch  = document.getElementById('dcCircleHeader');
-    var cg  = document.getElementById('dcCollectionsGrid');
-    var ais = document.getElementById('dcAllItemsSection');
-    if (ch)  ch.style.display  = '';
-    if (cg)  cg.style.display  = '';
-    if (ais) ais.style.display = 'none';
-    // If in map view, re-render map with all data
+    // Also clear the × button
+    var clearBtn = document.getElementById('dcSearchClear');
+    if (clearBtn) clearBtn.style.display = 'none';
+    // Re-render the active section with all data (all filters are now clear)
     if (discoverViewMode === 'map') {
         closeFilterModal();
         filterAndRender();
-        discoverMapInitialized = false;
-        if (discoverMap) { try { discoverMap.remove(); } catch(e) {} discoverMap = null; }
-        userLocMarker = null;
-        setTimeout(function() {
-            setMapScreenHeight();
-            initDiscoverMap();
-        }, 100);
+        refreshDiscoverMap();
+    } else {
+        filterAndRender();
+        buildCollectionCards();
     }
 }
 
@@ -4127,19 +4132,17 @@ function applyFilters() {
     filterAndRender();
     // If we're in map view, re-init the map with the newly filtered data
     if (discoverViewMode === 'map') {
-        discoverMapInitialized = false;
-        if (discoverMap) { try { discoverMap.remove(); } catch(e) {} discoverMap = null; }
-        userLocMarker = null;
-        setTimeout(function() {
-            setMapScreenHeight();
-            initDiscoverMap();
-        }, 100);
+        refreshDiscoverMap();
     }
 }
 
 function handleSearchInput() {
     var text = document.getElementById('discoverSearch').value.trim();
     filters.searchText = text.toLowerCase();
+
+    // Toggle the × clear button visibility
+    var clearBtn = document.getElementById('dcSearchClear');
+    if (clearBtn) clearBtn.style.display = text ? 'flex' : 'none';
 
     var ch  = document.getElementById('dcCircleHeader');
     var cg  = document.getElementById('dcCollectionsGrid');
@@ -4154,19 +4157,31 @@ function handleSearchInput() {
         if (ais) ais.style.display = '';
         if (bb)  bb.style.display  = 'none';
     } else if (filters.users.length === 0 && filters.distances.length === 0) {
-        // No inline filters — restore collections
-        if (ch)  ch.style.display  = '';
-        if (cg)  cg.style.display  = '';
-        if (ais) ais.style.display = 'none';
-        if (bb)  bb.style.display  = '';
+        // No inline filters — re-render the active section tab with all data
+        buildCollectionCards();
     }
 
     filterAndRender();
 
-    // Update results count in title
+    // Update results count in title (only meaningful when grid is showing)
     if (text && ait) {
         ait.textContent = filteredDiscoveries.length + ' result' + (filteredDiscoveries.length !== 1 ? 's' : '');
     }
+
+    // If in map view, re-render the map with the new filter state
+    if (discoverViewMode === 'map') {
+        refreshDiscoverMap();
+    }
+}
+
+// Clear the Discover keyword search and restore the correct view (no blank state).
+function clearDiscoverSearch() {
+    var input = document.getElementById('discoverSearch');
+    if (input) input.value = '';
+    // Re-run the input handler with empty text — this restores collections,
+    // re-renders data, hides the × button, and repaints the map if needed.
+    handleSearchInput();
+    if (input) input.focus();
 }
 
 function searchFromDiscover() {
@@ -4242,10 +4257,8 @@ function toggleFriendFilter(name) {
         if (ais) ais.style.display = '';
         if (bb)  bb.style.display  = 'none';
     } else {
-        if (ch)  ch.style.display  = '';
-        if (cg)  cg.style.display  = '';
-        if (ais) ais.style.display = 'none';
-        if (bb)  bb.style.display  = '';
+        // No inline filters — re-render the active section with all data
+        buildCollectionCards();
     }
 
     filterAndRender();
@@ -4282,10 +4295,8 @@ function toggleDistancePill(el, dist) {
         if (ais) ais.style.display = '';
         if (bb)  bb.style.display  = 'none';
     } else {
-        if (ch)  ch.style.display  = '';
-        if (cg)  cg.style.display  = '';
-        if (ais) ais.style.display = 'none';
-        if (bb)  bb.style.display  = '';
+        // No inline filters — re-render the active section with all data
+        buildCollectionCards();
     }
 
     filterAndRender();
@@ -4398,17 +4409,15 @@ function removeActiveFilter(type, value) {
     updateFilterState();
     filterAndRender();
 
-    // If no inline filters remain, restore collections
+    // If no inline filters remain, check if we can restore the full section view
     var hasInline = !!(filters.searchText || filters.users.length > 0 || filters.distances.length > 0);
     if (!hasInline) {
-        var ch  = document.getElementById('dcCircleHeader');
-        var cg  = document.getElementById('dcCollectionsGrid');
-        var ais = document.getElementById('dcAllItemsSection');
-        var bb  = ais ? ais.querySelector('.dc-back-btn') : null;
-        if (ch)  ch.style.display  = '';
-        if (cg)  cg.style.display  = '';
-        if (ais) ais.style.display = 'none';
-        if (bb)  bb.style.display  = '';
+        // Only rebuild the section view when ALL filters are cleared (modal filters too)
+        var allEmpty = filters.categories.length === 0 && !filters.endorsed;
+        if (allEmpty) {
+            buildCollectionCards(); // re-renders active section (All/Trending/New) with all data
+        }
+        // else: modal filters still active — dcAllItemsSection already shows filtered content
     }
 }
 
@@ -5259,6 +5268,17 @@ function initDiscoverMap() {
     var source = (hasActiveFilters && filteredDiscoveries && filteredDiscoveries.length > 0)
         ? filteredDiscoveries
         : allDiscoveries;
+
+    // RACE GUARD: if the feed data hasn't loaded yet, don't init an empty map and
+    // don't lock discoverMapInitialized — retry shortly so markers appear without a manual refresh.
+    if ((!source || source.length === 0) && (!allDiscoveries || allDiscoveries.length === 0)) {
+        discoverMapInitialized = false;
+        setTimeout(function() {
+            if (discoverViewMode === 'map') initDiscoverMap();
+        }, 300);
+        return;
+    }
+
     // Pre-filter AND pre-parse so indices are consistent everywhere
     var located = (source || []).reduce(function(acc, d) {
         var lat = parseFloat(d.latitude);
