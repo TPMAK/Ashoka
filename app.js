@@ -6015,7 +6015,12 @@ function enterEditMode() {
         ` : ''}
 
         <label class="edit-label">Address</label>
-        <input class="edit-input" id="editAddress" value="${escapeHtml(item.address || '')}">
+        <div style="position: relative;">
+            <input class="edit-input" id="editAddress" value="${escapeHtml(item.address || '')}" autocomplete="off">
+            <div id="editAddressDropdown" class="address-dropdown hidden"></div>
+        </div>
+        <input type="hidden" id="editLat" value="${item.latitude != null ? item.latitude : ''}">
+        <input type="hidden" id="editLng" value="${item.longitude != null ? item.longitude : ''}">
 
         <label class="edit-label">URL</label>
         <input class="edit-input" id="editUrl" value="${escapeHtml(url)}">
@@ -6055,6 +6060,16 @@ function enterEditMode() {
     document.getElementById('drawerContent').innerHTML = html;
     // Render edit-mode photo grid now that the container exists in the DOM
     if (typeof renderEditPhotos === 'function') renderEditPhotos();
+    // Wire address autocomplete to the freshly-rendered edit field
+    attachAddressAutocomplete({
+        inputId: 'editAddress',
+        dropdownId: 'editAddressDropdown',
+        latId: 'editLat',
+        lngId: 'editLng'
+    });
+    // Seed the resolved flag: existing coords are considered valid for the existing address
+    const _ea = document.getElementById('editAddress');
+    if (_ea) _ea._addrCoordsResolved = !!(item.latitude != null && item.longitude != null);
 }
 
 // ===== EDIT-MODE MULTI-PHOTO STATE =====
@@ -6124,6 +6139,48 @@ async function saveItemEdit(itemId) {
     const newCategory = editCategoryEl ? editCategoryEl.value : null;
     const newAddress = document.getElementById('editAddress').value.trim();
     const newUrl = document.getElementById('editUrl').value.trim();
+
+    // ----- Coordinate resolution for the edited address -----
+    // Rule: latitude/longitude is what search reads for distance. Keep it in sync.
+    const editAddrEl = document.getElementById('editAddress');
+    const oldAddress = (item.address || '').trim();
+    const addressChanged = newAddress !== oldAddress;
+    let newLat = document.getElementById('editLat')?.value || '';
+    let newLng = document.getElementById('editLng')?.value || '';
+    let coordsTouched = false; // whether we should write lat/lng to the DB
+
+    if (addressChanged) {
+        coordsTouched = true;
+        if (!newAddress) {
+            // Address cleared -> null the coords
+            newLat = '';
+            newLng = '';
+        } else if (!(editAddrEl && editAddrEl._addrCoordsResolved)) {
+            // Hand-typed address with no picked suggestion -> geocode once (Option B)
+            try {
+                const AKL_VIEWBOX = '174.55,-36.65,175.00,-37.05';
+                const res = await fetch(
+                    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(newAddress)}&format=json&addressdetails=1&limit=1&countrycodes=nz&viewbox=${AKL_VIEWBOX}&bounded=0`,
+                    { headers: { 'Accept-Language': 'en' } }
+                );
+                const geo = await res.json();
+                if (Array.isArray(geo) && geo.length && geo[0].lat && geo[0].lon) {
+                    newLat = geo[0].lat;
+                    newLng = geo[0].lon;
+                } else {
+                    // No match -> leave coords empty rather than keep a stale point
+                    newLat = '';
+                    newLng = '';
+                }
+            } catch (e) {
+                console.warn('Geocode-on-save failed (non-critical):', e);
+                newLat = '';
+                newLng = '';
+            }
+        }
+        // else: coords already resolved from a picked suggestion — use as-is
+    }
+
     // place_name: optional venue name. Empty -> null. Approach A: silently kept on
     // type change (no AI re-run on edit, no data loss).
     const newPlaceName = (document.getElementById('editPlaceName')?.value || '').trim() || null;
@@ -6222,6 +6279,11 @@ async function saveItemEdit(itemId) {
             place_name: newPlaceName,
             visibility: newVisibility
         };
+        // Only touch coords if the address actually changed (search reads latitude/longitude)
+        if (coordsTouched) {
+            updateData.latitude  = newLat !== '' ? parseFloat(newLat) : null;
+            updateData.longitude = newLng !== '' ? parseFloat(newLng) : null;
+        }
         // Only write `type` if the Category dropdown was rendered (i.e. an editable type)
         if (newCategory !== null) {
             updateData.type = newCategory;
@@ -7873,16 +7935,25 @@ function prefillCaptureLocation() {
 }
 
 // ===== CAPTURE: ADDRESS AUTOCOMPLETE =====
-(function initAddressAutocomplete() {
+// Reusable Nominatim address autocomplete. Binds to any input + dropdown +
+// hidden lat/lng quad. Used by the Add form (#address) and edit mode (#editAddress).
+function attachAddressAutocomplete(opts) {
+    const inputEl = document.getElementById(opts.inputId);
+    const dropdownId = opts.dropdownId;
+    const latId = opts.latId;
+    const lngId = opts.lngId;
+    if (!inputEl || inputEl._addrAutocompleteBound) return;
+    inputEl._addrAutocompleteBound = true;
+
     let debounceTimer = null;
     let focusedIndex = -1;
 
     function getOptions() {
-        return document.querySelectorAll('#addressDropdown .address-option');
+        return document.querySelectorAll('#' + dropdownId + ' .address-option');
     }
 
     function showDropdown(items) {
-        const dd = document.getElementById('addressDropdown');
+        const dd = document.getElementById(dropdownId);
         if (!dd) return;
         if (!items.length) { hideDropdown(); return; }
 
@@ -7908,23 +7979,24 @@ function prefillCaptureLocation() {
     }
 
     function hideDropdown() {
-        const dd = document.getElementById('addressDropdown');
+        const dd = document.getElementById(dropdownId);
         if (dd) { dd.classList.add('hidden'); dd.innerHTML = ''; }
         focusedIndex = -1;
     }
 
     function selectOption(opt) {
-        const address = document.getElementById('address');
-        const latField = document.getElementById('userLat');
-        const lngField = document.getElementById('userLng');
-        if (address) address.value = opt.dataset.full;
+        inputEl.value = opt.dataset.full;
+        const latField = document.getElementById(latId);
+        const lngField = document.getElementById(lngId);
         if (latField) latField.value = opt.dataset.lat;
         if (lngField) lngField.value = opt.dataset.lng;
+        // Mark that coords came from a real selection (used by geocode-on-save logic)
+        inputEl._addrCoordsResolved = true;
         hideDropdown();
     }
 
     async function searchAddress(query) {
-        const dd = document.getElementById('addressDropdown');
+        const dd = document.getElementById(dropdownId);
         if (!query || query.length < 3) { hideDropdown(); return; }
 
         // Show searching indicator
@@ -7938,8 +8010,8 @@ function prefillCaptureLocation() {
         const AKL_VIEWBOX = '174.55,-36.65,175.00,-37.05';
 
         // Prefer user's GPS if available, else default to Auckland
-        const lat = document.getElementById('userLat')?.value;
-        const lng = document.getElementById('userLng')?.value;
+        const lat = document.getElementById(latId)?.value;
+        const lng = document.getElementById(lngId)?.value;
         let viewboxParam = '';
         if (lat && lng) {
             const delta = 0.15; // ~15km radius bias around user
@@ -7971,47 +8043,54 @@ function prefillCaptureLocation() {
         }
     }
 
+    inputEl.addEventListener('input', () => {
+        // User is typing freely — coords no longer guaranteed to match text
+        inputEl._addrCoordsResolved = false;
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => searchAddress(inputEl.value.trim()), 350);
+    });
+
+    inputEl.addEventListener('keydown', (e) => {
+        const options = getOptions();
+        if (!options.length) return;
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            focusedIndex = Math.min(focusedIndex + 1, options.length - 1);
+            options.forEach((o, i) => o.classList.toggle('focused', i === focusedIndex));
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            focusedIndex = Math.max(focusedIndex - 1, 0);
+            options.forEach((o, i) => o.classList.toggle('focused', i === focusedIndex));
+        } else if (e.key === 'Enter' && focusedIndex >= 0) {
+            e.preventDefault();
+            selectOption(options[focusedIndex]);
+        } else if (e.key === 'Escape') {
+            hideDropdown();
+        }
+    });
+
+    inputEl.addEventListener('blur', () => {
+        // Small delay so mousedown on option fires first
+        setTimeout(hideDropdown, 150);
+    });
+
+    // Close dropdown if user clicks outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#' + opts.inputId) && !e.target.closest('#' + dropdownId)) {
+            hideDropdown();
+        }
+    });
+}
+
+// Bind the Add form's address field on load (unchanged behaviour)
+(function initAddressAutocomplete() {
     document.addEventListener('DOMContentLoaded', () => {
-        // Start rotating placeholder for default category (place)
         startTakePlaceholder('place');
-
-        const addressInput = document.getElementById('address');
-        if (!addressInput) return;
-
-        addressInput.addEventListener('input', () => {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => searchAddress(addressInput.value.trim()), 350);
-        });
-
-        addressInput.addEventListener('keydown', (e) => {
-            const options = getOptions();
-            if (!options.length) return;
-            if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                focusedIndex = Math.min(focusedIndex + 1, options.length - 1);
-                options.forEach((o, i) => o.classList.toggle('focused', i === focusedIndex));
-            } else if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                focusedIndex = Math.max(focusedIndex - 1, 0);
-                options.forEach((o, i) => o.classList.toggle('focused', i === focusedIndex));
-            } else if (e.key === 'Enter' && focusedIndex >= 0) {
-                e.preventDefault();
-                selectOption(options[focusedIndex]);
-            } else if (e.key === 'Escape') {
-                hideDropdown();
-            }
-        });
-
-        addressInput.addEventListener('blur', () => {
-            // Small delay so mousedown on option fires first
-            setTimeout(hideDropdown, 150);
-        });
-
-        // Close dropdown if user clicks outside
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('#address') && !e.target.closest('#addressDropdown')) {
-                hideDropdown();
-            }
+        attachAddressAutocomplete({
+            inputId: 'address',
+            dropdownId: 'addressDropdown',
+            latId: 'userLat',
+            lngId: 'userLng'
         });
     });
 })();
