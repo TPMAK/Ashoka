@@ -10837,6 +10837,7 @@ body.map-view-open .content {
     text-align: center;
     letter-spacing: 0.01em;
     opacity: 0.85;
+    cursor: pointer;
 }
 
 /* ── Popup "View details" button (Discover map — kept for backward compat) ── */
