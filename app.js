@@ -4915,7 +4915,7 @@ function buildMapPanelList() {
         card.innerHTML =
             '<div class="dmap-panel-card-img">' + imgHtml + '</div>' +
             '<div class="dmap-panel-card-body">' +
-                '<div class="dmap-panel-card-title">' + escapeHtml(d.title) + '</div>' +
+                '<div class="dmap-panel-card-title">' + escapeHtml((d.place_name && d.place_name.trim()) ? d.place_name.trim() : (d.title || '')) + '</div>' +
                 (noteText ? '<div class="dmap-panel-card-note">' + escapeHtml(noteText) + '</div>' : '') +
                 '<div class="dmap-prev-badges" style="margin-top:5px;">' + catHtml + distHtml + '</div>' +
                 '<div class="dmap-panel-card-saves">' +
@@ -5002,7 +5002,7 @@ function showMapPreviewCard(idx) {
 
     // Title
     var titleEl = document.getElementById('dmapPrevTitle');
-    if (titleEl) titleEl.textContent = d.title || '';
+    if (titleEl) titleEl.textContent = (d.place_name && d.place_name.trim()) ? d.place_name.trim() : (d.title || '');
 
     // Note/description
     var noteEl = document.getElementById('dmapPrevNote');
@@ -5248,7 +5248,7 @@ function rebuildMapListsSorted(userLat, userLng) {
             card2.innerHTML =
                 '<div class="dmap-panel-card-img">' + imgHtml2 + '</div>' +
                 '<div class="dmap-panel-card-body">' +
-                    '<div class="dmap-panel-card-title">' + escapeHtml(d.title) + '</div>' +
+                    '<div class="dmap-panel-card-title">' + escapeHtml((d.place_name && d.place_name.trim()) ? d.place_name.trim() : (d.title || '')) + '</div>' +
                     (noteText2 ? '<div class="dmap-panel-card-note">' + escapeHtml(noteText2) + '</div>' : '') +
                     '<div class="dmap-prev-badges" style="margin-top:5px;">' + catHtml2 + distHtml2 + '</div>' +
                     '<div class="dmap-panel-card-saves">' +
@@ -5366,7 +5366,7 @@ function initDiscoverMap() {
             : '';
         var popHtml =
             '<div class="odin-pop">' +
-                '<div class="odin-pop-name">' + escapeHtml(d.title) + '</div>' +
+                '<div class="odin-pop-name">' + escapeHtml((d.place_name && d.place_name.trim()) ? d.place_name.trim() : (d.title || '')) + '</div>' +
                 '<div class="odin-pop-by">' +
                     '<div class="odin-pop-av" style="background:' + avCol + ';">' + avInit + '</div>' +
                     '<div class="odin-pop-by-text">by <strong>' + escapeHtml(d.added_by_name || '?') + '</strong></div>' +
@@ -5415,7 +5415,7 @@ function initDiscoverMap() {
             pc.innerHTML =
                 '<div class="dmap-panel-card-img">' + pImgHtml + '</div>' +
                 '<div class="dmap-panel-card-body">' +
-                    '<div class="dmap-panel-card-title">' + escapeHtml(d.title) + '</div>' +
+                    '<div class="dmap-panel-card-title">' + escapeHtml((d.place_name && d.place_name.trim()) ? d.place_name.trim() : (d.title || '')) + '</div>' +
                     (pNote ? '<div class="dmap-panel-card-note">' + escapeHtml(pNote) + '</div>' : '') +
                     '<div class="dmap-prev-badges" style="margin-top:5px;">' + pCatHtml + pDistHtml + '</div>' +
                     '<div class="dmap-panel-card-saves">' +
