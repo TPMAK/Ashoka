@@ -4520,7 +4520,14 @@ async function loadDiscoveries() {
         // within p_days, with private items hidden from non-owners.
         const { data: feedData, error: feedError } = await supabaseClient.rpc('get_feed_items', {
             p_user_id: currentUser.id,
-            p_days: 180
+            // STOPGAP (25 May 2026): widened from 180 to effectively "all items" so older
+            // entries (e.g. items added before the 180-day cutoff) remain findable in
+            // Discover keyword search, which filters this in-memory feed array.
+            // TRIPWIRE: when a single user's visible item count exceeds ~1,500 OR the
+            // feed payload exceeds ~5MB, replace this with server-side search (route
+            // keyword search through search_knowledge_items_hybrid_v2) instead of
+            // widening further. Do not just raise this number again.
+            p_days: 36500
         });
         if (feedError) {
             console.error('Feed RPC error:', feedError.message);
