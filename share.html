@@ -321,69 +321,91 @@
     async function init() {
       const params = new URLSearchParams(window.location.search);
       const token = params.get('token');
-
       if (!token) {
         showError('Link not found', 'This share link appears to be incomplete.');
         return;
       }
-
-      // 1. Check for existing session — logged-in users skip the preview
+      // 1. Fetch preview data (works for anon + logged-in)
+      const { data: invData, error: invErr } = await sb.rpc('get_share_preview', { p_token: token });
+      if (invErr || !invData || invData.length === 0) {
+        showError('This link has expired', 'Share links are valid for 30 days. Ask your friend to send you a fresh one.');
+        return;
+      }
+      const inv = invData[0];
+      const sharerFirst = (inv.display_name || 'Someone').split(' ')[0];
+      const itemId = inv.knowledge_item_id;
+      // 2. Check session
       let session = null;
       try {
         const { data } = await sb.auth.getSession();
         session = data?.session || null;
       } catch (e) { /* unauthenticated — fine */ }
-
       if (session) {
-        // Stash token so app.js processes it via _processInviteTokenSilently
-        sessionStorage.setItem('odin_share_token', token);
-        localStorage.setItem('odin_share_token', token);
-
-        // Fetch the item id so we can deeplink straight into the drawer.
-        // get_share_preview is the new SECURITY DEFINER pipe — bypasses RLS
-        // so we get the item id even though anon can't read knowledge_items.
-        const { data: invData } = await sb.rpc('get_share_preview', { p_token: token });
-        const itemId = invData?.[0]?.knowledge_item_id;
-
-        if (itemId) {
-          window.location.href = `/?item=${encodeURIComponent(itemId)}`;
+        const userId = session.user.id;
+        // Check friendship status
+        const { data: friendData } = await sb.rpc('check_friendship_status', {
+          p_user_a: userId,
+          p_user_b: inv.inviter_id
+        });
+        const isFriend = friendData?.is_friend === true;
+        if (isFriend) {
+          // Already friends — go straight to the app
+          if (itemId) {
+            window.location.href = `/?item=${encodeURIComponent(itemId)}`;
+          } else {
+            window.location.href = '/';
+          }
+          return;
+        }
+        // Not friends — auto-connect via token
+        const { data: connectData } = await sb.rpc('accept_invite_and_connect', {
+          p_token: token,
+          p_new_user_id: userId
+        });
+        document.getElementById('loadingState').style.display = 'none';
+        const main = document.getElementById('mainContent');
+        main.style.display = 'block';
+        if (connectData?.ok) {
+          main.innerHTML = `
+            <div class="card">
+              <div class="card-body" style="text-align:center; padding: 40px 24px;">
+                <div style="font-size: 40px; margin-bottom: 16px;">👋</div>
+                <h1 class="card-title" style="margin-bottom: 12px;">You're now connected with ${escHtml(sharerFirst)}</h1>
+                <p style="font-size:14px; color:var(--muted); margin-bottom: 24px; line-height:1.6;">
+                  You can now see each other's discoveries on Odin.
+                </p>
+                <button class="cta-primary" onclick="window.location.href='${itemId ? `/?item=${encodeURIComponent(itemId)}` : '/'}'">
+                  See ${escHtml(sharerFirst)}'s discoveries
+                </button>
+              </div>
+            </div>`;
         } else {
-          window.location.href = '/';
+          main.innerHTML = `
+            <div class="card">
+              <div class="card-body" style="text-align:center; padding: 40px 24px;">
+                <h1 class="card-title" style="margin-bottom: 12px;">Something went wrong</h1>
+                <p style="font-size:14px; color:var(--muted); margin-bottom: 24px;">Try opening the link again.</p>
+                <button class="cta-primary" onclick="window.location.reload()">Try again</button>
+              </div>
+            </div>`;
         }
         return;
       }
-
-      // 2. Not logged in — fetch sharer + item details for the preview
-      //    in a single call (RLS on knowledge_items blocks anon reads,
-      //    so we go through this SECURITY DEFINER RPC).
-      const { data: invData, error: invErr } = await sb.rpc('get_share_preview', { p_token: token });
-
-      if (invErr || !invData || invData.length === 0) {
-        showError('This link has expired', 'Share links are valid for 7 days. Ask your friend to send you a fresh one.');
-        return;
-      }
-
-      const inv = invData[0];
-      const sharerFirst = (inv.display_name || 'Someone').split(' ')[0];
-
-      // Item fields are flattened onto the same row by the RPC.
-      const item = inv.knowledge_item_id ? {
-        id: inv.knowledge_item_id,
+      // 3. Not logged in — render preview card
+      const item = itemId ? {
+        id: itemId,
         title: inv.item_title,
         type: inv.item_type,
         address: inv.item_address,
         photo_url: inv.item_photo_url,
         personal_note: inv.item_personal_note
       } : null;
-
-      // 3. Render preview
       const note = item?.personal_note || '';
       const photo = item?.photo_url || '';
       const address = item?.address || '';
       const typeLabel = item?.type
         ? item.type.charAt(0).toUpperCase() + item.type.slice(1)
         : '';
-
       document.getElementById('loadingState').style.display = 'none';
       const main = document.getElementById('mainContent');
       main.style.display = 'block';
@@ -394,9 +416,9 @@
             : `<div class="card-photo-placeholder"></div>`}
           <div class="card-body">
             <div class="sharer-line">
-              <strong>${escHtml(sharerFirst)}</strong> thinks you'll like this
+              <strong>${escHtml(sharerFirst)}</strong> goes here
             </div>
-            <h1 class="card-title">${escHtml(item?.title || 'A recommendation from your circle')}</h1>
+            <h1 class="card-title">${escHtml(item?.title || 'A discovery from your circle')}</h1>
             <div class="card-meta">
               ${typeLabel ? `<span class="badge">${escHtml(typeLabel)}</span>` : ''}
               ${escHtml(address)}
@@ -416,8 +438,7 @@
           By invite only. No algorithms. No ads.
         </p>
       `;
-
-      document.getElementById('joinBtn').addEventListener('click', () => signIn(token, inv.knowledge_item_id));
+      document.getElementById('joinBtn').addEventListener('click', () => signIn(token, itemId));
     }
 
     async function signIn(token, itemId) {

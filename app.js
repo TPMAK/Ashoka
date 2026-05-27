@@ -6195,10 +6195,21 @@ async function saveItemEdit(itemId) {
         return;
     }
 
-    // Check if title changed significantly (for re-embedding)
-    const oldText = item.title.toLowerCase().trim();
-    const newText = newTitle.toLowerCase().trim();
-    const needsReEmbed = oldText !== newText;
+    // Re-embed when ANY field that feeds the embedding_text changes.
+    // embedding_text (capture v4.4) = place_name, title, enriched_description,
+    // personal_note, type, added_by_name, keywords, address.
+    // Editable here: title, personal_note, address, place_name, type.
+    // The DB .update() below runs before the re-embed POST fires, so the
+    // re-embed branch re-fetches the new place_name/address from the row;
+    // we only need to detect the change.
+    const _norm = (v) => (v == null ? '' : String(v)).trim();
+    const _oldNote = _norm(item.personal_note || item.PersonalNote);
+    const needsReEmbed =
+        _norm(item.title)      !== _norm(newTitle)     ||
+        _oldNote               !== _norm(newNote)      ||
+        _norm(item.address)    !== _norm(newAddress)   ||
+        _norm(item.place_name) !== _norm(newPlaceName) ||
+        _norm(item.type)       !== _norm(newCategory);
 
     // Multi-photo upload: walk _editPhotos, upload new files, build final URL array.
     // Compresses to 1200px JPEG @ 82% — same as new-save flow — to keep storage tidy.
