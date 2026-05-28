@@ -7609,6 +7609,9 @@ var selectEntryChip = function(chip) {
     // Persist selection
     try { localStorage.setItem('odin_entry_chip', chip); } catch(e) {}
 
+    // Silent GPS bias for address autocomplete (fires once, no UI)
+    _silentGpsDetect();
+
     // Show relevant Step 1 zone for each chip
     const urlHeroBar = document.getElementById('urlHeroBar');
     const photoPickZone = document.getElementById('photoPickZone');
@@ -7900,6 +7903,22 @@ function _resetSteps() {
     if (_cpBtn) _cpBtn.classList.add('hidden');
 }
 
+// ===== SILENT GPS BIAS FOR ADDRESS SEARCH =====
+function _silentGpsDetect() {
+    const latField = document.getElementById('userLat');
+    const lngField = document.getElementById('userLng');
+    if (!latField || !lngField || latField.value) return; // already set
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            latField.value = pos.coords.latitude;
+            lngField.value = pos.coords.longitude;
+        },
+        () => { /* denied — silent, fallback handles it */ },
+        { timeout: 5000, maximumAge: 300000 }
+    );
+}
+
 // ===== CAPTURE: LOCATION PREFILL =====
 function prefillCaptureLocation() {
     const addressField = document.getElementById('address');
@@ -8016,37 +8035,36 @@ function attachAddressAutocomplete(opts) {
             dd.classList.remove('hidden');
         }
 
-        // Auckland bounding box (fallback when no GPS)
-        // SW: -37.05, 174.55 — NE: -36.65, 175.00
-        const AKL_VIEWBOX = '174.55,-36.65,175.00,-37.05';
-
-        // Prefer user's GPS if available, else default to Auckland
+        // Prefer user's GPS if available, else fall back to country-code bias
         const lat = document.getElementById(latId)?.value;
         const lng = document.getElementById(lngId)?.value;
         let viewboxParam = '';
+        let countryParam = '';
         if (lat && lng) {
             const delta = 0.15; // ~15km radius bias around user
             viewboxParam = `&viewbox=${+lng - delta},${+lat + delta},${+lng + delta},${+lat - delta}&bounded=0`;
         } else {
-            // Default bias: Auckland viewbox, not bounded so suburb names still work
-            viewboxParam = `&viewbox=${AKL_VIEWBOX}&bounded=0`;
+            countryParam = '&countrycodes=nz,au,sg';
         }
 
         try {
             const res = await fetch(
-                `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=8&countrycodes=nz${viewboxParam}`,
+                `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=8${countryParam}${viewboxParam}`,
                 { headers: { 'Accept-Language': 'en' } }
             );
             const results = await res.json();
 
-            // Sort: Auckland/NZ results first, then everything else
-            results.sort((a, b) => {
-                const aIsAkl = (a.display_name || '').toLowerCase().includes('auckland');
-                const bIsAkl = (b.display_name || '').toLowerCase().includes('auckland');
-                if (aIsAkl && !bIsAkl) return -1;
-                if (!aIsAkl && bIsAkl) return 1;
-                return 0;
-            });
+            // No-GPS sort: priority cities first (Auckland, Melbourne, Sydney, Singapore)
+            if (!lat || !lng) {
+                const PRIORITY = ['auckland', 'melbourne', 'sydney', 'singapore'];
+                results.sort((a, b) => {
+                    const aName = (a.display_name || '').toLowerCase();
+                    const bName = (b.display_name || '').toLowerCase();
+                    const aScore = PRIORITY.findIndex(c => aName.includes(c));
+                    const bScore = PRIORITY.findIndex(c => bName.includes(c));
+                    return (aScore === -1 ? 999 : aScore) - (bScore === -1 ? 999 : bScore);
+                });
+            }
 
             showDropdown(results.slice(0, 5));
         } catch (e) {
@@ -10091,6 +10109,9 @@ function dismissEmptyFriends() {
     window.selectEntryChip = function(chip) {
         _captureMode = chip;
         try { localStorage.setItem('odin_entry_chip', chip); } catch(e) {}
+
+        // Silent GPS bias for address autocomplete (fires once, no UI)
+        _silentGpsDetect();
 
         // Visual active state on the cards
         document.querySelectorAll('.entry-card').forEach(el => el.classList.remove('active'));
