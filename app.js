@@ -8035,16 +8035,15 @@ function attachAddressAutocomplete(opts) {
             dd.classList.remove('hidden');
         }
 
-        // Prefer user's GPS if available, else fall back to country-code bias
+        // Country filter always on (nz/au/sg). GPS, when available, biases
+        // ranking within the trio via a soft viewbox — it doesn't widen scope.
         const lat = document.getElementById(latId)?.value;
         const lng = document.getElementById(lngId)?.value;
         let viewboxParam = '';
-        let countryParam = '';
+        const countryParam = '&countrycodes=nz,au,sg';
         if (lat && lng) {
             const delta = 0.15; // ~15km radius bias around user
             viewboxParam = `&viewbox=${+lng - delta},${+lat + delta},${+lng + delta},${+lat - delta}&bounded=0`;
-        } else {
-            countryParam = '&countrycodes=nz,au,sg';
         }
 
         try {
