@@ -6156,17 +6156,17 @@ async function saveItemEdit(itemId) {
             newLat = '';
             newLng = '';
         } else if (!(editAddrEl && editAddrEl._addrCoordsResolved)) {
-            // Hand-typed address with no picked suggestion -> geocode once (Option B)
+            // Hand-typed address with no picked suggestion -> geocode once via Mapbox
             try {
-                const AKL_VIEWBOX = '174.55,-36.65,175.00,-37.05';
                 const res = await fetch(
-                    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(newAddress)}&format=json&addressdetails=1&limit=1&countrycodes=nz&viewbox=${AKL_VIEWBOX}&bounded=0`,
-                    { headers: { 'Accept-Language': 'en' } }
+                    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(newAddress)}.json` +
+                    `?access_token=${MAPBOX_TOKEN}&limit=1&country=nz,au,sg&types=poi,address,place,locality,neighborhood`
                 );
                 const geo = await res.json();
-                if (Array.isArray(geo) && geo.length && geo[0].lat && geo[0].lon) {
-                    newLat = geo[0].lat;
-                    newLng = geo[0].lon;
+                const f = geo && Array.isArray(geo.features) ? geo.features[0] : null;
+                if (f && Array.isArray(f.center) && f.center.length === 2) {
+                    newLng = String(f.center[0]);
+                    newLat = String(f.center[1]);
                 } else {
                     // No match -> leave coords empty rather than keep a stale point
                     newLat = '';
@@ -7964,8 +7964,13 @@ function prefillCaptureLocation() {
     }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
 }
 
+// ===== MAPBOX GEOCODING TOKEN =====
+// Public token, URL-restricted in the Mapbox dashboard to *.join-odin.com.
+// Safe to embed: domain restrictions block use elsewhere.
+const MAPBOX_TOKEN = 'pk.eyJ1Ijoic3Rhbm1hayIsImEiOiJjbXBwYjh5OGcwYzR4MnJvazJoc3JrbmN3In0.Lviv_IVwf4XEHCJKRvxs-Q';
+
 // ===== CAPTURE: ADDRESS AUTOCOMPLETE =====
-// Reusable Nominatim address autocomplete. Binds to any input + dropdown +
+// Reusable Mapbox address autocomplete. Binds to any input + dropdown +
 // hidden lat/lng quad. Used by the Add form (#address) and edit mode (#editAddress).
 function attachAddressAutocomplete(opts) {
     const inputEl = document.getElementById(opts.inputId);
@@ -8035,23 +8040,29 @@ function attachAddressAutocomplete(opts) {
             dd.classList.remove('hidden');
         }
 
+        // Mapbox Geocoding v5: better POI coverage than Nominatim.
         // Country filter always on (nz/au/sg). GPS, when available, biases
-        // ranking within the trio via a soft viewbox — it doesn't widen scope.
+        // ranking via proximity — it doesn't widen scope.
         const lat = document.getElementById(latId)?.value;
         const lng = document.getElementById(lngId)?.value;
-        let viewboxParam = '';
-        const countryParam = '&countrycodes=nz,au,sg';
-        if (lat && lng) {
-            const delta = 0.15; // ~15km radius bias around user
-            viewboxParam = `&viewbox=${+lng - delta},${+lat + delta},${+lng + delta},${+lat - delta}&bounded=0`;
-        }
+        const proximityParam = (lat && lng) ? `&proximity=${+lng},${+lat}` : '';
+        // Option B types: places (cafés, shops, landmarks) + addresses + neighborhoods + suburbs + cities
+        const typesParam = '&types=poi,address,place,locality,neighborhood';
+        const countryParam = '&country=nz,au,sg';
 
         try {
             const res = await fetch(
-                `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=8${countryParam}${viewboxParam}`,
-                { headers: { 'Accept-Language': 'en' } }
+                `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json` +
+                `?access_token=${MAPBOX_TOKEN}&autocomplete=true&limit=8${countryParam}${typesParam}${proximityParam}`
             );
-            const results = await res.json();
+            const data = await res.json();
+
+            // Normalize Mapbox features to the shape showDropdown expects
+            const results = (data.features || []).map(f => ({
+                display_name: f.place_name,
+                lat: String(f.center[1]),
+                lon: String(f.center[0])
+            }));
 
             // No-GPS sort: priority cities first (Auckland, Melbourne, Sydney, Singapore)
             if (!lat || !lng) {
