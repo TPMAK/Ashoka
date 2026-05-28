@@ -6159,14 +6159,14 @@ async function saveItemEdit(itemId) {
             // Hand-typed address with no picked suggestion -> geocode once via Mapbox
             try {
                 const res = await fetch(
-                    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(newAddress)}.json` +
-                    `?access_token=${MAPBOX_TOKEN}&limit=1&country=nz,au,sg&types=poi,address,place,locality,neighborhood`
+                    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(newAddress)}&format=json&limit=1`,
+                    { headers: { 'Accept-Language': 'en' } }
                 );
                 const geo = await res.json();
-                const f = geo && Array.isArray(geo.features) ? geo.features[0] : null;
-                if (f && Array.isArray(f.center) && f.center.length === 2) {
-                    newLng = String(f.center[0]);
-                    newLat = String(f.center[1]);
+                const f = Array.isArray(geo) && geo.length ? geo[0] : null;
+                if (f && f.lat && f.lon) {
+                    newLng = String(f.lon);
+                    newLat = String(f.lat);
                 } else {
                     // No match -> leave coords empty rather than keep a stale point
                     newLat = '';
@@ -8040,51 +8040,26 @@ function attachAddressAutocomplete(opts) {
             dd.classList.remove('hidden');
         }
 
-        // Mapbox Geocoding v5: better POI coverage than Nominatim.
-        // Country filter always on (nz/au/sg). GPS, when available, biases
-        // ranking via proximity — it doesn't widen scope.
+        // Nominatim (OpenStreetMap): strong POI coverage for named places
+        // (restaurants, cafés, shops). GPS, when available, biases ranking via a
+        // viewbox around the user — it does NOT restrict scope (bounded=0). So a
+        // Melbourne user finds Melbourne places, an Auckland user finds Auckland
+        // places. No country lock, no client-side sort — Nominatim ranks by
+        // importance + proximity.
         const lat = document.getElementById(latId)?.value;
         const lng = document.getElementById(lngId)?.value;
-        const proximityParam = (lat && lng) ? `&proximity=${+lng},${+lat}` : '';
-        // Option B types: places (cafés, shops, landmarks) + addresses + neighborhoods + suburbs + cities
-        const typesParam = '&types=poi,address,place,locality,neighborhood';
-        const countryParam = '&country=nz,au,sg';
+        let viewboxParam = '';
+        if (lat && lng) {
+            const delta = 0.15; // ~15km bias box around the user
+            viewboxParam = `&viewbox=${+lng - delta},${+lat + delta},${+lng + delta},${+lat - delta}&bounded=0`;
+        }
 
         try {
             const res = await fetch(
-                `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json` +
-                `?access_token=${MAPBOX_TOKEN}&autocomplete=true&limit=8${countryParam}${typesParam}${proximityParam}`
+                `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=8${viewboxParam}`,
+                { headers: { 'Accept-Language': 'en' } }
             );
-            const data = await res.json();
-
-            // Extract ISO country code from a Mapbox feature's context[]
-            const _featCountry = (f) => {
-                const ctx = f.context || [];
-                const c = ctx.find(x => x.id && x.id.startsWith('country.'));
-                if (c && c.short_code) return c.short_code.toLowerCase();
-                if ((f.place_type || []).includes('country')) {
-                    return (f.short_code || '').toLowerCase();
-                }
-                return '';
-            };
-
-            // Normalize Mapbox features to the shape showDropdown expects
-            const results = (data.features || []).map(f => ({
-                display_name: f.place_name,
-                lat: String(f.center[1]),
-                lon: String(f.center[0]),
-                _country: _featCountry(f)
-            }));
-
-            // Pilot market sort: NZ first, then AU, then SG. Runs always — even
-            // with GPS, Mapbox may rank a strong AU text match above an NZ POI.
-            const COUNTRY_PRIORITY = ['nz', 'au', 'sg'];
-            results.sort((a, b) => {
-                const aScore = COUNTRY_PRIORITY.indexOf(a._country);
-                const bScore = COUNTRY_PRIORITY.indexOf(b._country);
-                return (aScore === -1 ? 999 : aScore) - (bScore === -1 ? 999 : bScore);
-            });
-
+            const results = await res.json();
             showDropdown(results.slice(0, 5));
         } catch (e) {
             hideDropdown();
