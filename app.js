@@ -8057,24 +8057,33 @@ function attachAddressAutocomplete(opts) {
             );
             const data = await res.json();
 
+            // Extract ISO country code from a Mapbox feature's context[]
+            const _featCountry = (f) => {
+                const ctx = f.context || [];
+                const c = ctx.find(x => x.id && x.id.startsWith('country.'));
+                if (c && c.short_code) return c.short_code.toLowerCase();
+                if ((f.place_type || []).includes('country')) {
+                    return (f.short_code || '').toLowerCase();
+                }
+                return '';
+            };
+
             // Normalize Mapbox features to the shape showDropdown expects
             const results = (data.features || []).map(f => ({
                 display_name: f.place_name,
                 lat: String(f.center[1]),
-                lon: String(f.center[0])
+                lon: String(f.center[0]),
+                _country: _featCountry(f)
             }));
 
-            // No-GPS sort: priority cities first (Auckland, Melbourne, Sydney, Singapore)
-            if (!lat || !lng) {
-                const PRIORITY = ['auckland', 'melbourne', 'sydney', 'singapore'];
-                results.sort((a, b) => {
-                    const aName = (a.display_name || '').toLowerCase();
-                    const bName = (b.display_name || '').toLowerCase();
-                    const aScore = PRIORITY.findIndex(c => aName.includes(c));
-                    const bScore = PRIORITY.findIndex(c => bName.includes(c));
-                    return (aScore === -1 ? 999 : aScore) - (bScore === -1 ? 999 : bScore);
-                });
-            }
+            // Pilot market sort: NZ first, then AU, then SG. Runs always — even
+            // with GPS, Mapbox may rank a strong AU text match above an NZ POI.
+            const COUNTRY_PRIORITY = ['nz', 'au', 'sg'];
+            results.sort((a, b) => {
+                const aScore = COUNTRY_PRIORITY.indexOf(a._country);
+                const bScore = COUNTRY_PRIORITY.indexOf(b._country);
+                return (aScore === -1 ? 999 : aScore) - (bScore === -1 ? 999 : bScore);
+            });
 
             showDropdown(results.slice(0, 5));
         } catch (e) {
