@@ -1193,33 +1193,12 @@
         }
         .launcher-search-go:hover { background: rgba(255,255,255,0.25); }
 
-        /* Home launcher — suggestion chips */
-        .launcher-chips-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 12px;
-        }
-        .launcher-chip {
-            border: 1px solid rgba(123,45,69,0.25);
-            background: #fff;
-            color: #7B2D45;
-            font-size: 14px;
-            font-family: inherit;
-            padding: 8px 14px;
-            border-radius: 999px;
-            cursor: pointer;
-            white-space: nowrap;
-        }
-        .launcher-chip:hover { background: #FBF8F3; }
-
         /* Home launcher — Add full-width row */
         .launcher-add-row {
             display: flex;
             align-items: center;
             gap: 14px;
             width: 100%;
-            margin-top: 12px;
             background: #fff;
             border: 1px solid rgba(0,0,0,0.06);
             border-radius: 16px;
@@ -1721,9 +1700,6 @@
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                             </button>
                         </div>
-
-                        <!-- Suggestion chips — tap to run search on the search page -->
-                        <div class="launcher-chips-row" id="launcherChipsRow"></div>
 
                         <!-- Add — full-width row (Browse removed; Discover tab covers browse) -->
                         <button class="launcher-add-row" onclick="setMode('input'); _checkClipboardForUrl();">
@@ -3807,7 +3783,6 @@
         if (launcher) launcher.style.display = 'block';
         if (feed) feed.style.display = 'none';
         updateLauncherGreeting();
-        renderLauncherChips();
     }
 
     function updateLauncherGreeting() {
@@ -4137,18 +4112,6 @@
         row.innerHTML = chips.map(function(c) {
             var safe = c.replace(/'/g, "\\'");
             return '<button class="home-chip" onclick="chipSearch(\'' + safe + '\')">' + escapeHtml(c) + '</button>';
-        }).join('');
-    }
-
-    // Launcher-home suggestion chips — same pool + same chipSearch() behavior.
-    function renderLauncherChips() {
-        var row = document.getElementById('launcherChipsRow');
-        if (!row) return;
-        var shuffled = _getHomeChipPool().slice().sort(function() { return Math.random() - 0.5; });
-        var chips = shuffled.slice(0, 4);
-        row.innerHTML = chips.map(function(c) {
-            var safe = c.replace(/'/g, "\\'");
-            return '<button class="launcher-chip" onclick="chipSearch(\'' + safe + '\')">' + escapeHtml(c) + '</button>';
         }).join('');
     }
 
