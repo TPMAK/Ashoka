@@ -1155,6 +1155,63 @@
         color: rgba(221,208,184,0.60);
         line-height: 1.65;
     }
+
+        /* Home launcher — hero search input */
+        .launcher-search-hero {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            background: #7B2D45;
+            border-radius: 16px;
+            padding: 18px 18px;
+            box-sizing: border-box;
+        }
+        .launcher-search-icon { color: rgba(255,255,255,0.9); flex-shrink: 0; }
+        .launcher-search-input {
+            flex: 1 1 auto;
+            min-width: 0;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: #fff;
+            font-size: 16px; /* 16px prevents iOS zoom-on-focus */
+            font-family: inherit;
+        }
+        .launcher-search-input::placeholder { color: rgba(255,255,255,0.75); }
+        .launcher-search-go {
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px; height: 40px;
+            border: none;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.15);
+            color: #fff;
+            cursor: pointer;
+        }
+        .launcher-search-go:hover { background: rgba(255,255,255,0.25); }
+
+        /* Home launcher — Add full-width row */
+        .launcher-add-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            width: 100%;
+            background: #fff;
+            border: 1px solid rgba(0,0,0,0.06);
+            border-radius: 16px;
+            padding: 16px 18px;
+            cursor: pointer;
+            text-align: left;
+            box-sizing: border-box;
+        }
+        .launcher-add-row:hover { background: #FBF8F3; }
+        .launcher-add-icon { color: #7B2D45; flex-shrink: 0; display: inline-flex; }
+        .launcher-add-text { display: flex; flex-direction: column; }
+        .launcher-add-label { font-weight: 600; font-size: 16px; color: #1a1a1a; }
+        .launcher-add-sub { font-size: 13px; color: #6b6b6b; }
     </style>
 </head>
 <body class="odin-newcapture">
@@ -1635,35 +1692,25 @@
 
                     <!-- Main action tiles -->
                     <div class="launcher-tiles">
-                        <!-- Search — hero tile -->
-                        <button class="launcher-tile tile-search" onclick="setMode('search')">
-                            <div class="launcher-tile-icon">
-                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                            </div>
-                            <div class="launcher-tile-text">
-                                <span class="launcher-tile-label">Search</span>
-                                <span class="launcher-tile-sub">Search like you’d ask a friend</span>
-                            </div>
-                            <svg class="launcher-tile-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                        </button>
-
-                        <!-- Add + Browse row -->
-                        <div class="launcher-row">
-                            <button class="launcher-tile tile-add" onclick="setMode('input'); _checkClipboardForUrl();">
-                                <div class="launcher-tile-icon">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-                                </div>
-                                <span class="launcher-tile-label">Add</span>
-                                <span class="launcher-tile-sub">Save something new</span>
-                            </button>
-                            <button class="launcher-tile tile-browse" onclick="setMode('discover')">
-                                <div class="launcher-tile-icon">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-                                </div>
-                                <span class="launcher-tile-label">Browse</span>
-                                <span class="launcher-tile-sub">Explore all saves</span>
+                        <!-- Search — hero live input -->
+                        <div class="launcher-search-hero">
+                            <svg class="launcher-search-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <input type="text" id="launcherSearchInput" class="launcher-search-input" placeholder="Search like you’d ask a friend" onkeypress="if(event.key==='Enter') runHomeSearch()" autocomplete="off" enterkeyhint="search">
+                            <button type="button" class="launcher-search-go" onclick="runHomeSearch()" aria-label="Search">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                             </button>
                         </div>
+
+                        <!-- Add — full-width row (Browse removed; Discover tab covers browse) -->
+                        <button class="launcher-add-row" onclick="setMode('input'); _checkClipboardForUrl();">
+                            <div class="launcher-add-icon">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                            </div>
+                            <div class="launcher-add-text">
+                                <span class="launcher-add-label">Add</span>
+                                <span class="launcher-add-sub">Save something new</span>
+                            </div>
+                        </button>
                     </div>
                 </div>
 
@@ -4036,29 +4083,31 @@
     }
 
     // ── 4. Time-based quick search chips — 5 random from a pool each load ──
+    // Shared time-based pool used by both the feedHome chips and the launcher chips.
+    function _getHomeChipPool() {
+        var hour = new Date().getHours();
+        if (hour >= 5 && hour < 11) {
+            // Morning
+            return ['Breakfast spot', 'Good coffee nearby', 'Acai bowl', 'Brunch with friends', 'Eggs benny spot', 'Flat white', 'Bakery nearby', 'Smoothie bar', 'Healthy brekkie', 'Café with wifi'];
+        } else if (hour >= 11 && hour < 14) {
+            // Lunch
+            return ['Quick lunch nearby', 'Poke bowl', 'Best ramen', 'Salad bar', 'Sandwich spot', 'Sushi lunch', 'Burger spot', 'Thai food', 'Cheap eats nearby', 'Lunch with a view'];
+        } else if (hour >= 14 && hour < 18) {
+            // Afternoon
+            return ['Coffee break', 'Café to work from', 'Matcha latte', 'Afternoon snack', 'Somewhere quiet', 'Good wifi café', 'Bookshop nearby', 'Ice cream', 'Juice bar', 'Co-working space'];
+        } else if (hour >= 18 && hour < 23) {
+            // Evening
+            return ['Dinner tonight', 'Cocktail bar', 'Date night restaurant', 'Drinks nearby', 'Late night eats', 'Wine bar', 'Rooftop bar', 'Izakaya', 'Pizza spot', 'Pasta nearby'];
+        }
+        // Late night
+        return ['Late night food', 'Open now', '24hr eats', 'Night cap bar', 'Comfort food'];
+    }
+
     function renderHomeChips() {
         var row = document.getElementById('homeChipsRow');
         if (!row) return;
-        var hour = new Date().getHours();
-        var pool;
-        if (hour >= 5 && hour < 11) {
-            // Morning
-            pool = ['Breakfast spot', 'Good coffee nearby', 'Acai bowl', 'Brunch with friends', 'Eggs benny spot', 'Flat white', 'Bakery nearby', 'Smoothie bar', 'Healthy brekkie', 'Café with wifi'];
-        } else if (hour >= 11 && hour < 14) {
-            // Lunch
-            pool = ['Quick lunch nearby', 'Poke bowl', 'Best ramen', 'Salad bar', 'Sandwich spot', 'Sushi lunch', 'Burger spot', 'Thai food', 'Cheap eats nearby', 'Lunch with a view'];
-        } else if (hour >= 14 && hour < 18) {
-            // Afternoon
-            pool = ['Coffee break', 'Café to work from', 'Matcha latte', 'Afternoon snack', 'Somewhere quiet', 'Good wifi café', 'Bookshop nearby', 'Ice cream', 'Juice bar', 'Co-working space'];
-        } else if (hour >= 18 && hour < 23) {
-            // Evening
-            pool = ['Dinner tonight', 'Cocktail bar', 'Date night restaurant', 'Drinks nearby', 'Late night eats', 'Wine bar', 'Rooftop bar', 'Izakaya', 'Pizza spot', 'Pasta nearby'];
-        } else {
-            // Late night
-            pool = ['Late night food', 'Open now', '24hr eats', 'Night cap bar', 'Comfort food'];
-        }
         // Shuffle and pick 4
-        var shuffled = pool.slice().sort(function() { return Math.random() - 0.5; });
+        var shuffled = _getHomeChipPool().slice().sort(function() { return Math.random() - 0.5; });
         var chips = shuffled.slice(0, 4);
         row.innerHTML = chips.map(function(c) {
             var safe = c.replace(/'/g, "\\'");
@@ -5224,10 +5273,8 @@
         function attach() {
             var tileSearch = document.querySelector('.tile-search');
             var tileAdd    = document.querySelector('.tile-add');
-            var tileBrowse = document.querySelector('.tile-browse');
             if (tileSearch) tileSearch.addEventListener('click', function(e) { e.stopPropagation(); setMode('search'); });
             if (tileAdd)    tileAdd.addEventListener('click',    function(e) { e.stopPropagation(); setMode('input'); _checkClipboardForUrl(); });
-            if (tileBrowse) tileBrowse.addEventListener('click', function(e) { e.stopPropagation(); setMode('discover'); });
         }
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', attach);
@@ -5380,6 +5427,21 @@
             .catch(function(err) { console.warn('[Odin SW] Registration failed:', err); });
         });
       }
+
+        // Home page live search: send query straight to search page.
+        // Passes query as the first arg to sendMessage() so it does not
+        // depend on #messageInput existing yet after the mode switch.
+        function runHomeSearch() {
+            var el = document.getElementById('launcherSearchInput');
+            if (!el) return;
+            var q = el.value.trim();
+            if (!q) return;
+            setMode('search');
+            var target = document.getElementById('messageInput');
+            if (target) target.value = q;
+            sendMessage(q);
+            el.value = '';
+        }
     </script>
 
 </body>
