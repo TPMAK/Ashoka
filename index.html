@@ -1162,23 +1162,25 @@
             align-items: center;
             gap: 10px;
             width: 100%;
-            background: #7B2D45;
+            background: #FFFFFF;
+            border: 2px solid #7B2D45;
             border-radius: 16px;
-            padding: 18px 18px;
+            padding: 16px 18px;
             box-sizing: border-box;
         }
-        .launcher-search-icon { color: rgba(255,255,255,0.9); flex-shrink: 0; }
+        .launcher-search-icon { color: #7B2D45; flex-shrink: 0; }
         .launcher-search-input {
             flex: 1 1 auto;
             min-width: 0;
             background: transparent;
             border: none;
             outline: none;
-            color: #fff;
+            color: #1a1a1a;
+            caret-color: #7B2D45;
             font-size: 16px; /* 16px prevents iOS zoom-on-focus */
             font-family: inherit;
         }
-        .launcher-search-input::placeholder { color: rgba(255,255,255,0.75); }
+        .launcher-search-input::placeholder { color: #8a8a8a; }
         .launcher-search-go {
             flex-shrink: 0;
             display: inline-flex;
@@ -1187,11 +1189,11 @@
             width: 40px; height: 40px;
             border: none;
             border-radius: 12px;
-            background: rgba(255,255,255,0.15);
+            background: #7B2D45;
             color: #fff;
             cursor: pointer;
         }
-        .launcher-search-go:hover { background: rgba(255,255,255,0.25); }
+        .launcher-search-go:hover { background: #6a2439; }
 
         /* Home launcher — Add full-width row */
         .launcher-add-row {
