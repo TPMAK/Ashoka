@@ -1434,17 +1434,238 @@ async function handlePickList(collectionId, itemId) {
     setTimeout(closeAddToListSheet, 900);
 }
 
-async function handleNewListForItem(itemId) {
-    const name = prompt('Name your list', 'My list');
-    if (name === null) return; // cancelled
-    const created = await createList(name);
-    if (!created) return;
+// Inline "new list" input (replaces the crude prompt(); some browsers
+// suppress prompt() dialogs and return null, silently blocking creation).
+function handleNewListForItem(itemId) {
+    const body = document.getElementById('addToListBody');
+    if (!body) return;
+    body.innerHTML =
+        `<div style="display:flex; gap:8px; align-items:center;">
+            <input id="atlNewListName" type="text" placeholder="List name" maxlength="60"
+                style="flex:1; padding:14px 16px; border:1.5px solid #7B2D45; border-radius:12px; font-size:16px; color:#1a1a1a; outline:none;" />
+            <button onclick="submitNewList('${itemId}')"
+                style="padding:14px 16px; background:#7B2D45; color:#fff; border:none; border-radius:12px; font-size:15px; font-weight:600; cursor:pointer; white-space:nowrap;">Create</button>
+        </div>`;
+    const inp = document.getElementById('atlNewListName');
+    if (inp) {
+        inp.focus();
+        inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitNewList(itemId); });
+    }
+}
+
+async function submitNewList(itemId) {
+    const inp = document.getElementById('atlNewListName');
+    const name = inp ? inp.value.trim() : '';
+    const body = document.getElementById('addToListBody');
+    if (body) body.innerHTML = '<div class="atl-loading">Creating…</div>';
+    const created = await createList(name || 'My list');
+    if (!created) {
+        if (body) body.innerHTML = '<div class="atl-done">Something went wrong. Try again.</div>';
+        return;
+    }
     await handlePickList(created.id, itemId);
 }
 
 function closeAddToListSheet() {
     const sheet = document.getElementById('addToListSheet');
     if (sheet) sheet.classList.remove('open');
+}
+
+// ===== PRIVATE LISTS — Profile view (Brief 2) =====
+// View your lists, open a list to see its items (reusing the item drawer),
+// rename a list, delete a list, and remove an item from a list.
+// Owner-only, enforced by the same RLS as Brief 1. Never touches visibility.
+
+let _listsCache = [];        // last-rendered lists (for name lookup by id)
+let _listDetailItems = [];   // items in the currently-open list (for drawer open by index)
+
+// Lists + their item counts. Returns [{id, name, created_at, count}] newest first.
+async function fetchMyListsWithCounts() {
+    const lists = await fetchMyLists();
+    if (!lists.length) return [];
+    const ids = lists.map(l => l.id);
+    const { data, error } = await supabaseClient
+        .from('collection_items')
+        .select('collection_id')
+        .in('collection_id', ids);
+    if (error) { console.error('fetchMyListsWithCounts', error); }
+    const counts = {};
+    (data || []).forEach(r => { counts[r.collection_id] = (counts[r.collection_id] || 0) + 1; });
+    return lists.map(l => ({ ...l, count: counts[l.id] || 0 }));
+}
+
+// Items in a list, newest-added first. Two-step (no FK dependency):
+// read item_ids from collection_items, then fetch those knowledge_items.
+async function fetchListItems(collectionId) {
+    if (!currentUser || !collectionId) return [];
+    const { data: rows, error } = await supabaseClient
+        .from('collection_items')
+        .select('item_id, added_at')
+        .eq('collection_id', collectionId)
+        .order('added_at', { ascending: false });
+    if (error) { console.error('fetchListItems', error); return []; }
+    const ids = (rows || []).map(r => r.item_id);
+    if (!ids.length) return [];
+    const { data: items, error: e2 } = await supabaseClient
+        .from('knowledge_items').select('*').in('id', ids);
+    if (e2) { console.error('fetchListItems items', e2); return []; }
+    const byId = {};
+    (items || []).forEach(it => { byId[it.id] = it; });
+    return ids.map(id => byId[id]).filter(Boolean); // preserve added_at order
+}
+
+async function renameList(collectionId, name) {
+    const clean = (name || '').trim();
+    if (!collectionId || !clean) return false;
+    const { error } = await supabaseClient
+        .from('collections').update({ name: clean }).eq('id', collectionId);
+    if (error) { console.error('renameList', error); return false; }
+    return true;
+}
+
+async function deleteList(collectionId) {
+    if (!collectionId) return false;
+    // Remove items first, then the list (defensive — works with or without cascade).
+    await supabaseClient.from('collection_items').delete().eq('collection_id', collectionId);
+    const { error } = await supabaseClient.from('collections').delete().eq('id', collectionId);
+    if (error) { console.error('deleteList', error); return false; }
+    return true;
+}
+
+async function removeItemFromList(collectionId, itemId) {
+    if (!collectionId || !itemId) return false;
+    const { error } = await supabaseClient
+        .from('collection_items').delete()
+        .eq('collection_id', collectionId).eq('item_id', itemId);
+    if (error) { console.error('removeItemFromList', error); return false; }
+    return true;
+}
+
+// ── Lists drawer state + rendering ──
+let _listsView = { view: 'lists', collectionId: null, listName: '' };
+
+// Lists index: name + count rows, or an empty state.
+async function renderListsView() {
+    _listsView = { view: 'lists', collectionId: null, listName: '' };
+    const titleEl = document.getElementById('listsDrawerTitle');
+    const backEl  = document.getElementById('listsDrawerBack');
+    const body    = document.getElementById('listsDrawerBody');
+    if (titleEl) titleEl.textContent = 'My Lists';
+    if (backEl)  backEl.style.display = 'none';
+    if (!body) return;
+    body.innerHTML = '<div class="atl-loading">Loading…</div>';
+    const lists = await fetchMyListsWithCounts();
+    _listsCache = lists;
+    if (!lists.length) {
+        body.innerHTML = '<div class="lists-empty">No lists yet.<br>Open any item and tap “Add to list” to start one.</div>';
+        return;
+    }
+    body.innerHTML = lists.map(l =>
+        `<button class="lists-row" onclick="openListDetail('${l.id}')">
+            <span class="lists-row-name">${escapeHtml(l.name)}</span>
+            <span class="lists-row-count">${l.count} item${l.count !== 1 ? 's' : ''}</span>
+        </button>`
+    ).join('');
+}
+
+// One list's items + rename/delete actions.
+async function openListDetail(collectionId) {
+    const list = _listsCache.find(l => l.id === collectionId) || { id: collectionId, name: 'List' };
+    _listsView = { view: 'detail', collectionId, listName: list.name };
+    const titleEl = document.getElementById('listsDrawerTitle');
+    const backEl  = document.getElementById('listsDrawerBack');
+    const body    = document.getElementById('listsDrawerBody');
+    if (titleEl) titleEl.textContent = list.name;
+    if (backEl)  backEl.style.display = '';
+    if (!body) return;
+    body.innerHTML = '<div class="atl-loading">Loading…</div>';
+
+    const actions =
+        `<div class="lists-detail-actions">
+            <button class="lists-action" onclick="startRenameList()">Rename</button>
+            <button class="lists-action lists-action--danger" onclick="confirmDeleteList()">Delete list</button>
+        </div>`;
+
+    const items = await fetchListItems(collectionId);
+    _listDetailItems = items;
+    if (!items.length) {
+        body.innerHTML = actions + '<div class="lists-empty">This list is empty.<br>Add items from any item’s “Add to list”.</div>';
+        return;
+    }
+    const rows = items.map((it, i) => {
+        const photos = (typeof getItemPhotos === 'function') ? getItemPhotos(it) : [];
+        const thumb = photos.length
+            ? `<img class="lists-item-thumb" src="${escapeHtml(photos[0])}" alt="" loading="lazy">`
+            : `<div class="lists-item-thumb lists-item-thumb--empty"></div>`;
+        const name = escapeHtml(it.place_name || it.title || 'Untitled');
+        return `<div class="lists-item">
+            <div class="lists-item-main" onclick="openListItem(${i})">
+                ${thumb}
+                <span class="lists-item-title">${name}</span>
+            </div>
+            <button class="lists-item-remove" onclick="handleRemoveFromList('${it.id}')" aria-label="Remove from list">&#x2715;</button>
+        </div>`;
+    }).join('');
+    body.innerHTML = actions + rows;
+}
+
+// Open the standard item drawer for a list item.
+function openListItem(index) {
+    const it = _listDetailItems[index];
+    if (it && typeof openItemDrawer === 'function') openItemDrawer(it);
+}
+
+async function handleRemoveFromList(itemId) {
+    const ok = await removeItemFromList(_listsView.collectionId, itemId);
+    if (ok) await openListDetail(_listsView.collectionId); // re-render list
+}
+
+// Inline rename (no prompt() — some browsers suppress it).
+function startRenameList() {
+    const body = document.getElementById('listsDrawerBody');
+    if (!body) return;
+    const cur = _listsView.listName || '';
+    body.insertAdjacentHTML('afterbegin',
+        `<div class="lists-inline-form">
+            <input id="listRenameInput" type="text" maxlength="60" value="${escapeHtml(cur)}" placeholder="List name" />
+            <button class="lists-action" onclick="submitRenameList()">Save</button>
+            <button class="lists-action" onclick="openListDetail('${_listsView.collectionId}')">Cancel</button>
+        </div>`);
+    const el = document.getElementById('listRenameInput');
+    if (el) {
+        el.focus(); el.select();
+        el.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitRenameList(); });
+    }
+}
+
+async function submitRenameList() {
+    const el = document.getElementById('listRenameInput');
+    const name = el ? el.value.trim() : '';
+    if (!name) return;
+    const ok = await renameList(_listsView.collectionId, name);
+    if (ok) {
+        _listsView.listName = name;
+        const c = _listsCache.find(l => l.id === _listsView.collectionId);
+        if (c) c.name = name;
+    }
+    await openListDetail(_listsView.collectionId);
+}
+
+// Inline delete confirm (no confirm() dialog).
+function confirmDeleteList() {
+    const body = document.getElementById('listsDrawerBody');
+    if (!body) return;
+    body.insertAdjacentHTML('afterbegin',
+        `<div class="lists-inline-form lists-inline-confirm">
+            <span>Delete this list? Items stay in Odin.</span>
+            <button class="lists-action lists-action--danger" onclick="doDeleteList()">Delete</button>
+            <button class="lists-action" onclick="openListDetail('${_listsView.collectionId}')">Cancel</button>
+        </div>`);
+}
+
+async function doDeleteList() {
+    const ok = await deleteList(_listsView.collectionId);
+    if (ok) await renderListsView(); // back to lists index
 }
 
 function buildEndorseSection(itemId) {
