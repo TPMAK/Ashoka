@@ -1339,6 +1339,114 @@ function toggleSaveItem(itemId, event) {
     toggleEndorsement(itemId, event);
 }
 
+// ===== PRIVATE LISTS (Model A) — separate verb from Save =====
+// Lists are private bookmarks. They NEVER touch knowledge_items visibility
+// or endorsements. Owner-only, enforced by RLS on collections/collection_items.
+
+// Fetch the current user's lists (id + name), newest first.
+async function fetchMyLists() {
+    if (!currentUser) return [];
+    const { data, error } = await supabaseClient
+        .from('collections')
+        .select('id, name, created_at')
+        .order('created_at', { ascending: false });
+    if (error) { console.error('fetchMyLists', error); return []; }
+    return data || [];
+}
+
+// Create a new list. Returns the new list row, or null on failure.
+async function createList(name) {
+    if (!currentUser) return null;
+    const clean = (name || '').trim() || 'My list';
+    const { data, error } = await supabaseClient
+        .from('collections')
+        .insert({ owner_id: currentUser.id, name: clean })
+        .select('id, name, created_at')
+        .single();
+    if (error) { console.error('createList', error); return null; }
+    return data;
+}
+
+// Add an item to a list. Idempotent: UNIQUE(collection_id,item_id) means a
+// duplicate insert is a harmless conflict we swallow. Returns true on success.
+async function addItemToList(collectionId, itemId) {
+    if (!currentUser || !collectionId || !itemId) return false;
+    const { error } = await supabaseClient
+        .from('collection_items')
+        .insert({ collection_id: collectionId, item_id: itemId });
+    if (error) {
+        // 23505 = unique_violation → item already in this list → treat as success
+        if (error.code === '23505') return true;
+        console.error('addItemToList', error);
+        return false;
+    }
+    return true;
+}
+
+// ── "Add to list" sheet ──────────────────────────────────────
+// Opens a bottom sheet listing the user's lists + a "New list" row.
+// If the user has zero lists, the first tap auto-creates "My list"
+// and adds the item silently (no naming friction).
+async function openAddToListSheet(itemId) {
+    if (!currentUser || !itemId) return;
+    const sheet = document.getElementById('addToListSheet');
+    const body  = document.getElementById('addToListBody');
+    if (!sheet || !body) return;
+
+    body.innerHTML = '<div class="atl-loading">Loading…</div>';
+    sheet.classList.add('open');
+
+    const lists = await fetchMyLists();
+
+    // Zero lists → auto-create + add silently, then confirm.
+    if (lists.length === 0) {
+        const created = await createList('My list');
+        if (created) {
+            const ok = await addItemToList(created.id, itemId);
+            body.innerHTML = ok
+                ? '<div class="atl-done">Added to <strong>My list</strong></div>'
+                : '<div class="atl-done">Something went wrong. Try again.</div>';
+            setTimeout(closeAddToListSheet, 1100);
+        } else {
+            body.innerHTML = '<div class="atl-done">Something went wrong. Try again.</div>';
+        }
+        return;
+    }
+
+    // Otherwise render the pick list + a "New list" row.
+    let rows = lists.map(l =>
+        `<button class="atl-row" onclick="handlePickList('${l.id}', '${itemId}')">
+            <span class="atl-row-name">${escapeHtml(l.name)}</span>
+        </button>`
+    ).join('');
+    rows += `<button class="atl-row atl-row--new" onclick="handleNewListForItem('${itemId}')">
+                <span class="atl-row-name">+ New list</span>
+             </button>`;
+    body.innerHTML = rows;
+}
+
+async function handlePickList(collectionId, itemId) {
+    const body = document.getElementById('addToListBody');
+    const ok = await addItemToList(collectionId, itemId);
+    if (body) body.innerHTML = ok
+        ? '<div class="atl-done">Added</div>'
+        : '<div class="atl-done">Something went wrong. Try again.</div>';
+    setTimeout(closeAddToListSheet, 900);
+}
+
+async function handleNewListForItem(itemId) {
+    const name = prompt('Name your list', 'My list');
+    if (name === null) return; // cancelled
+    const created = await createList(name);
+    if (!created) return;
+    await handlePickList(created.id, itemId);
+}
+
+function closeAddToListSheet() {
+    const sheet = document.getElementById('addToListSheet');
+    if (sheet) sheet.classList.remove('open');
+}
+
 function buildEndorseSection(itemId) {
     const cached = endorsementsCache[itemId] || { count: 0, names: [], ids: [], userEndorsed: false };
     const bookmarkActive = cached.userEndorsed ? ' active' : '';
@@ -1372,6 +1480,10 @@ function buildEndorseSection(itemId) {
                 <button class="drawer-bookmark-btn${bookmarkActive}" data-endorse-id="${itemId}" onclick="toggleEndorsement('${itemId}', event)">
                     <svg class="bookmark-icon-lg" width="16" height="16" viewBox="0 0 24 24" fill="${fillColor}" stroke="${strokeColor}" stroke-width="2.2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
                     <span class="drawer-bookmark-label">${cached.userEndorsed ? 'Saved' : 'Save'}</span>
+                </button>
+                <button class="drawer-addlist-btn" onclick="openAddToListSheet('${itemId}')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7B2D45" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                    <span class="drawer-addlist-label">Add to list</span>
                 </button>
             </div>
         </div>
