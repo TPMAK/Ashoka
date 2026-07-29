@@ -1434,11 +1434,35 @@ async function handlePickList(collectionId, itemId) {
     setTimeout(closeAddToListSheet, 900);
 }
 
-async function handleNewListForItem(itemId) {
-    const name = prompt('Name your list', 'My list');
-    if (name === null) return; // cancelled
-    const created = await createList(name);
-    if (!created) return;
+// Inline "new list" input (replaces the crude prompt(); some browsers
+// suppress prompt() dialogs and return null, silently blocking creation).
+function handleNewListForItem(itemId) {
+    const body = document.getElementById('addToListBody');
+    if (!body) return;
+    body.innerHTML =
+        `<div style="display:flex; gap:8px; align-items:center;">
+            <input id="atlNewListName" type="text" placeholder="List name" maxlength="60"
+                style="flex:1; padding:14px 16px; border:1.5px solid #7B2D45; border-radius:12px; font-size:16px; color:#1a1a1a; outline:none;" />
+            <button onclick="submitNewList('${itemId}')"
+                style="padding:14px 16px; background:#7B2D45; color:#fff; border:none; border-radius:12px; font-size:15px; font-weight:600; cursor:pointer; white-space:nowrap;">Create</button>
+        </div>`;
+    const inp = document.getElementById('atlNewListName');
+    if (inp) {
+        inp.focus();
+        inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitNewList(itemId); });
+    }
+}
+
+async function submitNewList(itemId) {
+    const inp = document.getElementById('atlNewListName');
+    const name = inp ? inp.value.trim() : '';
+    const body = document.getElementById('addToListBody');
+    if (body) body.innerHTML = '<div class="atl-loading">Creating…</div>';
+    const created = await createList(name || 'My list');
+    if (!created) {
+        if (body) body.innerHTML = '<div class="atl-done">Something went wrong. Try again.</div>';
+        return;
+    }
     await handlePickList(created.id, itemId);
 }
 
