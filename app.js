@@ -1580,14 +1580,20 @@ async function openListDetail(collectionId) {
     if (!body) return;
     body.innerHTML = '<div class="atl-loading">Loading…</div>';
 
+    const items = await fetchListItems(collectionId);
+    _listDetailItems = items;
+
+    const exportBtns = items.length
+        ? `<button class="lists-action" onclick="copyCurrentList(this)">Copy</button>
+            <button class="lists-action" onclick="downloadCurrentList()">Download .md</button>`
+        : '';
     const actions =
         `<div class="lists-detail-actions">
             <button class="lists-action" onclick="startRenameList()">Rename</button>
             <button class="lists-action lists-action--danger" onclick="confirmDeleteList()">Delete list</button>
+            ${exportBtns}
         </div>`;
 
-    const items = await fetchListItems(collectionId);
-    _listDetailItems = items;
     if (!items.length) {
         body.innerHTML = actions + '<div class="lists-empty">This list is empty.<br>Add items from any item’s “Add to list”.</div>';
         return;
@@ -1666,6 +1672,99 @@ function confirmDeleteList() {
 async function doDeleteList() {
     const ok = await deleteList(_listsView.collectionId);
     if (ok) await renderListsView(); // back to lists index
+}
+
+// ── List export → Markdown (copy + download) — Brief 3 ──
+// Exports the SAME visibility-filtered items the list view shows (_listDetailItems,
+// read through knowledge_items RLS). Mirrors the drawer's field-presence logic and
+// its URL resolution across item.URL / item.url / item.website. Identity rule:
+// direct-friend items may name the friend (1 hop); anyone not a confirmed direct
+// friend is nameless. No endorsement language — signal, not a recommendation.
+
+function _resolveItemUrl(item) {
+    let url = '';
+    if (item.URL) {
+        if (Array.isArray(item.URL) && item.URL.length > 0) url = item.URL[0];
+        else if (typeof item.URL === 'string' && item.URL.startsWith('http')) url = item.URL;
+    }
+    if (!url && item.url) url = item.url;
+    if (!url && item.website) url = item.website;
+    return url || '';
+}
+
+// Attribution honoring the max-1-hop identity rule.
+function _exportViaLine(item) {
+    if (currentUser && item.added_by === currentUser.id) return 'you';
+    if (typeof isFriend === 'function' && isFriend(item.added_by)) {
+        const name = (item.added_by_name || '').trim();
+        return name ? `your friend ${name}` : 'your friend';
+    }
+    return 'your friend'; // never leak a name we can't confirm as a direct friend
+}
+
+// Type-aware Markdown. A field renders only when present; Note + Via are the point.
+function buildListExportMarkdown(listName, items) {
+    const lines = [];
+    lines.push('# From your Odin circle');
+    lines.push('_Everything here was added by a real person you know._');
+    lines.push('');
+    lines.push(`## ${listName || 'My list'}`);
+    lines.push('');
+    (items || []).forEach(item => {
+        const title = String(item.place_name || item.title || 'Untitled').trim();
+        lines.push(`### ${title}`);
+        const desc = String(item.description || '').trim();
+        if (desc) lines.push(`- **What:** ${desc}`);
+        if (item.address) lines.push(`- **Where:** ${String(item.address).trim()}`);
+        const url = _resolveItemUrl(item);
+        if (url) lines.push(`- **Link:** ${url}`);
+        const itemType = item.type || item.category || '';
+        if (itemType) lines.push(`- **Category:** ${itemType}`);
+        const note = (typeof getPersonalNoteGlobal === 'function')
+            ? (getPersonalNoteGlobal(item) || '')
+            : (item.personal_note || item.PersonalNote || '');
+        if (note) lines.push(`- **The word:** "${String(note).trim()}"`);
+        lines.push(`- **Via:** ${_exportViaLine(item)}`);
+        lines.push('');
+    });
+    return lines.join('\n');
+}
+
+function _currentListExport() {
+    const name = _listsView.listName || 'My list';
+    const items = _listDetailItems || [];
+    return { name, md: buildListExportMarkdown(name, items), count: items.length };
+}
+
+async function copyCurrentList(btn) {
+    const { md, count } = _currentListExport();
+    if (!count) return;
+    const flash = (txt) => { if (btn) { const t = btn.dataset.label || btn.textContent; btn.dataset.label = t; btn.textContent = txt; setTimeout(() => { btn.textContent = t; }, 1400); } };
+    try {
+        await navigator.clipboard.writeText(md);
+        flash('Copied!');
+    } catch (e) {
+        // Fallback for browsers that block the async clipboard API
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = md; ta.style.position = 'fixed'; ta.style.opacity = '0';
+            document.body.appendChild(ta); ta.focus(); ta.select();
+            document.execCommand('copy'); document.body.removeChild(ta);
+            flash('Copied!');
+        } catch (e2) { console.error('copyCurrentList', e2); flash('Copy failed'); }
+    }
+}
+
+function downloadCurrentList() {
+    const { name, md, count } = _currentListExport();
+    if (!count) return;
+    const safe = (String(name).replace(/[^\w\-]+/g, '_').replace(/^_+|_+$/g, '')) || 'list';
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${safe}.md`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
 function buildEndorseSection(itemId) {
