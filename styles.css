@@ -3598,7 +3598,7 @@
         /* ── The Word (pull-quote) ── */
         .drawer-quote {
             border-left: 3px solid var(--wb);
-            padding: 12px 16px;
+            padding: 9px 14px;
             margin-bottom: 8px;
             background: rgba(123, 45, 69, 0.04);
             border-radius: 0 10px 10px 0;
@@ -3609,12 +3609,12 @@
             color: var(--wb);
             text-transform: uppercase;
             letter-spacing: 0.6px;
-            margin-bottom: 5px;
+            margin-bottom: 3px;
         }
         .drawer-quote-text {
             color: var(--ink);
             font-size: 15px;
-            line-height: 1.6;
+            line-height: 1.45;
             font-style: italic;
         }
         .drawer-quote-locked .drawer-quote-text {
@@ -3705,6 +3705,25 @@
             background: rgba(123, 45, 69, 0.04);
         }
         .drawer-btn-secondary svg { flex-shrink: 0; }
+
+        /* Hybrid action buttons — icon stacked above a small label. Compact
+           enough that 2, 3, or 4 buttons (Directions · Website · Share · Add to
+           list) all fit one line at phone width, while keeping labels for clarity. */
+        .drawer-action-btns .drawer-btn-primary,
+        .drawer-action-btns .drawer-btn-secondary {
+            flex-direction: column;
+            gap: 3px;
+            padding: 9px 4px;
+            font-size: 11px;
+            font-weight: 500;
+            min-width: 0;
+            line-height: 1.2;
+        }
+        .drawer-action-btns .drawer-btn-primary svg,
+        .drawer-action-btns .drawer-btn-secondary svg {
+            width: 18px;
+            height: 18px;
+        }
 
         /* ── Social section ── */
         .drawer-social {
