@@ -9192,8 +9192,8 @@
     align-items: center;
     background: #ffffff;
     border-radius: 14px;
-    padding: 14px 8px;
-    margin: 14px 0 0;
+    padding: 10px 8px;
+    margin: 12px 0 0;
     box-shadow: 0 1px 4px rgba(0,0,0,0.06);
     gap: 0;
 }
@@ -9208,8 +9208,8 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 3px;
-    padding: 4px;
+    gap: 2px;
+    padding: 2px;
     background: transparent;
     border: 0;
     cursor: pointer;
@@ -9225,21 +9225,21 @@
 .hstat-num {
     font-family: 'Fraunces', Georgia, serif;
     font-weight: 700;
-    font-size: 22px;
+    font-size: 19px;
     line-height: 1;
     color: var(--ink, #1f1f1f);
 }
 
 .hstat-label {
     font-family: 'Inter', sans-serif;
-    font-size: 12px;
+    font-size: 11px;
     color: var(--muted);
     letter-spacing: 0.01em;
 }
 
 /* Knowledge — hero (stands out in brand maroon) */
 .hstat-hero .hstat-num {
-    font-size: 24px;
+    font-size: 20px;
     color: #7B2D45;
 }
 
@@ -9251,7 +9251,7 @@
 /* Separators become thin vertical dividers (glyph hidden) */
 .hstat-sep {
     width: 1px;
-    height: 32px;
+    height: 24px;
     background: #f0ece4;
     flex-shrink: 0;
     font-size: 0;
