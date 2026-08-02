@@ -5999,16 +5999,14 @@ function openItemDrawer(item) {
     }
     html += `</div>`;
 
-    // place_name subtitle: AI summary shown under the venue name
-    if (_dh.subtitle) {
-        html += `<div class="drawer-subtitle">${escapeHtml(_dh.subtitle)}</div>`;
-    }
+    // place_name subtitle (AI feed_card_summary under the venue name) removed —
+    // it duplicated THE WORD / What's this about below. Intentionally omitted.
 
-    // Sub-line: address only (distance lives in the chips row)
-    let subParts = [];
-    if (item.address) subParts.push(`<span class="drawer-meta-address">${escapeHtml(item.address)}</span>`);
-    if (subParts.length) {
-        html += `<div class="drawer-meta-line">${subParts.join('<span class="drawer-meta-dot"> · </span>')}</div>`;
+    // Sub-line: address only (distance lives in the chips row), prefixed with a
+    // small location pin so it reads clearly as an address.
+    if (item.address) {
+        const ADDR_PIN_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7B2D45" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:5px;"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>';
+        html += `<div class="drawer-meta-line"><span class="drawer-meta-address">${ADDR_PIN_SVG}${escapeHtml(item.address)}</span></div>`;
     }
 
     // ── Drawer chips: category + private ──

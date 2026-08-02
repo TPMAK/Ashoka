@@ -3724,6 +3724,10 @@
             width: 18px;
             height: 18px;
         }
+        /* Secondary icons in brand maroon (labels stay ink); primary stays white */
+        .drawer-action-btns .drawer-btn-secondary svg {
+            color: #7B2D45;
+        }
 
         /* ── Social section ── */
         .drawer-social {
