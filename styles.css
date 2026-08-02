@@ -9154,10 +9154,10 @@
 .launcher-page {
     max-width: 600px;
     margin: 0 auto;
-    padding: 20px 20px 12px;
+    padding: 14px 20px 12px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
 }
 
 @media (min-width: 768px) {
@@ -9189,10 +9189,13 @@
 /* ── Home stat strip (between greeting and rotating subline) ── */
 .home-stats-strip {
     display: flex;
-    align-items: baseline;
-    flex-wrap: wrap;
-    gap: 8px 10px;
-    margin: 8px 0 0;
+    align-items: center;
+    background: #ffffff;
+    border-radius: 14px;
+    padding: 10px 8px;
+    margin: 0;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    gap: 0;
 }
 
 /* Even rhythm: H1 → stats → rotating subgreeting */
@@ -9201,16 +9204,18 @@
 }
 
 .hstat {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 5px;
-    padding: 2px 4px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
     background: transparent;
     border: 0;
     cursor: pointer;
     font-family: inherit;
     color: inherit;
-    border-radius: 6px;
+    border-radius: 10px;
     transition: background 0.15s;
 }
 
@@ -9219,40 +9224,43 @@
 
 .hstat-num {
     font-family: 'Fraunces', Georgia, serif;
-    font-weight: 600;
-    font-size: 18px;
+    font-weight: 700;
+    font-size: 19px;
     line-height: 1;
     color: var(--ink, #1f1f1f);
 }
 
 .hstat-label {
     font-family: 'Inter', sans-serif;
-    font-size: 12px;
+    font-size: 11px;
     color: var(--muted);
     letter-spacing: 0.01em;
 }
 
-/* Knowledge — hero */
+/* Knowledge — hero (stands out in brand maroon) */
 .hstat-hero .hstat-num {
-    font-size: 26px;
+    font-size: 20px;
     color: #7B2D45;
 }
 
 .hstat-hero .hstat-label {
-    font-size: 13px;
     color: #7B2D45;
-    font-weight: 500;
+    font-weight: 600;
 }
 
+/* Separators become thin vertical dividers (glyph hidden) */
 .hstat-sep {
-    color: var(--muted);
-    font-size: 14px;
-    line-height: 1;
+    width: 1px;
+    height: 24px;
+    background: #f0ece4;
+    flex-shrink: 0;
+    font-size: 0;
+    color: transparent;
     user-select: none;
 }
 
 @media (max-width: 360px) {
-    .hstat-num { font-size: 16px; }
+    .hstat-num { font-size: 20px; }
     .hstat-hero .hstat-num { font-size: 22px; }
 }
 
@@ -9270,7 +9278,7 @@
 .launcher-tiles {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
 }
 
 .launcher-row {
@@ -12152,3 +12160,59 @@ body.map-view-open .content {
     line-height: 1.4;
     color: var(--text, inherit);
 }
+
+/* ===== My Lists (Brief 2) ===== */
+.profile-box--wide { grid-column: 1 / -1; }
+
+.lists-body { display: flex; flex-direction: column; gap: 8px; }
+
+.lists-row {
+    display: flex; align-items: center; justify-content: space-between; width: 100%;
+    padding: 16px; background: #F5F0E8; border: none; border-radius: 12px;
+    font-size: 16px; color: var(--ink); text-align: left; cursor: pointer;
+}
+.lists-row:hover { background: #EFE8DC; }
+.lists-row-name { font-weight: 600; }
+.lists-row-count { font-size: 13px; color: var(--muted); font-weight: 500; }
+
+.lists-empty { padding: 28px 16px; text-align: center; color: var(--muted); font-size: 15px; line-height: 1.5; }
+
+.lists-detail-actions { display: flex; gap: 8px; margin-bottom: 12px; }
+.lists-action {
+    padding: 8px 14px; background: #FFFFFF; border: 1.5px solid #7B2D45; border-radius: 10px;
+    color: #7B2D45; font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.lists-action:hover { background: #F5F0E8; }
+.lists-action--danger { border-color: #B23A48; color: #B23A48; }
+.lists-action--danger:hover { background: #FBEDEE; }
+
+.lists-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px; background: #FFFFFF; border-radius: 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.lists-item-main { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; cursor: pointer; }
+.lists-item-thumb { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
+.lists-item-thumb--empty { background: #ECE5DA; }
+.lists-item-title { font-size: 15px; color: var(--ink); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lists-item-remove {
+    background: none; border: none; color: var(--muted); font-size: 15px;
+    width: 32px; height: 32px; border-radius: 50%; cursor: pointer; flex-shrink: 0;
+}
+.lists-item-remove:hover { background: #F0ECE4; color: #B23A48; }
+
+.lists-inline-form {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 12px; margin-bottom: 12px; background: #F5F0E8; border-radius: 12px;
+}
+.lists-inline-form input {
+    flex: 1; min-width: 140px; padding: 10px 12px; border: 1.5px solid #7B2D45;
+    border-radius: 10px; font-size: 15px; color: var(--ink); outline: none;
+}
+.lists-inline-confirm span { flex: 1; min-width: 140px; font-size: 14px; color: var(--ink); }
+
+.lists-back-btn {
+    background: #f0ece4; border: none; border-radius: 50%; width: 30px; height: 30px;
+    display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink);
+}
+.lists-back-btn:hover { background: #e5e0d8; }

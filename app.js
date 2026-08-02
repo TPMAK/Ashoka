@@ -1339,6 +1339,434 @@ function toggleSaveItem(itemId, event) {
     toggleEndorsement(itemId, event);
 }
 
+// ===== PRIVATE LISTS (Model A) — separate verb from Save =====
+// Lists are private bookmarks. They NEVER touch knowledge_items visibility
+// or endorsements. Owner-only, enforced by RLS on collections/collection_items.
+
+// Fetch the current user's lists (id + name), newest first.
+async function fetchMyLists() {
+    if (!currentUser) return [];
+    const { data, error } = await supabaseClient
+        .from('collections')
+        .select('id, name, created_at')
+        .order('created_at', { ascending: false });
+    if (error) { console.error('fetchMyLists', error); return []; }
+    return data || [];
+}
+
+// Create a new list. Returns the new list row, or null on failure.
+async function createList(name) {
+    if (!currentUser) return null;
+    const clean = (name || '').trim() || 'My list';
+    const { data, error } = await supabaseClient
+        .from('collections')
+        .insert({ owner_id: currentUser.id, name: clean })
+        .select('id, name, created_at')
+        .single();
+    if (error) { console.error('createList', error); return null; }
+    return data;
+}
+
+// Add an item to a list. Idempotent: UNIQUE(collection_id,item_id) means a
+// duplicate insert is a harmless conflict we swallow. Returns true on success.
+async function addItemToList(collectionId, itemId) {
+    if (!currentUser || !collectionId || !itemId) return false;
+    const { error } = await supabaseClient
+        .from('collection_items')
+        .insert({ collection_id: collectionId, item_id: itemId });
+    if (error) {
+        // 23505 = unique_violation → item already in this list → treat as success
+        if (error.code === '23505') return true;
+        console.error('addItemToList', error);
+        return false;
+    }
+    return true;
+}
+
+// ── "Add to list" sheet ──────────────────────────────────────
+// Opens a bottom sheet listing the user's lists + a "New list" row.
+// If the user has zero lists, the first tap auto-creates "My list"
+// and adds the item silently (no naming friction).
+async function openAddToListSheet(itemId) {
+    if (!currentUser || !itemId) return;
+    const sheet = document.getElementById('addToListSheet');
+    const body  = document.getElementById('addToListBody');
+    if (!sheet || !body) return;
+
+    body.innerHTML = '<div class="atl-loading">Loading…</div>';
+    sheet.classList.add('open');
+
+    const lists = await fetchMyLists();
+
+    // Zero lists → auto-create + add silently, then confirm.
+    if (lists.length === 0) {
+        const created = await createList('My list');
+        if (created) {
+            const ok = await addItemToList(created.id, itemId);
+            body.innerHTML = ok
+                ? '<div class="atl-done">Added to <strong>My list</strong></div>'
+                : '<div class="atl-done">Something went wrong. Try again.</div>';
+            setTimeout(closeAddToListSheet, 1100);
+        } else {
+            body.innerHTML = '<div class="atl-done">Something went wrong. Try again.</div>';
+        }
+        return;
+    }
+
+    // Otherwise render the pick list + a "New list" row.
+    let rows = lists.map(l =>
+        `<button class="atl-row" onclick="handlePickList('${l.id}', '${itemId}')">
+            <span class="atl-row-name">${escapeHtml(l.name)}</span>
+        </button>`
+    ).join('');
+    rows += `<button class="atl-row atl-row--new" onclick="handleNewListForItem('${itemId}')">
+                <span class="atl-row-name">+ New list</span>
+             </button>`;
+    body.innerHTML = rows;
+}
+
+async function handlePickList(collectionId, itemId) {
+    const body = document.getElementById('addToListBody');
+    const ok = await addItemToList(collectionId, itemId);
+    if (body) body.innerHTML = ok
+        ? '<div class="atl-done">Added</div>'
+        : '<div class="atl-done">Something went wrong. Try again.</div>';
+    setTimeout(closeAddToListSheet, 900);
+}
+
+// Inline "new list" input (replaces the crude prompt(); some browsers
+// suppress prompt() dialogs and return null, silently blocking creation).
+function handleNewListForItem(itemId) {
+    const body = document.getElementById('addToListBody');
+    if (!body) return;
+    body.innerHTML =
+        `<div style="display:flex; gap:8px; align-items:center;">
+            <input id="atlNewListName" type="text" placeholder="List name" maxlength="60"
+                style="flex:1; padding:14px 16px; border:1.5px solid #7B2D45; border-radius:12px; font-size:16px; color:#1a1a1a; outline:none;" />
+            <button onclick="submitNewList('${itemId}')"
+                style="padding:14px 16px; background:#7B2D45; color:#fff; border:none; border-radius:12px; font-size:15px; font-weight:600; cursor:pointer; white-space:nowrap;">Create</button>
+        </div>`;
+    const inp = document.getElementById('atlNewListName');
+    if (inp) {
+        inp.focus();
+        inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitNewList(itemId); });
+    }
+}
+
+async function submitNewList(itemId) {
+    const inp = document.getElementById('atlNewListName');
+    const name = inp ? inp.value.trim() : '';
+    const body = document.getElementById('addToListBody');
+    if (body) body.innerHTML = '<div class="atl-loading">Creating…</div>';
+    const created = await createList(name || 'My list');
+    if (!created) {
+        if (body) body.innerHTML = '<div class="atl-done">Something went wrong. Try again.</div>';
+        return;
+    }
+    await handlePickList(created.id, itemId);
+}
+
+function closeAddToListSheet() {
+    const sheet = document.getElementById('addToListSheet');
+    if (sheet) sheet.classList.remove('open');
+}
+
+// ===== PRIVATE LISTS — Profile view (Brief 2) =====
+// View your lists, open a list to see its items (reusing the item drawer),
+// rename a list, delete a list, and remove an item from a list.
+// Owner-only, enforced by the same RLS as Brief 1. Never touches visibility.
+
+let _listsCache = [];        // last-rendered lists (for name lookup by id)
+let _listDetailItems = [];   // items in the currently-open list (for drawer open by index)
+
+// Lists + their item counts. Returns [{id, name, created_at, count}] newest first.
+async function fetchMyListsWithCounts() {
+    const lists = await fetchMyLists();
+    if (!lists.length) return [];
+    const ids = lists.map(l => l.id);
+    const { data, error } = await supabaseClient
+        .from('collection_items')
+        .select('collection_id')
+        .in('collection_id', ids);
+    if (error) { console.error('fetchMyListsWithCounts', error); }
+    const counts = {};
+    (data || []).forEach(r => { counts[r.collection_id] = (counts[r.collection_id] || 0) + 1; });
+    return lists.map(l => ({ ...l, count: counts[l.id] || 0 }));
+}
+
+// Items in a list, newest-added first. Two-step (no FK dependency):
+// read item_ids from collection_items, then fetch those knowledge_items.
+async function fetchListItems(collectionId) {
+    if (!currentUser || !collectionId) return [];
+    const { data: rows, error } = await supabaseClient
+        .from('collection_items')
+        .select('item_id, added_at')
+        .eq('collection_id', collectionId)
+        .order('added_at', { ascending: false });
+    if (error) { console.error('fetchListItems', error); return []; }
+    const ids = (rows || []).map(r => r.item_id);
+    if (!ids.length) return [];
+    const { data: items, error: e2 } = await supabaseClient
+        .from('knowledge_items').select('*').in('id', ids);
+    if (e2) { console.error('fetchListItems items', e2); return []; }
+    const byId = {};
+    (items || []).forEach(it => { byId[it.id] = it; });
+    return ids.map(id => byId[id]).filter(Boolean); // preserve added_at order
+}
+
+async function renameList(collectionId, name) {
+    const clean = (name || '').trim();
+    if (!collectionId || !clean) return false;
+    const { error } = await supabaseClient
+        .from('collections').update({ name: clean }).eq('id', collectionId);
+    if (error) { console.error('renameList', error); return false; }
+    return true;
+}
+
+async function deleteList(collectionId) {
+    if (!collectionId) return false;
+    // Remove items first, then the list (defensive — works with or without cascade).
+    await supabaseClient.from('collection_items').delete().eq('collection_id', collectionId);
+    const { error } = await supabaseClient.from('collections').delete().eq('id', collectionId);
+    if (error) { console.error('deleteList', error); return false; }
+    return true;
+}
+
+async function removeItemFromList(collectionId, itemId) {
+    if (!collectionId || !itemId) return false;
+    const { error } = await supabaseClient
+        .from('collection_items').delete()
+        .eq('collection_id', collectionId).eq('item_id', itemId);
+    if (error) { console.error('removeItemFromList', error); return false; }
+    return true;
+}
+
+// ── Lists drawer state + rendering ──
+let _listsView = { view: 'lists', collectionId: null, listName: '' };
+
+// Lists index: name + count rows, or an empty state.
+async function renderListsView() {
+    _listsView = { view: 'lists', collectionId: null, listName: '' };
+    const titleEl = document.getElementById('listsDrawerTitle');
+    const backEl  = document.getElementById('listsDrawerBack');
+    const body    = document.getElementById('listsDrawerBody');
+    if (titleEl) titleEl.textContent = 'My Lists';
+    if (backEl)  backEl.style.display = 'none';
+    if (!body) return;
+    body.innerHTML = '<div class="atl-loading">Loading…</div>';
+    const lists = await fetchMyListsWithCounts();
+    _listsCache = lists;
+    if (!lists.length) {
+        body.innerHTML = '<div class="lists-empty">No lists yet.<br>Open any item and tap “Add to list” to start one.</div>';
+        return;
+    }
+    body.innerHTML = lists.map(l =>
+        `<button class="lists-row" onclick="openListDetail('${l.id}')">
+            <span class="lists-row-name">${escapeHtml(l.name)}</span>
+            <span class="lists-row-count">${l.count} item${l.count !== 1 ? 's' : ''}</span>
+        </button>`
+    ).join('');
+}
+
+// One list's items + rename/delete actions.
+async function openListDetail(collectionId) {
+    const list = _listsCache.find(l => l.id === collectionId) || { id: collectionId, name: 'List' };
+    _listsView = { view: 'detail', collectionId, listName: list.name };
+    const titleEl = document.getElementById('listsDrawerTitle');
+    const backEl  = document.getElementById('listsDrawerBack');
+    const body    = document.getElementById('listsDrawerBody');
+    if (titleEl) titleEl.textContent = list.name;
+    if (backEl)  backEl.style.display = '';
+    if (!body) return;
+    body.innerHTML = '<div class="atl-loading">Loading…</div>';
+
+    const items = await fetchListItems(collectionId);
+    _listDetailItems = items;
+
+    const exportBtns = items.length
+        ? `<button class="lists-action" onclick="copyCurrentList(this)">Copy</button>
+            <button class="lists-action" onclick="downloadCurrentList()">Download .md</button>`
+        : '';
+    const actions =
+        `<div class="lists-detail-actions">
+            <button class="lists-action" onclick="startRenameList()">Rename</button>
+            <button class="lists-action lists-action--danger" onclick="confirmDeleteList()">Delete list</button>
+            ${exportBtns}
+        </div>`;
+
+    if (!items.length) {
+        body.innerHTML = actions + '<div class="lists-empty">This list is empty.<br>Add items from any item’s “Add to list”.</div>';
+        return;
+    }
+    const rows = items.map((it, i) => {
+        const photos = (typeof getItemPhotos === 'function') ? getItemPhotos(it) : [];
+        const thumb = photos.length
+            ? `<img class="lists-item-thumb" src="${escapeHtml(photos[0])}" alt="" loading="lazy">`
+            : `<div class="lists-item-thumb lists-item-thumb--empty"></div>`;
+        const name = escapeHtml(it.place_name || it.title || 'Untitled');
+        return `<div class="lists-item">
+            <div class="lists-item-main" onclick="openListItem(${i})">
+                ${thumb}
+                <span class="lists-item-title">${name}</span>
+            </div>
+            <button class="lists-item-remove" onclick="handleRemoveFromList('${it.id}')" aria-label="Remove from list">&#x2715;</button>
+        </div>`;
+    }).join('');
+    body.innerHTML = actions + rows;
+}
+
+// Open the standard item drawer for a list item.
+function openListItem(index) {
+    const it = _listDetailItems[index];
+    if (it && typeof openItemDrawer === 'function') openItemDrawer(it);
+}
+
+async function handleRemoveFromList(itemId) {
+    const ok = await removeItemFromList(_listsView.collectionId, itemId);
+    if (ok) await openListDetail(_listsView.collectionId); // re-render list
+}
+
+// Inline rename (no prompt() — some browsers suppress it).
+function startRenameList() {
+    const body = document.getElementById('listsDrawerBody');
+    if (!body) return;
+    const cur = _listsView.listName || '';
+    body.insertAdjacentHTML('afterbegin',
+        `<div class="lists-inline-form">
+            <input id="listRenameInput" type="text" maxlength="60" value="${escapeHtml(cur)}" placeholder="List name" />
+            <button class="lists-action" onclick="submitRenameList()">Save</button>
+            <button class="lists-action" onclick="openListDetail('${_listsView.collectionId}')">Cancel</button>
+        </div>`);
+    const el = document.getElementById('listRenameInput');
+    if (el) {
+        el.focus(); el.select();
+        el.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitRenameList(); });
+    }
+}
+
+async function submitRenameList() {
+    const el = document.getElementById('listRenameInput');
+    const name = el ? el.value.trim() : '';
+    if (!name) return;
+    const ok = await renameList(_listsView.collectionId, name);
+    if (ok) {
+        _listsView.listName = name;
+        const c = _listsCache.find(l => l.id === _listsView.collectionId);
+        if (c) c.name = name;
+    }
+    await openListDetail(_listsView.collectionId);
+}
+
+// Inline delete confirm (no confirm() dialog).
+function confirmDeleteList() {
+    const body = document.getElementById('listsDrawerBody');
+    if (!body) return;
+    body.insertAdjacentHTML('afterbegin',
+        `<div class="lists-inline-form lists-inline-confirm">
+            <span>Delete this list? Items stay in Odin.</span>
+            <button class="lists-action lists-action--danger" onclick="doDeleteList()">Delete</button>
+            <button class="lists-action" onclick="openListDetail('${_listsView.collectionId}')">Cancel</button>
+        </div>`);
+}
+
+async function doDeleteList() {
+    const ok = await deleteList(_listsView.collectionId);
+    if (ok) await renderListsView(); // back to lists index
+}
+
+// ── List export → Markdown (copy + download) — Brief 3 ──
+// Exports the SAME visibility-filtered items the list view shows (_listDetailItems,
+// read through knowledge_items RLS). Mirrors the drawer's field-presence logic and
+// its URL resolution across item.URL / item.url / item.website. Identity rule:
+// direct-friend items may name the friend (1 hop); anyone not a confirmed direct
+// friend is nameless. No endorsement language — signal, not a recommendation.
+
+function _resolveItemUrl(item) {
+    let url = '';
+    if (item.URL) {
+        if (Array.isArray(item.URL) && item.URL.length > 0) url = item.URL[0];
+        else if (typeof item.URL === 'string' && item.URL.startsWith('http')) url = item.URL;
+    }
+    if (!url && item.url) url = item.url;
+    if (!url && item.website) url = item.website;
+    return url || '';
+}
+
+// Attribution honoring the max-1-hop identity rule.
+function _exportViaLine(item) {
+    if (currentUser && item.added_by === currentUser.id) return 'you';
+    if (typeof isFriend === 'function' && isFriend(item.added_by)) {
+        const name = (item.added_by_name || '').trim();
+        return name ? `your friend ${name}` : 'your friend';
+    }
+    return 'your friend'; // never leak a name we can't confirm as a direct friend
+}
+
+// Type-aware Markdown. A field renders only when present; Note + Via are the point.
+function buildListExportMarkdown(listName, items) {
+    const lines = [];
+    lines.push('# From your Odin circle');
+    lines.push('_Everything here was added by a real person you know._');
+    lines.push('');
+    lines.push(`## ${listName || 'My list'}`);
+    lines.push('');
+    (items || []).forEach(item => {
+        const title = String(item.place_name || item.title || 'Untitled').trim();
+        lines.push(`### ${title}`);
+        const desc = String(item.description || '').trim();
+        if (desc) lines.push(`- **What:** ${desc}`);
+        if (item.address) lines.push(`- **Where:** ${String(item.address).trim()}`);
+        const url = _resolveItemUrl(item);
+        if (url) lines.push(`- **Link:** ${url}`);
+        const itemType = item.type || item.category || '';
+        if (itemType) lines.push(`- **Category:** ${itemType}`);
+        const note = (typeof getPersonalNoteGlobal === 'function')
+            ? (getPersonalNoteGlobal(item) || '')
+            : (item.personal_note || item.PersonalNote || '');
+        if (note) lines.push(`- **The word:** "${String(note).trim()}"`);
+        lines.push(`- **Via:** ${_exportViaLine(item)}`);
+        lines.push('');
+    });
+    return lines.join('\n');
+}
+
+function _currentListExport() {
+    const name = _listsView.listName || 'My list';
+    const items = _listDetailItems || [];
+    return { name, md: buildListExportMarkdown(name, items), count: items.length };
+}
+
+async function copyCurrentList(btn) {
+    const { md, count } = _currentListExport();
+    if (!count) return;
+    const flash = (txt) => { if (btn) { const t = btn.dataset.label || btn.textContent; btn.dataset.label = t; btn.textContent = txt; setTimeout(() => { btn.textContent = t; }, 1400); } };
+    try {
+        await navigator.clipboard.writeText(md);
+        flash('Copied!');
+    } catch (e) {
+        // Fallback for browsers that block the async clipboard API
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = md; ta.style.position = 'fixed'; ta.style.opacity = '0';
+            document.body.appendChild(ta); ta.focus(); ta.select();
+            document.execCommand('copy'); document.body.removeChild(ta);
+            flash('Copied!');
+        } catch (e2) { console.error('copyCurrentList', e2); flash('Copy failed'); }
+    }
+}
+
+function downloadCurrentList() {
+    const { name, md, count } = _currentListExport();
+    if (!count) return;
+    const safe = (String(name).replace(/[^\w\-]+/g, '_').replace(/^_+|_+$/g, '')) || 'list';
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${safe}.md`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
 function buildEndorseSection(itemId) {
     const cached = endorsementsCache[itemId] || { count: 0, names: [], ids: [], userEndorsed: false };
     const bookmarkActive = cached.userEndorsed ? ' active' : '';
@@ -1372,6 +1800,10 @@ function buildEndorseSection(itemId) {
                 <button class="drawer-bookmark-btn${bookmarkActive}" data-endorse-id="${itemId}" onclick="toggleEndorsement('${itemId}', event)">
                     <svg class="bookmark-icon-lg" width="16" height="16" viewBox="0 0 24 24" fill="${fillColor}" stroke="${strokeColor}" stroke-width="2.2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
                     <span class="drawer-bookmark-label">${cached.userEndorsed ? 'Saved' : 'Save'}</span>
+                </button>
+                <button class="drawer-addlist-btn" onclick="openAddToListSheet('${itemId}')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7B2D45" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                    <span class="drawer-addlist-label">Add to list</span>
                 </button>
             </div>
         </div>
@@ -5771,6 +6203,10 @@ function openItemDrawer(item) {
         const saveBtnHtml = `<button class="drawer-bookmark-btn${_bActive}" id="drawerSaveBtn" data-endorse-id="${item.id}" onclick="toggleEndorsement('${item.id}', event)">
             <svg class="bookmark-icon-lg" width="16" height="16" viewBox="0 0 24 24" fill="${_bFill}" stroke="#7B2D45" stroke-width="2.2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
             <span class="drawer-bookmark-label">${_cached0.userEndorsed ? 'Saved' : 'Save'}</span>
+        </button>
+        <button class="drawer-addlist-btn" onclick="openAddToListSheet('${item.id}')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7B2D45" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            <span class="drawer-addlist-label">Add to list</span>
         </button>`;
 
         let footerHtml = '';
@@ -6156,17 +6592,17 @@ async function saveItemEdit(itemId) {
             newLat = '';
             newLng = '';
         } else if (!(editAddrEl && editAddrEl._addrCoordsResolved)) {
-            // Hand-typed address with no picked suggestion -> geocode once (Option B)
+            // Hand-typed address with no picked suggestion -> geocode once via Mapbox
             try {
-                const AKL_VIEWBOX = '174.55,-36.65,175.00,-37.05';
                 const res = await fetch(
-                    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(newAddress)}&format=json&addressdetails=1&limit=1&countrycodes=nz&viewbox=${AKL_VIEWBOX}&bounded=0`,
+                    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(newAddress)}&format=json&limit=1`,
                     { headers: { 'Accept-Language': 'en' } }
                 );
                 const geo = await res.json();
-                if (Array.isArray(geo) && geo.length && geo[0].lat && geo[0].lon) {
-                    newLat = geo[0].lat;
-                    newLng = geo[0].lon;
+                const f = Array.isArray(geo) && geo.length ? geo[0] : null;
+                if (f && f.lat && f.lon) {
+                    newLng = String(f.lon);
+                    newLat = String(f.lat);
                 } else {
                     // No match -> leave coords empty rather than keep a stale point
                     newLat = '';
@@ -7609,6 +8045,9 @@ var selectEntryChip = function(chip) {
     // Persist selection
     try { localStorage.setItem('odin_entry_chip', chip); } catch(e) {}
 
+    // Silent GPS bias for address autocomplete (fires once, no UI)
+    _silentGpsDetect();
+
     // Show relevant Step 1 zone for each chip
     const urlHeroBar = document.getElementById('urlHeroBar');
     const photoPickZone = document.getElementById('photoPickZone');
@@ -7900,6 +8339,22 @@ function _resetSteps() {
     if (_cpBtn) _cpBtn.classList.add('hidden');
 }
 
+// ===== SILENT GPS BIAS FOR ADDRESS SEARCH =====
+function _silentGpsDetect() {
+    const latField = document.getElementById('userLat');
+    const lngField = document.getElementById('userLng');
+    if (!latField || !lngField || latField.value) return; // already set
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            latField.value = pos.coords.latitude;
+            lngField.value = pos.coords.longitude;
+        },
+        () => { /* denied — silent, fallback handles it */ },
+        { timeout: 5000, maximumAge: 300000 }
+    );
+}
+
 // ===== CAPTURE: LOCATION PREFILL =====
 function prefillCaptureLocation() {
     const addressField = document.getElementById('address');
@@ -7945,8 +8400,13 @@ function prefillCaptureLocation() {
     }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
 }
 
+// ===== MAPBOX GEOCODING TOKEN =====
+// Public token, URL-restricted in the Mapbox dashboard to *.join-odin.com.
+// Safe to embed: domain restrictions block use elsewhere.
+const MAPBOX_TOKEN = 'pk.eyJ1Ijoic3Rhbm1hayIsImEiOiJjbXBwYjh5OGcwYzR4MnJvazJoc3JrbmN3In0.Lviv_IVwf4XEHCJKRvxs-Q';
+
 // ===== CAPTURE: ADDRESS AUTOCOMPLETE =====
-// Reusable Nominatim address autocomplete. Binds to any input + dropdown +
+// Reusable Mapbox address autocomplete. Binds to any input + dropdown +
 // hidden lat/lng quad. Used by the Add form (#address) and edit mode (#editAddress).
 function attachAddressAutocomplete(opts) {
     const inputEl = document.getElementById(opts.inputId);
@@ -8016,38 +8476,26 @@ function attachAddressAutocomplete(opts) {
             dd.classList.remove('hidden');
         }
 
-        // Auckland bounding box (fallback when no GPS)
-        // SW: -37.05, 174.55 — NE: -36.65, 175.00
-        const AKL_VIEWBOX = '174.55,-36.65,175.00,-37.05';
-
-        // Prefer user's GPS if available, else default to Auckland
+        // Nominatim (OpenStreetMap): strong POI coverage for named places
+        // (restaurants, cafés, shops). GPS, when available, biases ranking via a
+        // viewbox around the user — it does NOT restrict scope (bounded=0). So a
+        // Melbourne user finds Melbourne places, an Auckland user finds Auckland
+        // places. No country lock, no client-side sort — Nominatim ranks by
+        // importance + proximity.
         const lat = document.getElementById(latId)?.value;
         const lng = document.getElementById(lngId)?.value;
         let viewboxParam = '';
         if (lat && lng) {
-            const delta = 0.15; // ~15km radius bias around user
+            const delta = 0.15; // ~15km bias box around the user
             viewboxParam = `&viewbox=${+lng - delta},${+lat + delta},${+lng + delta},${+lat - delta}&bounded=0`;
-        } else {
-            // Default bias: Auckland viewbox, not bounded so suburb names still work
-            viewboxParam = `&viewbox=${AKL_VIEWBOX}&bounded=0`;
         }
 
         try {
             const res = await fetch(
-                `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=8&countrycodes=nz${viewboxParam}`,
+                `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=8${viewboxParam}`,
                 { headers: { 'Accept-Language': 'en' } }
             );
             const results = await res.json();
-
-            // Sort: Auckland/NZ results first, then everything else
-            results.sort((a, b) => {
-                const aIsAkl = (a.display_name || '').toLowerCase().includes('auckland');
-                const bIsAkl = (b.display_name || '').toLowerCase().includes('auckland');
-                if (aIsAkl && !bIsAkl) return -1;
-                if (!aIsAkl && bIsAkl) return 1;
-                return 0;
-            });
-
             showDropdown(results.slice(0, 5));
         } catch (e) {
             hideDropdown();
@@ -10091,6 +10539,9 @@ function dismissEmptyFriends() {
     window.selectEntryChip = function(chip) {
         _captureMode = chip;
         try { localStorage.setItem('odin_entry_chip', chip); } catch(e) {}
+
+        // Silent GPS bias for address autocomplete (fires once, no UI)
+        _silentGpsDetect();
 
         // Visual active state on the cards
         document.querySelectorAll('.entry-card').forEach(el => el.classList.remove('active'));
