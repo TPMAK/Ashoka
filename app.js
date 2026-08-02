@@ -5999,10 +5999,8 @@ function openItemDrawer(item) {
     }
     html += `</div>`;
 
-    // place_name subtitle: AI summary shown under the venue name
-    if (_dh.subtitle) {
-        html += `<div class="drawer-subtitle">${escapeHtml(_dh.subtitle)}</div>`;
-    }
+    // place_name subtitle (AI feed_card_summary under the venue name) removed —
+    // it duplicated THE WORD / What's this about below. Intentionally omitted.
 
     // Sub-line: address only (distance lives in the chips row)
     let subParts = [];
