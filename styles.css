@@ -9189,10 +9189,13 @@
 /* ── Home stat strip (between greeting and rotating subline) ── */
 .home-stats-strip {
     display: flex;
-    align-items: baseline;
-    flex-wrap: wrap;
-    gap: 8px 10px;
-    margin: 8px 0 0;
+    align-items: center;
+    background: #ffffff;
+    border-radius: 14px;
+    padding: 14px 8px;
+    margin: 14px 0 0;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    gap: 0;
 }
 
 /* Even rhythm: H1 → stats → rotating subgreeting */
@@ -9201,16 +9204,18 @@
 }
 
 .hstat {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 5px;
-    padding: 2px 4px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 4px;
     background: transparent;
     border: 0;
     cursor: pointer;
     font-family: inherit;
     color: inherit;
-    border-radius: 6px;
+    border-radius: 10px;
     transition: background 0.15s;
 }
 
@@ -9219,8 +9224,8 @@
 
 .hstat-num {
     font-family: 'Fraunces', Georgia, serif;
-    font-weight: 600;
-    font-size: 18px;
+    font-weight: 700;
+    font-size: 22px;
     line-height: 1;
     color: var(--ink, #1f1f1f);
 }
@@ -9232,27 +9237,30 @@
     letter-spacing: 0.01em;
 }
 
-/* Knowledge — hero */
+/* Knowledge — hero (stands out in brand maroon) */
 .hstat-hero .hstat-num {
-    font-size: 26px;
+    font-size: 24px;
     color: #7B2D45;
 }
 
 .hstat-hero .hstat-label {
-    font-size: 13px;
     color: #7B2D45;
-    font-weight: 500;
+    font-weight: 600;
 }
 
+/* Separators become thin vertical dividers (glyph hidden) */
 .hstat-sep {
-    color: var(--muted);
-    font-size: 14px;
-    line-height: 1;
+    width: 1px;
+    height: 32px;
+    background: #f0ece4;
+    flex-shrink: 0;
+    font-size: 0;
+    color: transparent;
     user-select: none;
 }
 
 @media (max-width: 360px) {
-    .hstat-num { font-size: 16px; }
+    .hstat-num { font-size: 20px; }
     .hstat-hero .hstat-num { font-size: 22px; }
 }
 
