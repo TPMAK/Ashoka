@@ -6134,6 +6134,7 @@ function openItemDrawer(item) {
         const PIN_SVG_SM = PIN_SVG.replace(/width="15" height="15"/, 'width="14" height="14"').replace(/stroke-width="2.2"/, 'stroke-width="2"');
         const LINK_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
         const LINK_SVG_SM = LINK_SVG.replace(/width="15" height="15"/, 'width="14" height="14"').replace(/stroke-width="2.2"/, 'stroke-width="2"');
+        const LIST_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>';
         html += '<div class="drawer-quick-actions"><div class="drawer-action-btns">';
         if (isPlace) {
             if (mapsUrl) {
@@ -6170,6 +6171,11 @@ function openItemDrawer(item) {
                 </svg> Share
             </button>`;
         }
+        // Add to list — moved up into the action row (adds to your own private lists;
+        // personal action, does not affect visibility/broadcast). Gated by item.id.
+        if (item.id) {
+            html += `<button class="drawer-btn-secondary" onclick="event.stopPropagation(); openAddToListSheet('${item.id}')" aria-label="Add to list">${LIST_SVG} Add to list</button>`;
+        }
         html += '</div></div>';
     }
 
@@ -6203,10 +6209,6 @@ function openItemDrawer(item) {
         const saveBtnHtml = `<button class="drawer-bookmark-btn${_bActive}" id="drawerSaveBtn" data-endorse-id="${item.id}" onclick="toggleEndorsement('${item.id}', event)">
             <svg class="bookmark-icon-lg" width="16" height="16" viewBox="0 0 24 24" fill="${_bFill}" stroke="#7B2D45" stroke-width="2.2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
             <span class="drawer-bookmark-label">${_cached0.userEndorsed ? 'Saved' : 'Save'}</span>
-        </button>
-        <button class="drawer-addlist-btn" onclick="openAddToListSheet('${item.id}')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7B2D45" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-            <span class="drawer-addlist-label">Add to list</span>
         </button>`;
 
         let footerHtml = '';

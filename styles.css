@@ -3598,7 +3598,7 @@
         /* ── The Word (pull-quote) ── */
         .drawer-quote {
             border-left: 3px solid var(--wb);
-            padding: 12px 16px;
+            padding: 9px 14px;
             margin-bottom: 8px;
             background: rgba(123, 45, 69, 0.04);
             border-radius: 0 10px 10px 0;
@@ -3609,12 +3609,12 @@
             color: var(--wb);
             text-transform: uppercase;
             letter-spacing: 0.6px;
-            margin-bottom: 5px;
+            margin-bottom: 3px;
         }
         .drawer-quote-text {
             color: var(--ink);
             font-size: 15px;
-            line-height: 1.6;
+            line-height: 1.45;
             font-style: italic;
         }
         .drawer-quote-locked .drawer-quote-text {
