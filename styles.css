@@ -3706,6 +3706,26 @@
         }
         .drawer-btn-secondary svg { flex-shrink: 0; }
 
+        /* When the row has 4+ buttons (e.g. Directions · Website · Share · Add to
+           list) they can't fit at full size on a phone. Compact only in that case
+           so the common 2–3 button layout keeps its larger buttons. */
+        .drawer-action-btns:has(> :nth-child(4)) {
+            gap: 5px;
+        }
+        .drawer-action-btns:has(> :nth-child(4)) .drawer-btn-primary,
+        .drawer-action-btns:has(> :nth-child(4)) .drawer-btn-secondary {
+            padding: 9px 3px;
+            font-size: 11px;
+            gap: 2px;
+            min-width: 0;
+            line-height: 1.15;
+        }
+        .drawer-action-btns:has(> :nth-child(4)) .drawer-btn-primary svg,
+        .drawer-action-btns:has(> :nth-child(4)) .drawer-btn-secondary svg {
+            width: 11px;
+            height: 11px;
+        }
+
         /* ── Social section ── */
         .drawer-social {
             border-top: 1px solid var(--border);
