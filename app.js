@@ -8163,7 +8163,12 @@ function _showClipBanner(trimmed) {
     if (useBtn) {
         useBtn.onclick = function() {
             banner.classList.add('hidden');
-            selectEntryChip('link');
+            // Open the Link enrichment zone so the URL bar + preview are visible,
+            // then fetch. (selectEntryChip is a no-op in the combined form.)
+            if (typeof window.toggleEnrich === 'function') {
+                var linkBtn = document.querySelector('.enrich-btn[data-enrich="link"]');
+                if (linkBtn && !linkBtn.classList.contains('active')) window.toggleEnrich('link');
+            }
             var urlInput = document.getElementById('url');
             if (urlInput) urlInput.value = trimmed;
             _lastOGFetchedUrl = trimmed;
@@ -8911,19 +8916,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const val = urlInput.value.trim();
         if (val && val !== _lastOGFetchedUrl && val.startsWith('http')) {
             _lastOGFetchedUrl = val;
-            selectEntryChip('link'); // highlight Link chip whenever a URL is entered
-            fetchAndPrefillOG(val);
+            fetchAndPrefillOG(val);   // selectEntryChip removed — it is a no-op now
         }
     };
 
-    urlInput.addEventListener('paste', () => {
-        // paste fires before value updates, so wait one tick
-        setTimeout(triggerOGFetch, 100);
+    // Robust trigger: `input` fires on paste, typing, autofill, and programmatic
+    // value changes alike. Debounced so we fetch once the URL looks complete,
+    // not on every keystroke. This replaces the fragile paste+setTimeout/blur combo.
+    let _ogDebounce = null;
+    urlInput.addEventListener('input', () => {
+        const val = urlInput.value.trim();
+        if (!/^https?:\/\//i.test(val)) return;   // only fetch real URLs
+        clearTimeout(_ogDebounce);
+        _ogDebounce = setTimeout(triggerOGFetch, 600);
     });
+
+    // Immediate fire on Enter or blur (no wait) for users who paste then click away.
     urlInput.addEventListener('blur', triggerOGFetch);
-    // Also trigger on Enter key in the URL field
     urlInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); triggerOGFetch(); }
+        if (e.key === 'Enter') { e.preventDefault(); clearTimeout(_ogDebounce); triggerOGFetch(); }
     });
 
     // iOS-safe auto-grow helper
