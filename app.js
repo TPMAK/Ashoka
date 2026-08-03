@@ -10567,13 +10567,17 @@ function dismissEmptyFriends() {
 
         if (kind === 'photo') {
             const zone = document.getElementById('photoPickZone');
-            const subPhoto = document.getElementById('subPhoto');
             if (isActive) {
+                // Toggling OFF: hide the picker. Do NOT touch subPhoto here —
+                // if a photo is already chosen its thumbnail must stay.
                 if (zone) zone.classList.add('hidden');
                 if (btn) btn.classList.remove('active');
             } else {
+                // Toggling ON: show ONLY the Gallery/Camera picker.
+                // subPhoto (thumbnail block) stays hidden until a photo is actually
+                // selected — the photo-change handler reveals it then. This avoids
+                // the duplicate Gallery/Camera row.
                 if (zone) zone.classList.remove('hidden');
-                if (subPhoto) subPhoto.classList.remove('step-hidden');
                 if (btn) btn.classList.add('active');
             }
         } else if (kind === 'link') {
