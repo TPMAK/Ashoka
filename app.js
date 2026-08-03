@@ -8351,6 +8351,7 @@ function _resetSteps() {
     if (_afHint) _afHint.classList.add('hidden');
     const _cpBtn = document.getElementById('clearPrefillBtn');
     if (_cpBtn) _cpBtn.classList.add('hidden');
+    if (typeof window._odinUpdateSaveGate === 'function') window._odinUpdateSaveGate();
 }
 
 // ===== SILENT GPS BIAS FOR ADDRESS SEARCH =====
@@ -10599,17 +10600,38 @@ function dismissEmptyFriends() {
         }
     };
 
+    // Live gate: Save Discovery stays disabled until Name + Note are both filled.
+    window._odinUpdateSaveGate = function() {
+        const nameEl = document.getElementById('placeName');
+        const noteEl = document.getElementById('personalNote');
+        const btn = document.getElementById('submitBtn');
+        if (!btn) return;
+        const ok = !!(nameEl && nameEl.value.trim()) && !!(noteEl && noteEl.value.trim().length >= 5);
+        btn.disabled = !ok;
+        btn.style.opacity = ok ? '' : '0.55';
+        btn.style.cursor = ok ? '' : 'not-allowed';
+    };
+    (function _wireSaveGate() {
+        const nameEl = document.getElementById('placeName');
+        const noteEl = document.getElementById('personalNote');
+        if (nameEl) nameEl.addEventListener('input', window._odinUpdateSaveGate);
+        if (noteEl) noteEl.addEventListener('input', window._odinUpdateSaveGate);
+        // Run once on load so the button starts disabled
+        setTimeout(window._odinUpdateSaveGate, 300);
+    })();
+
     // ---- Validate + inject capture_mode on submit --------------
     const _origSubmit = window.submitDiscovery;
     window.submitDiscovery = async function(e) {
         if (e && e.preventDefault) e.preventDefault();
         if (!currentUser) { alert('Please login first'); return; }
 
-        // Resolve mode (fall back to localStorage / 'type')
-        if (!_captureMode) {
-            try { _captureMode = localStorage.getItem('odin_entry_chip') || 'type'; } catch(_) { _captureMode = 'type'; }
-        }
-        let mode = _captureMode;
+        // Derive capture_mode from what's actually attached (no chips anymore).
+        // Priority: photo beats link beats plain type. User photo is source of truth.
+        const _hasPhotos = Array.isArray(_selectedPhotos) && _selectedPhotos.length > 0;
+        const _urlValRaw = (document.getElementById('url')?.value || '').trim();
+        let mode = _hasPhotos ? 'photo' : (_urlValRaw ? 'link' : 'type');
+        _captureMode = mode;
 
         // Note: required, min 10 chars
         const noteEl = document.getElementById('personalNote');
@@ -10634,6 +10656,25 @@ function dismissEmptyFriends() {
         }
         const formMsg = document.getElementById('formMessage');
         if (formMsg) formMsg.innerHTML = '';
+
+        // Name is required in the combined form.
+        const nameEl = document.getElementById('placeName');
+        const nameVal = (nameEl?.value || '').trim();
+        if (!nameVal) {
+            if (nameEl) {
+                nameEl.focus();
+                nameEl.style.borderColor = '#7B2D45';
+                nameEl.style.boxShadow = '0 0 0 2px rgba(123,45,69,0.15)';
+                nameEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            if (typeof showToast === 'function') {
+                showToast('Give it a name so your circle can recognise it.', 4000);
+            }
+            setTimeout(() => {
+                if (nameEl) { nameEl.style.borderColor = ''; nameEl.style.boxShadow = ''; }
+            }, 2500);
+            return;
+        }
 
         // "I'm here" with no address + no manual entry -> soft-fallback to 'type' mode
         const addrVal = (document.getElementById('address')?.value || '').trim();

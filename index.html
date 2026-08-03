@@ -2530,27 +2530,6 @@
                 <!-- ══════════════════════════════════════════ -->
                 <div id="wStep1" class="wizard-step">
 
-                    <!-- Optional enrichment toggles (replaces the old 4-chip mode picker) -->
-                    <div class="enrich-row-wrap">
-                        <div class="enrich-divider">
-                            <span>Add anything else — optional</span>
-                        </div>
-                        <div class="enrich-row" id="enrichRow">
-                            <button type="button" class="enrich-btn" data-enrich="photo" onclick="toggleEnrich('photo')">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                                Photo
-                            </button>
-                            <button type="button" class="enrich-btn" data-enrich="link" onclick="toggleEnrich('link')">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                                Link
-                            </button>
-                            <button type="button" class="enrich-btn" data-enrich="location" onclick="toggleEnrich('location')">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                                Location
-                            </button>
-                        </div>
-                    </div>
-
                     <!-- Hidden file inputs for photo upload (shared across all chips) -->
                     <!-- multiple: allows up to MAX_PHOTOS (3) per item -->
                     <input type="file" id="photoGallery" accept="image/*" multiple style="display:none">
@@ -2657,7 +2636,7 @@
                     <!-- Sub-step 2b-name: Name (Photo / I'm here / Link modes) -->
                     <div class="sub-step" id="subPlaceName">
                         <div class="form-group">
-                            <label class="field-label-inline">NAME <span class="field-label-optional">— optional, helps friends recognise it</span></label>
+                            <label class="field-label-inline">NAME <span class="field-label-optional">— required</span></label>
                             <input type="text" id="placeName" class="edit-input" placeholder="e.g. Onslow, Sony WH-1000XM5, Coursera Python course" autocomplete="off">
                         </div>
                     </div>
@@ -2669,6 +2648,27 @@
                             <p class="take-sublabel">This is the part your circle actually needs.</p>
                             <textarea id="personalNote" class="your-take-textarea" placeholder="Best tonkotsu in town — ask for the spicy option, go after 7pm"></textarea>
                             <input type="hidden" id="description">
+                        </div>
+                    </div>
+
+                    <!-- Optional enrichment toggles (replaces the old 4-chip mode picker) -->
+                    <div class="enrich-row-wrap">
+                        <div class="enrich-divider">
+                            <span>Add anything else — optional</span>
+                        </div>
+                        <div class="enrich-row" id="enrichRow">
+                            <button type="button" class="enrich-btn" data-enrich="photo" onclick="toggleEnrich('photo')">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                                Photo
+                            </button>
+                            <button type="button" class="enrich-btn" data-enrich="link" onclick="toggleEnrich('link')">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                                Link
+                            </button>
+                            <button type="button" class="enrich-btn" data-enrich="location" onclick="toggleEnrich('location')">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                                Location
+                            </button>
                         </div>
                     </div>
 
