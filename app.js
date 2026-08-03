@@ -4133,6 +4133,9 @@ function setMode(mode) {
         loadSavedPage();
     } else if (mode === 'input') {
         document.getElementById('inputMode').classList.remove('hidden');
+        // Combined form: reveal the form immediately (no chip step)
+        const _wStep2 = document.getElementById('wStep2');
+        if (_wStep2) { _wStep2.classList.remove('step-hidden'); _wStep2.classList.add('step-reveal'); }
         document.getElementById('inputArea').classList.add('hidden');
         // Step bar removed — Add page is now uncluttered like Discover.
         // Bar element kept in DOM (stays hidden via the .hidden class on #addStepSticky).
@@ -8160,7 +8163,12 @@ function _showClipBanner(trimmed) {
     if (useBtn) {
         useBtn.onclick = function() {
             banner.classList.add('hidden');
-            selectEntryChip('link');
+            // Open the Link enrichment zone so the URL bar + preview are visible,
+            // then fetch. (selectEntryChip is a no-op in the combined form.)
+            if (typeof window.toggleEnrich === 'function') {
+                var linkBtn = document.querySelector('.enrich-btn[data-enrich="link"]');
+                if (linkBtn && !linkBtn.classList.contains('active')) window.toggleEnrich('link');
+            }
             var urlInput = document.getElementById('url');
             if (urlInput) urlInput.value = trimmed;
             _lastOGFetchedUrl = trimmed;
@@ -8312,31 +8320,44 @@ function _revealStep(id) {
 }
 
 function _resetSteps() {
-    // Reset wizard step 2 back to hidden; step 1 (How) always stays visible
-    ['wStep2'].forEach(id => {
+    // Combined form: the form is always visible. "Reset" clears values and
+    // collapses optional enrichment — it does NOT re-hide the core fields.
+
+    // wStep2 wrapper stays visible
+    const _w2 = document.getElementById('wStep2');
+    if (_w2) { _w2.classList.remove('step-hidden'); _w2.classList.add('step-reveal'); }
+
+    // Core fields always visible
+    ['subPlaceName', 'subNote', 'subPrivacy'].forEach(id => {
         const el = document.getElementById(id);
-        if (el) {
-            el.classList.add('step-hidden');
-            el.classList.remove('step-reveal');
-        }
+        if (el) { el.classList.remove('step-hidden'); el.classList.add('step-reveal'); }
     });
-    // Reset all sub-steps within step 2
-    ['subCategory', 'subNote', 'subAddress', 'subPhoto', 'subPrivacy'].forEach(id => {
+
+    // Retired / toggle-controlled stay hidden until their control opens them
+    // (subPhoto: revealed by the Photo toggle or once a photo actually loads)
+    ['subCategory', 'subAddress', 'subPhoto'].forEach(id => {
         const el = document.getElementById(id);
-        if (el) {
-            el.classList.add('step-hidden');
-            el.classList.remove('step-reveal');
-        }
+        if (el) { el.classList.add('step-hidden'); el.classList.remove('step-reveal'); }
     });
-    // Reset sub-step progression flags
+
+    // Collapse optional enrichment zones + clear their active state
+    const urlHeroBar = document.getElementById('urlHeroBar');
+    if (urlHeroBar) urlHeroBar.classList.add('hidden');
+    const photoPickZone = document.getElementById('photoPickZone');
+    if (photoPickZone) photoPickZone.classList.add('hidden');
+    document.querySelectorAll('.enrich-btn').forEach(b => b.classList.remove('active'));
+
+    // Reset legacy progression flags (harmless — kept for Brief 3 cleanup)
     _categoryRevealed = false;
     _noteRevealed = false;
     _privacyRevealed = false;
+
     // Reset autofill hint and clear button (leftover from link flow)
     const _afHint = document.getElementById('titleAutofillHint');
     if (_afHint) _afHint.classList.add('hidden');
     const _cpBtn = document.getElementById('clearPrefillBtn');
     if (_cpBtn) _cpBtn.classList.add('hidden');
+    if (typeof window._odinUpdateSaveGate === 'function') window._odinUpdateSaveGate();
 }
 
 // ===== SILENT GPS BIAS FOR ADDRESS SEARCH =====
@@ -8895,19 +8916,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const val = urlInput.value.trim();
         if (val && val !== _lastOGFetchedUrl && val.startsWith('http')) {
             _lastOGFetchedUrl = val;
-            selectEntryChip('link'); // highlight Link chip whenever a URL is entered
-            fetchAndPrefillOG(val);
+            fetchAndPrefillOG(val);   // selectEntryChip removed — it is a no-op now
         }
     };
 
-    urlInput.addEventListener('paste', () => {
-        // paste fires before value updates, so wait one tick
-        setTimeout(triggerOGFetch, 100);
+    // Robust trigger: `input` fires on paste, typing, autofill, and programmatic
+    // value changes alike. Debounced so we fetch once the URL looks complete,
+    // not on every keystroke. This replaces the fragile paste+setTimeout/blur combo.
+    let _ogDebounce = null;
+    urlInput.addEventListener('input', () => {
+        const val = urlInput.value.trim();
+        if (!/^https?:\/\//i.test(val)) return;   // only fetch real URLs
+        clearTimeout(_ogDebounce);
+        _ogDebounce = setTimeout(triggerOGFetch, 600);
     });
+
+    // Immediate fire on Enter or blur (no wait) for users who paste then click away.
     urlInput.addEventListener('blur', triggerOGFetch);
-    // Also trigger on Enter key in the URL field
     urlInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); triggerOGFetch(); }
+        if (e.key === 'Enter') { e.preventDefault(); clearTimeout(_ogDebounce); triggerOGFetch(); }
     });
 
     // iOS-safe auto-grow helper
@@ -10536,97 +10563,78 @@ function dismissEmptyFriends() {
 
     // ---- Override the entry-chip selection ---------------------
     const _origSelectEntryChip = window.selectEntryChip;
-    window.selectEntryChip = function(chip) {
-        _captureMode = chip;
-        try { localStorage.setItem('odin_entry_chip', chip); } catch(e) {}
 
-        // Silent GPS bias for address autocomplete (fires once, no UI)
-        _silentGpsDetect();
+    // Combined form: entry chips are gone. selectEntryChip is now a no-op shim
+    // so any legacy caller doesn't throw. Fields are always visible; enrichment
+    // is handled by toggleEnrich() below.
+    window.selectEntryChip = function(_chip) { /* no-op — combined form */ };
 
-        // Visual active state on the cards
-        document.querySelectorAll('.entry-card').forEach(el => el.classList.remove('active'));
-        const activeChip = document.querySelector(`.entry-card[data-chip="${chip}"]`);
-        if (activeChip) activeChip.classList.add('active');
+    // Optional enrichment toggles: Photo / Link / Location.
+    // Each button shows or hides its zone. capture_mode is DERIVED at submit
+    // time (Brief 2), not set here.
+    window.toggleEnrich = function(kind) {
+        const btn = document.querySelector('.enrich-btn[data-enrich="' + kind + '"]');
+        const isActive = btn && btn.classList.contains('active');
 
-        // Show/hide step 1 zones (URL bar / photo picker) — same as before
-        const urlHeroBar = document.getElementById('urlHeroBar');
-        const photoPickZone = document.getElementById('photoPickZone');
-        if (chip === 'link') {
-            if (urlHeroBar) urlHeroBar.classList.remove('hidden');
-            if (photoPickZone) photoPickZone.classList.add('hidden');
-            const urlInput = document.getElementById('url');
-            if (urlInput) setTimeout(() => urlInput.focus(), 50);
-        } else if (chip === 'photo') {
-            if (urlHeroBar) urlHeroBar.classList.add('hidden');
-            if (photoPickZone) photoPickZone.classList.remove('hidden');
-        } else {
-            if (urlHeroBar) urlHeroBar.classList.add('hidden');
-            if (photoPickZone) photoPickZone.classList.add('hidden');
-        }
-
-        // Reveal wStep2 + skip title/category — go straight to Note
-        const wStep2 = document.getElementById('wStep2');
-        if (wStep2) {
-            wStep2.classList.remove('step-hidden');
-            wStep2.classList.add('step-reveal');
-        }
-        // Name field — Photo, I'm here, AND Link modes. Link uses OG title as a prefill seed.
-        const subPlaceName = document.getElementById('subPlaceName');
-        if (subPlaceName) {
-            if (chip === 'photo' || chip === 'here' || chip === 'link') {
-                subPlaceName.classList.remove('step-hidden');
-                subPlaceName.classList.add('step-reveal');
+        if (kind === 'photo') {
+            const zone = document.getElementById('photoPickZone');
+            if (isActive) {
+                // Toggling OFF: hide the picker. Do NOT touch subPhoto here —
+                // if a photo is already chosen its thumbnail must stay.
+                if (zone) zone.classList.add('hidden');
+                if (btn) btn.classList.remove('active');
             } else {
-                subPlaceName.classList.add('step-hidden');
-                subPlaceName.classList.remove('step-reveal');
-                const pn = document.getElementById('placeName');
-                if (pn) pn.value = '';
+                // Toggling ON: show ONLY the Gallery/Camera picker.
+                // subPhoto (thumbnail block) stays hidden until a photo is actually
+                // selected — the photo-change handler reveals it then. This avoids
+                // the duplicate Gallery/Camera row.
+                if (zone) zone.classList.remove('hidden');
+                if (btn) btn.classList.add('active');
+            }
+        } else if (kind === 'link') {
+            const bar = document.getElementById('urlHeroBar');
+            if (isActive) {
+                if (bar) bar.classList.add('hidden');
+                if (btn) btn.classList.remove('active');
+            } else {
+                if (bar) bar.classList.remove('hidden');
+                if (btn) btn.classList.add('active');
+                const urlInput = document.getElementById('url');
+                if (urlInput) setTimeout(() => urlInput.focus(), 50);
+            }
+        } else if (kind === 'location') {
+            const subAddress = document.getElementById('subAddress');
+            if (isActive) {
+                if (subAddress) subAddress.classList.add('step-hidden');
+                if (btn) btn.classList.remove('active');
+            } else {
+                if (subAddress) subAddress.classList.remove('step-hidden');
+                if (btn) btn.classList.add('active');
+                const addr = document.getElementById('address');
+                if (addr) setTimeout(() => addr.focus(), 50);
             }
         }
-
-        const subNote = document.getElementById('subNote');
-        if (subNote) {
-            subNote.classList.remove('step-hidden');
-            subNote.classList.add('step-reveal');
-        }
-        const subPrivacy = document.getElementById('subPrivacy');
-        if (subPrivacy) {
-            subPrivacy.classList.remove('step-hidden');
-            subPrivacy.classList.add('step-reveal');
-        }
-        const subPhoto = document.getElementById('subPhoto');
-        // Photo mode already has its picker (photoPickZone) above — keep subPhoto
-        // hidden so we don't duplicate Gallery/Camera buttons. _handlePhotoChange
-        // will reveal subPhoto once a photo is selected, showing only the preview.
-        // Link mode: photo is OG-driven, no manual photo UI here.
-        if (subPhoto && chip !== 'link' && chip !== 'photo') {
-            subPhoto.classList.remove('step-hidden');
-            subPhoto.classList.add('step-reveal');
-        }
-
-        // Default privacy = Only me (re-assert in case user toggled before)
-        const privInput = document.getElementById('privateToggle');
-        const visField = document.getElementById('visibilityValue');
-        if (privInput) privInput.value = 'true';
-        if (visField) visField.value = 'private';
-        document.querySelectorAll('.vis-option').forEach(el => el.classList.remove('active'));
-        const privPill = document.querySelector('.vis-option[data-value="private"]');
-        if (privPill) privPill.classList.add('active');
-
-        // Apply mode-specific address UI
-        _applyModeAddressUI(chip);
-
-        // Focus the note for fast typing (except photo/link where user has another action first)
-        if (chip === 'here' || chip === 'type') {
-            setTimeout(() => {
-                const note = document.getElementById('personalNote');
-                if (note) note.focus();
-            }, 200);
-        }
-
-        // Update step indicator
-        if (typeof updateAddStep === 'function') updateAddStep(2);
     };
+
+    // Live gate: Save Discovery stays disabled until Name + Note are both filled.
+    window._odinUpdateSaveGate = function() {
+        const nameEl = document.getElementById('placeName');
+        const noteEl = document.getElementById('personalNote');
+        const btn = document.getElementById('submitBtn');
+        if (!btn) return;
+        const ok = !!(nameEl && nameEl.value.trim()) && !!(noteEl && noteEl.value.trim().length >= 5);
+        btn.disabled = !ok;
+        btn.style.opacity = ok ? '' : '0.55';
+        btn.style.cursor = ok ? '' : 'not-allowed';
+    };
+    (function _wireSaveGate() {
+        const nameEl = document.getElementById('placeName');
+        const noteEl = document.getElementById('personalNote');
+        if (nameEl) nameEl.addEventListener('input', window._odinUpdateSaveGate);
+        if (noteEl) noteEl.addEventListener('input', window._odinUpdateSaveGate);
+        // Run once on load so the button starts disabled
+        setTimeout(window._odinUpdateSaveGate, 300);
+    })();
 
     // ---- Validate + inject capture_mode on submit --------------
     const _origSubmit = window.submitDiscovery;
@@ -10634,11 +10642,12 @@ function dismissEmptyFriends() {
         if (e && e.preventDefault) e.preventDefault();
         if (!currentUser) { alert('Please login first'); return; }
 
-        // Resolve mode (fall back to localStorage / 'type')
-        if (!_captureMode) {
-            try { _captureMode = localStorage.getItem('odin_entry_chip') || 'type'; } catch(_) { _captureMode = 'type'; }
-        }
-        let mode = _captureMode;
+        // Derive capture_mode from what's actually attached (no chips anymore).
+        // Priority: photo beats link beats plain type. User photo is source of truth.
+        const _hasPhotos = Array.isArray(_selectedPhotos) && _selectedPhotos.length > 0;
+        const _urlValRaw = (document.getElementById('url')?.value || '').trim();
+        let mode = _hasPhotos ? 'photo' : (_urlValRaw ? 'link' : 'type');
+        _captureMode = mode;
 
         // Note: required, min 10 chars
         const noteEl = document.getElementById('personalNote');
@@ -10663,6 +10672,25 @@ function dismissEmptyFriends() {
         }
         const formMsg = document.getElementById('formMessage');
         if (formMsg) formMsg.innerHTML = '';
+
+        // Name is required in the combined form.
+        const nameEl = document.getElementById('placeName');
+        const nameVal = (nameEl?.value || '').trim();
+        if (!nameVal) {
+            if (nameEl) {
+                nameEl.focus();
+                nameEl.style.borderColor = '#7B2D45';
+                nameEl.style.boxShadow = '0 0 0 2px rgba(123,45,69,0.15)';
+                nameEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            if (typeof showToast === 'function') {
+                showToast('Give it a name so your circle can recognise it.', 4000);
+            }
+            setTimeout(() => {
+                if (nameEl) { nameEl.style.borderColor = ''; nameEl.style.boxShadow = ''; }
+            }, 2500);
+            return;
+        }
 
         // "I'm here" with no address + no manual entry -> soft-fallback to 'type' mode
         const addrVal = (document.getElementById('address')?.value || '').trim();
