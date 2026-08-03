@@ -8645,12 +8645,23 @@ async function fetchAndPrefillOG(url) {
                 og.image = data.thumbnail_url || '';
             }
         } else {
-            // Everything else — route through n8n
-            const res = await fetch(OG_FETCH_WEBHOOK, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url })
-            });
+            // Everything else — route through n8n.
+            // Timeout guard: on flaky mobile networks fetch() can hang forever with
+            // no error, leaving the shimmer spinning. Abort after 10s so we fall
+            // through to catch and give the user feedback instead of a dead-end.
+            const _ogCtrl = new AbortController();
+            const _ogTimeout = setTimeout(() => _ogCtrl.abort(), 10000);
+            let res;
+            try {
+                res = await fetch(OG_FETCH_WEBHOOK, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url }),
+                    signal: _ogCtrl.signal
+                });
+            } finally {
+                clearTimeout(_ogTimeout);
+            }
             if (res.ok) og = await res.json();
         }
 
@@ -8847,6 +8858,11 @@ async function fetchAndPrefillOG(url) {
     } catch (e) {
         if (ogLoading) ogLoading.classList.add('hidden');
         if (heroHint) heroHint.style.display = 'flex';
+        // The fetch failed or timed out (common on mobile networks / CORS). Don't
+        // leave the user staring at a stalled shimmer — tell them it's fine to
+        // continue manually. Separate message from the empty-preview toast so the
+        // cause is clear.
+        showToast("Couldn't load a preview — just add a name and your note below.", 5000);
         // On error still reveal Step 2 so user can continue manually
         _revealWizardStep('wStep2');
         updateAddStep(2);
