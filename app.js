@@ -4133,6 +4133,9 @@ function setMode(mode) {
         loadSavedPage();
     } else if (mode === 'input') {
         document.getElementById('inputMode').classList.remove('hidden');
+        // Combined form: reveal the form immediately (no chip step)
+        const _wStep2 = document.getElementById('wStep2');
+        if (_wStep2) { _wStep2.classList.remove('step-hidden'); _wStep2.classList.add('step-reveal'); }
         document.getElementById('inputArea').classList.add('hidden');
         // Step bar removed — Add page is now uncluttered like Discover.
         // Bar element kept in DOM (stays hidden via the .hidden class on #addStepSticky).
@@ -10536,96 +10539,53 @@ function dismissEmptyFriends() {
 
     // ---- Override the entry-chip selection ---------------------
     const _origSelectEntryChip = window.selectEntryChip;
-    window.selectEntryChip = function(chip) {
-        _captureMode = chip;
-        try { localStorage.setItem('odin_entry_chip', chip); } catch(e) {}
 
-        // Silent GPS bias for address autocomplete (fires once, no UI)
-        _silentGpsDetect();
+    // Combined form: entry chips are gone. selectEntryChip is now a no-op shim
+    // so any legacy caller doesn't throw. Fields are always visible; enrichment
+    // is handled by toggleEnrich() below.
+    window.selectEntryChip = function(_chip) { /* no-op — combined form */ };
 
-        // Visual active state on the cards
-        document.querySelectorAll('.entry-card').forEach(el => el.classList.remove('active'));
-        const activeChip = document.querySelector(`.entry-card[data-chip="${chip}"]`);
-        if (activeChip) activeChip.classList.add('active');
+    // Optional enrichment toggles: Photo / Link / Location.
+    // Each button shows or hides its zone. capture_mode is DERIVED at submit
+    // time (Brief 2), not set here.
+    window.toggleEnrich = function(kind) {
+        const btn = document.querySelector('.enrich-btn[data-enrich="' + kind + '"]');
+        const isActive = btn && btn.classList.contains('active');
 
-        // Show/hide step 1 zones (URL bar / photo picker) — same as before
-        const urlHeroBar = document.getElementById('urlHeroBar');
-        const photoPickZone = document.getElementById('photoPickZone');
-        if (chip === 'link') {
-            if (urlHeroBar) urlHeroBar.classList.remove('hidden');
-            if (photoPickZone) photoPickZone.classList.add('hidden');
-            const urlInput = document.getElementById('url');
-            if (urlInput) setTimeout(() => urlInput.focus(), 50);
-        } else if (chip === 'photo') {
-            if (urlHeroBar) urlHeroBar.classList.add('hidden');
-            if (photoPickZone) photoPickZone.classList.remove('hidden');
-        } else {
-            if (urlHeroBar) urlHeroBar.classList.add('hidden');
-            if (photoPickZone) photoPickZone.classList.add('hidden');
-        }
-
-        // Reveal wStep2 + skip title/category — go straight to Note
-        const wStep2 = document.getElementById('wStep2');
-        if (wStep2) {
-            wStep2.classList.remove('step-hidden');
-            wStep2.classList.add('step-reveal');
-        }
-        // Name field — Photo, I'm here, AND Link modes. Link uses OG title as a prefill seed.
-        const subPlaceName = document.getElementById('subPlaceName');
-        if (subPlaceName) {
-            if (chip === 'photo' || chip === 'here' || chip === 'link') {
-                subPlaceName.classList.remove('step-hidden');
-                subPlaceName.classList.add('step-reveal');
+        if (kind === 'photo') {
+            const zone = document.getElementById('photoPickZone');
+            const subPhoto = document.getElementById('subPhoto');
+            if (isActive) {
+                if (zone) zone.classList.add('hidden');
+                if (btn) btn.classList.remove('active');
             } else {
-                subPlaceName.classList.add('step-hidden');
-                subPlaceName.classList.remove('step-reveal');
-                const pn = document.getElementById('placeName');
-                if (pn) pn.value = '';
+                if (zone) zone.classList.remove('hidden');
+                if (subPhoto) subPhoto.classList.remove('step-hidden');
+                if (btn) btn.classList.add('active');
+            }
+        } else if (kind === 'link') {
+            const bar = document.getElementById('urlHeroBar');
+            if (isActive) {
+                if (bar) bar.classList.add('hidden');
+                if (btn) btn.classList.remove('active');
+            } else {
+                if (bar) bar.classList.remove('hidden');
+                if (btn) btn.classList.add('active');
+                const urlInput = document.getElementById('url');
+                if (urlInput) setTimeout(() => urlInput.focus(), 50);
+            }
+        } else if (kind === 'location') {
+            const subAddress = document.getElementById('subAddress');
+            if (isActive) {
+                if (subAddress) subAddress.classList.add('step-hidden');
+                if (btn) btn.classList.remove('active');
+            } else {
+                if (subAddress) subAddress.classList.remove('step-hidden');
+                if (btn) btn.classList.add('active');
+                const addr = document.getElementById('address');
+                if (addr) setTimeout(() => addr.focus(), 50);
             }
         }
-
-        const subNote = document.getElementById('subNote');
-        if (subNote) {
-            subNote.classList.remove('step-hidden');
-            subNote.classList.add('step-reveal');
-        }
-        const subPrivacy = document.getElementById('subPrivacy');
-        if (subPrivacy) {
-            subPrivacy.classList.remove('step-hidden');
-            subPrivacy.classList.add('step-reveal');
-        }
-        const subPhoto = document.getElementById('subPhoto');
-        // Photo mode already has its picker (photoPickZone) above — keep subPhoto
-        // hidden so we don't duplicate Gallery/Camera buttons. _handlePhotoChange
-        // will reveal subPhoto once a photo is selected, showing only the preview.
-        // Link mode: photo is OG-driven, no manual photo UI here.
-        if (subPhoto && chip !== 'link' && chip !== 'photo') {
-            subPhoto.classList.remove('step-hidden');
-            subPhoto.classList.add('step-reveal');
-        }
-
-        // Default privacy = Only me (re-assert in case user toggled before)
-        const privInput = document.getElementById('privateToggle');
-        const visField = document.getElementById('visibilityValue');
-        if (privInput) privInput.value = 'true';
-        if (visField) visField.value = 'private';
-        document.querySelectorAll('.vis-option').forEach(el => el.classList.remove('active'));
-        const privPill = document.querySelector('.vis-option[data-value="private"]');
-        if (privPill) privPill.classList.add('active');
-
-        // Apply mode-specific address UI
-        _applyModeAddressUI(chip);
-
-        // Focus the note for fast typing (except photo/link where user has another action first)
-        if (chip === 'here' || chip === 'type') {
-            setTimeout(() => {
-                const note = document.getElementById('personalNote');
-                if (note) note.focus();
-            }, 200);
-        }
-
-        // Update step indicator
-        if (typeof updateAddStep === 'function') updateAddStep(2);
     };
 
     // ---- Validate + inject capture_mode on submit --------------

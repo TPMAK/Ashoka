@@ -1247,6 +1247,21 @@
         }
         .drawer-addlist-btn:hover { background: #F5F0E8; }
         .drawer-addlist-label { line-height: 1; }
+
+        /* --- Combined Add form: enrichment toggles --- */
+        .enrich-row-wrap { margin: 18px 0 4px; }
+        .enrich-divider { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+        .enrich-divider::before, .enrich-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+        .enrich-divider span { font-size: 11px; color: var(--muted); letter-spacing: .03em; white-space: nowrap; }
+        .enrich-row { display: flex; gap: 8px; }
+        .enrich-btn {
+            flex: 1; height: 44px; border: 1px solid var(--border); border-radius: 8px;
+            background: var(--lp-surface); color: var(--ink); font-size: 13px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+            font-family: inherit; transition: background .15s, border-color .15s, color .15s;
+        }
+        .enrich-btn:hover { border-color: var(--mason); }
+        .enrich-btn.active { background: #F5ECEF; border-color: var(--wb); color: var(--wb); }
     </style>
 </head>
 <body class="odin-newcapture">
@@ -2515,33 +2530,23 @@
                 <!-- ══════════════════════════════════════════ -->
                 <div id="wStep1" class="wizard-step">
 
-                    <!-- Entry chips -->
-                    <div class="entry-cards-wrap">
-                        <div class="entry-cards-label">How do you want to add it?</div>
-                        <div class="entry-cards" id="entryChips">
-                            <button type="button" class="entry-card" data-chip="photo" onclick="selectEntryChip('photo')">
-                                <div class="entry-card-icon entry-card-icon--photo">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                                </div>
-                                <span class="entry-card-label">Photo</span>
+                    <!-- Optional enrichment toggles (replaces the old 4-chip mode picker) -->
+                    <div class="enrich-row-wrap">
+                        <div class="enrich-divider">
+                            <span>Add anything else — optional</span>
+                        </div>
+                        <div class="enrich-row" id="enrichRow">
+                            <button type="button" class="enrich-btn" data-enrich="photo" onclick="toggleEnrich('photo')">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                                Photo
                             </button>
-                            <button type="button" class="entry-card" data-chip="link" onclick="selectEntryChip('link')">
-                                <div class="entry-card-icon entry-card-icon--link">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                                </div>
-                                <span class="entry-card-label">Link</span>
+                            <button type="button" class="enrich-btn" data-enrich="link" onclick="toggleEnrich('link')">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                                Link
                             </button>
-                            <button type="button" class="entry-card" data-chip="here" onclick="selectEntryChip('here')">
-                                <div class="entry-card-icon entry-card-icon--here">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                                </div>
-                                <span class="entry-card-label">I'm here</span>
-                            </button>
-                            <button type="button" class="entry-card" data-chip="type" onclick="selectEntryChip('type')">
-                                <div class="entry-card-icon entry-card-icon--type">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                </div>
-                                <span class="entry-card-label">Type it</span>
+                            <button type="button" class="enrich-btn" data-enrich="location" onclick="toggleEnrich('location')">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                                Location
                             </button>
                         </div>
                     </div>
@@ -2650,7 +2655,7 @@
                     </div>
 
                     <!-- Sub-step 2b-name: Name (Photo / I'm here / Link modes) -->
-                    <div class="sub-step step-hidden" id="subPlaceName">
+                    <div class="sub-step" id="subPlaceName">
                         <div class="form-group">
                             <label class="field-label-inline">NAME <span class="field-label-optional">— optional, helps friends recognise it</span></label>
                             <input type="text" id="placeName" class="edit-input" placeholder="e.g. Onslow, Sony WH-1000XM5, Coursera Python course" autocomplete="off">
@@ -2658,7 +2663,7 @@
                     </div>
 
                     <!-- Sub-step 2c: Your Note (reveals after category selection) -->
-                    <div class="sub-step step-hidden" id="subNote">
+                    <div class="sub-step" id="subNote">
                         <div class="form-group form-group-take">
                             <label class="field-label-inline">YOUR NOTE</label>
                             <p class="take-sublabel">This is the part your circle actually needs.</p>
@@ -2691,7 +2696,7 @@
                     <input type="hidden" id="ogImageUrl" value="">
 
                     <!-- Sub-step 2e: Photo (optional, all chip types) -->
-                    <div class="sub-step step-hidden" id="subPhoto">
+                    <div class="sub-step" id="subPhoto">
                         <div class="form-group" style="margin-bottom: 4px;">
                             <!-- No photo state: label wrappers = reliable cross-platform file picker trigger -->
                             <div id="subPhotoEmpty" class="sub-photo-empty-row">
@@ -2727,7 +2732,7 @@
                     </div>
 
                     <!-- Sub-step 2f: Privacy + Save (reveals after note) -->
-                    <div class="sub-step step-hidden" id="subPrivacy">
+                    <div class="sub-step" id="subPrivacy">
                         <input type="hidden" id="addedBy" value="">
                         <div class="form-group visibility-group" style="margin-top: 4px;">
                             <label class="field-label-inline">Who can see this</label>
