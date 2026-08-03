@@ -8654,6 +8654,20 @@ async function fetchAndPrefillOG(url) {
             if (res.ok) og = await res.json();
         }
 
+        // Social platforms (Instagram/Facebook) serve generic login-wall metadata
+        // to unauthenticated fetches — e.g. title "Instagram" + "Welcome back to
+        // Instagram…" + a placeholder logo. That's not a real preview, so treat it
+        // as empty rather than mislabelling the item.
+        const _ogTitle = (og && og.title ? String(og.title) : '').trim();
+        const _ogDesc  = (og && og.description ? String(og.description) : '').trim();
+        const _isLoginWallJunk =
+            /^(instagram|facebook|log in|login)$/i.test(_ogTitle) ||
+            /^welcome back to instagram/i.test(_ogDesc) ||
+            /log in to (instagram|facebook)/i.test(_ogDesc);
+        if (_isLoginWallJunk) {
+            og = {};
+        }
+
         // Fill form fields if empty
         const didFillTitle = !!(og.title && titleField && !titleField.value.trim());
         if (didFillTitle) {
@@ -8736,6 +8750,13 @@ async function fetchAndPrefillOG(url) {
                     if (addressGroup) addressGroup.style.display = 'none';
                 }
             }
+        }
+
+        // If the link returned no usable preview (empty, or neutralised junk),
+        // reassure the user: the app works — this link just had nothing to preview.
+        const _ogHasSomething = !!(og && (og.title || og.image || og.address));
+        if (!_ogHasSomething) {
+            showToast('No preview for this link — just add a name and your note below.', 5000);
         }
 
         // Preload OG image into the photo section (if no user photo already)
