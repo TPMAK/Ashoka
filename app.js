@@ -8323,13 +8323,14 @@ function _resetSteps() {
     if (_w2) { _w2.classList.remove('step-hidden'); _w2.classList.add('step-reveal'); }
 
     // Core fields always visible
-    ['subPlaceName', 'subNote', 'subPhoto', 'subPrivacy'].forEach(id => {
+    ['subPlaceName', 'subNote', 'subPrivacy'].forEach(id => {
         const el = document.getElementById(id);
         if (el) { el.classList.remove('step-hidden'); el.classList.add('step-reveal'); }
     });
 
     // Retired / toggle-controlled stay hidden until their control opens them
-    ['subCategory', 'subAddress'].forEach(id => {
+    // (subPhoto: revealed by the Photo toggle or once a photo actually loads)
+    ['subCategory', 'subAddress', 'subPhoto'].forEach(id => {
         const el = document.getElementById(id);
         if (el) { el.classList.add('step-hidden'); el.classList.remove('step-reveal'); }
     });
