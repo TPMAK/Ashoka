@@ -8315,26 +8315,37 @@ function _revealStep(id) {
 }
 
 function _resetSteps() {
-    // Reset wizard step 2 back to hidden; step 1 (How) always stays visible
-    ['wStep2'].forEach(id => {
+    // Combined form: the form is always visible. "Reset" clears values and
+    // collapses optional enrichment — it does NOT re-hide the core fields.
+
+    // wStep2 wrapper stays visible
+    const _w2 = document.getElementById('wStep2');
+    if (_w2) { _w2.classList.remove('step-hidden'); _w2.classList.add('step-reveal'); }
+
+    // Core fields always visible
+    ['subPlaceName', 'subNote', 'subPhoto', 'subPrivacy'].forEach(id => {
         const el = document.getElementById(id);
-        if (el) {
-            el.classList.add('step-hidden');
-            el.classList.remove('step-reveal');
-        }
+        if (el) { el.classList.remove('step-hidden'); el.classList.add('step-reveal'); }
     });
-    // Reset all sub-steps within step 2
-    ['subCategory', 'subNote', 'subAddress', 'subPhoto', 'subPrivacy'].forEach(id => {
+
+    // Retired / toggle-controlled stay hidden until their control opens them
+    ['subCategory', 'subAddress'].forEach(id => {
         const el = document.getElementById(id);
-        if (el) {
-            el.classList.add('step-hidden');
-            el.classList.remove('step-reveal');
-        }
+        if (el) { el.classList.add('step-hidden'); el.classList.remove('step-reveal'); }
     });
-    // Reset sub-step progression flags
+
+    // Collapse optional enrichment zones + clear their active state
+    const urlHeroBar = document.getElementById('urlHeroBar');
+    if (urlHeroBar) urlHeroBar.classList.add('hidden');
+    const photoPickZone = document.getElementById('photoPickZone');
+    if (photoPickZone) photoPickZone.classList.add('hidden');
+    document.querySelectorAll('.enrich-btn').forEach(b => b.classList.remove('active'));
+
+    // Reset legacy progression flags (harmless — kept for Brief 3 cleanup)
     _categoryRevealed = false;
     _noteRevealed = false;
     _privacyRevealed = false;
+
     // Reset autofill hint and clear button (leftover from link flow)
     const _afHint = document.getElementById('titleAutofillHint');
     if (_afHint) _afHint.classList.add('hidden');
