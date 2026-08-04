@@ -1262,6 +1262,25 @@
         }
         .enrich-btn:hover { border-color: var(--mason); }
         .enrich-btn.active { background: #F5ECEF; border-color: var(--wb); color: var(--wb); }
+        .nearby-picker { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .nearby-picker.hidden { display: none; }
+        .nearby-picker-hint { font-size: 12px; color: #6b7280; margin: 0 0 2px; }
+        .nearby-item {
+          display: flex; align-items: center; gap: 12px;
+          padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px;
+          background: #fff; cursor: pointer; text-align: left; width: 100%;
+        }
+        .nearby-item:hover { border-color: #c9a8a8; }
+        .nearby-item .ni-body { flex: 1; min-width: 0; }
+        .nearby-item .ni-name { font-size: 15px; font-weight: 500; color: #1f2937; }
+        .nearby-item .ni-sub { font-size: 13px; color: #6b7280; margin-top: 2px; }
+        .nearby-item .ni-icon { flex-shrink: 0; color: #9ca3af; }
+        .nearby-manual {
+          display: flex; align-items: center; gap: 10px;
+          padding: 10px 12px; border: 1px dashed #d1d5db; border-radius: 8px;
+          cursor: pointer; font-size: 14px; color: #6b7280; background: transparent;
+          text-align: left; width: 100%;
+        }
     </style>
 </head>
 <body class="odin-newcapture">
@@ -2687,6 +2706,7 @@
                             </div>
                             <div id="addressDropdown" class="address-dropdown hidden"></div>
                             <small id="locationStatus" style="color: #6b7280; font-size: 13px;"></small>
+                            <div id="nearbyPicker" class="nearby-picker hidden"></div>
                             <input type="hidden" id="userLat" value="">
                             <input type="hidden" id="userLng" value="">
                         </div>

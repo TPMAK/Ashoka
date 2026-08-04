@@ -8378,47 +8378,97 @@ function _silentGpsDetect() {
 
 // ===== CAPTURE: LOCATION PREFILL =====
 function prefillCaptureLocation() {
-    const addressField = document.getElementById('address');
     const locStatus = document.getElementById('locationStatus');
     const latField = document.getElementById('userLat');
     const lngField = document.getElementById('userLng');
+    const picker = document.getElementById('nearbyPicker');
 
-    if (!navigator.geolocation) return;
-    if (addressField && addressField.value.trim()) return; // don't overwrite if already filled
+    if (!navigator.geolocation) {
+        if (locStatus) locStatus.textContent = 'Location not available on this device.';
+        return;
+    }
 
-    if (locStatus) locStatus.textContent = '📍 Detecting location...';
+    if (locStatus) locStatus.textContent = 'Finding places near you…';
+    if (picker) { picker.classList.add('hidden'); picker.innerHTML = ''; }
 
     navigator.geolocation.getCurrentPosition(async (pos) => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
-
         if (latField) latField.value = lat;
         if (lngField) lngField.value = lng;
 
         try {
-            const res = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
-                { headers: { 'Accept-Language': 'en' } }
-            );
+            const res = await fetch('https://stanmak.app.n8n.cloud/webhook/nearby', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lat, lng })
+            });
             const data = await res.json();
-            const a = data.address || {};
-            const parts = [
-                a.road,
-                a.suburb || a.neighbourhood,
-                a.city || a.town || a.village,
-                a.country
-            ].filter(Boolean);
-            const formatted = parts.join(', ');
-            if (formatted && addressField && !addressField.value.trim()) {
-                addressField.value = formatted;
-            }
-            if (locStatus) locStatus.textContent = '';
+            const places = (data && Array.isArray(data.places)) ? data.places : [];
+            renderNearbyPicker(places);
         } catch (e) {
-            if (locStatus) locStatus.textContent = '';
+            renderNearbyPicker([]);
         }
-    }, () => {
         if (locStatus) locStatus.textContent = '';
+    }, () => {
+        if (locStatus) locStatus.textContent = 'Location permission denied — type the address instead.';
     }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
+}
+
+function renderNearbyPicker(places) {
+    const picker = document.getElementById('nearbyPicker');
+    if (!picker) return;
+
+    const rows = [];
+    rows.push('<p class="nearby-picker-hint">Places near you — tap the one you mean</p>');
+
+    (places || []).forEach((p, i) => {
+        const name = escapeHtml(p.name || '');
+        const addr = escapeHtml(p.address || '');
+        const dist = (p.distance != null) ? (p.distance + 'm away') : '';
+        const sub = [addr, dist].filter(Boolean).join(' · ');
+        rows.push(
+            '<button type="button" class="nearby-item" data-idx="' + i + '">' +
+              '<span class="ni-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>' +
+              '<span class="ni-body"><span class="ni-name">' + name + '</span><span class="ni-sub">' + sub + '</span></span>' +
+            '</button>'
+        );
+    });
+
+    rows.push(
+        '<button type="button" class="nearby-manual" id="nearbyManualBtn">' +
+          '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>' +
+          '<span>None of these — enter address manually</span>' +
+        '</button>'
+    );
+
+    picker.innerHTML = rows.join('');
+    picker.classList.remove('hidden');
+
+    picker.querySelectorAll('.nearby-item').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const idx = Number(btn.getAttribute('data-idx'));
+            const place = places[idx];
+            if (!place) return;
+            const addressField = document.getElementById('address');
+            const nameField = document.getElementById('placeName');
+            if (addressField) addressField.value = place.address || '';
+            // Only fill Name if the user hasn't typed one yet.
+            if (nameField && !nameField.value.trim()) nameField.value = place.name || '';
+            picker.classList.add('hidden');
+            picker.innerHTML = '';
+        });
+    });
+
+    const manualBtn = document.getElementById('nearbyManualBtn');
+    if (manualBtn) {
+        manualBtn.addEventListener('click', () => {
+            picker.classList.add('hidden');
+            picker.innerHTML = '';
+            const addressField = document.getElementById('address');
+            if (addressField) addressField.focus();
+        });
+    }
 }
 
 // ===== MAPBOX GEOCODING TOKEN =====
