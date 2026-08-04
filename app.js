@@ -8390,6 +8390,10 @@ function prefillCaptureLocation() {
 
     if (locStatus) locStatus.textContent = 'Finding places near you…';
     if (picker) { picker.classList.add('hidden'); picker.innerHTML = ''; }
+    // Clear any place coords from a previous pick so they can't leak into this save.
+    ['placeId','placeLat','placeLng'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
+    });
 
     navigator.geolocation.getCurrentPosition(async (pos) => {
         const lat = pos.coords.latitude;
@@ -8420,9 +8424,14 @@ function renderNearbyPicker(places) {
     if (!picker) return;
 
     const rows = [];
-    rows.push('<p class="nearby-picker-hint">Places near you — tap the one you mean</p>');
+    const list = places || [];
+    if (list.length) {
+        rows.push('<p class="nearby-picker-hint">Places near you — tap the one you mean</p>');
+    } else {
+        rows.push('<p class="nearby-picker-hint">No places found nearby — enter the address manually.</p>');
+    }
 
-    (places || []).forEach((p, i) => {
+    list.forEach((p, i) => {
         const name = escapeHtml(p.name || '');
         const addr = escapeHtml(p.address || '');
         const dist = (p.distance != null) ? (p.distance + 'm away') : '';
@@ -8452,9 +8461,24 @@ function renderNearbyPicker(places) {
             if (!place) return;
             const addressField = document.getElementById('address');
             const nameField = document.getElementById('placeName');
-            if (addressField) addressField.value = place.address || '';
+            if (addressField) {
+                addressField.value = place.address || '';
+                addressField.dispatchEvent(new Event('input', { bubbles: true }));
+            }
             // Only fill Name if the user hasn't typed one yet.
-            if (nameField && !nameField.value.trim()) nameField.value = place.name || '';
+            if (nameField && !nameField.value.trim()) {
+                nameField.value = place.name || '';
+                nameField.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            // Capture the place's exact coords + id so the backend skips geocoding.
+            const placeIdEl  = document.getElementById('placeId');
+            const placeLatEl = document.getElementById('placeLat');
+            const placeLngEl = document.getElementById('placeLng');
+            if (placeIdEl)  placeIdEl.value  = place.place_id || '';
+            if (placeLatEl) placeLatEl.value = (place.lat != null) ? place.lat : '';
+            if (placeLngEl) placeLngEl.value = (place.lng != null) ? place.lng : '';
+            // Re-run the Save gate — programmatic .value changes don't fire it on their own.
+            if (typeof window._odinUpdateSaveGate === 'function') window._odinUpdateSaveGate();
             picker.classList.add('hidden');
             picker.innerHTML = '';
         });
@@ -8465,6 +8489,10 @@ function renderNearbyPicker(places) {
         manualBtn.addEventListener('click', () => {
             picker.classList.add('hidden');
             picker.innerHTML = '';
+            // Abandon any picked place's coords/id — user is entering manually.
+            ['placeId','placeLat','placeLng'].forEach(id => {
+                const el = document.getElementById(id); if (el) el.value = '';
+            });
             const addressField = document.getElementById('address');
             if (addressField) addressField.focus();
         });
@@ -9231,7 +9259,14 @@ var submitDiscovery = async function(e) {
         photoFilename: photoFilenames[0] || null,
         ogImageUrl: (photosBase64.length === 0 && _photoSource === 'og') ? (document.getElementById('ogImageUrl')?.value || null) : null,
         visibility: visibilityVal === 'private' ? 'only_me' : visibilityVal,
-        place_name: document.getElementById('placeName')?.value?.trim() || null
+        place_name: document.getElementById('placeName')?.value?.trim() || null,
+        // Exact place coords from a "Here" pick (distinct from user_latitude/longitude).
+        // When present, backend uses these instead of geocoding the address string.
+        place_id: document.getElementById('placeId')?.value || null,
+        latitude: document.getElementById('placeLat')?.value
+            ? parseFloat(document.getElementById('placeLat').value) : null,
+        longitude: document.getElementById('placeLng')?.value
+            ? parseFloat(document.getElementById('placeLng').value) : null
     };
 
     // Post-save nudge: if note is thin, show a gentle prompt in the overlay
@@ -9387,6 +9422,14 @@ function _renderPhotoThumbs() {
     const hintText = document.getElementById('photoCountText');
     const addMoreLink = document.getElementById('photoAddMoreLink');
     if (!strip) return;
+
+    // Ensure the photo sub-panel is visible whenever photos exist, regardless of
+    // which entry chip is active (fixes preview not showing when a photo is added
+    // as an optional extra to a place/link).
+    const subPhoto = document.getElementById('subPhoto');
+    if (subPhoto) {
+        if (_selectedPhotos.length > 0) subPhoto.classList.remove('step-hidden');
+    }
 
     // Revoke previous object URLs to avoid memory leaks
     strip.querySelectorAll('img').forEach(img => {
