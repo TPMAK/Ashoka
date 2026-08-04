@@ -25,7 +25,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- IMPORTANT: Add Supabase JS SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link rel="stylesheet" href="styles.css?v=51">
+    <link rel="stylesheet" href="styles.css?v=52">
     <style>
                 /* ── New Landing Page: Two-column split ── */
         :root {
@@ -2556,6 +2556,24 @@
                 <!-- WIZARD STEP 2 — Preview + Details          -->
                 <!-- ══════════════════════════════════════════ -->
                 <div id="wStep2" class="wizard-step step-hidden">
+
+                    <!-- Visibility (1a): moved to top, segmented-pill style with icons -->
+                    <div class="form-group visibility-group visibility-group--top">
+                        <div class="vis-selector" id="visSelector">
+                            <button type="button" class="vis-option active" data-value="private" onclick="selectVisibility(this)">
+                                <svg class="vis-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                                <span class="vis-label">Only me</span>
+                            </button>
+                            <button type="button" class="vis-option" data-value="friends" onclick="selectVisibility(this)">
+                                <svg class="vis-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M2 20c0-3 3-5 7-5s7 2 7 5"/><circle cx="17" cy="8" r="2.5"/><path d="M22 20c0-2.2-1.8-4-4-4.3"/></svg>
+                                <span class="vis-label">Friends</span>
+                            </button>
+                        </div>
+                        <input type="hidden" id="privateToggle" value="true">
+                        <input type="hidden" id="visibilityValue" value="private">
+                        <p class="vis-hint" id="visHint" style="display:none"></p>
+                    </div>
+
                     <!-- OG Preview Card — shown after link fetch -->
                     <div class="og-preview-card hidden" id="ogPreviewCard">
                         <img id="ogPreviewImg" class="og-preview-img" src="" alt="">
@@ -2567,8 +2585,9 @@
                         <button type="button" class="og-preview-close" onclick="clearOGPreview()" title="Remove preview">&times;</button>
                     </div>
 
-                    <!-- Sub-step 2a: Title -->
-                    <div class="form-group form-group-title" id="subTitle">
+                    <!-- Sub-step 2a: Title — HIDDEN (1a). Backend resolves title; element kept
+                         so link auto-fill / auto-grow logic that writes to #title still works. -->
+                    <div class="form-group form-group-title" id="subTitle" style="display:none">
                         <label class="field-label-inline">Title or name of this discovery</label>
                         <div class="title-field-row">
                             <textarea id="title" class="title-input-large" placeholder="Name — or leave blank to auto-generate" rows="1"></textarea>
@@ -2580,8 +2599,9 @@
                         <p class="autofill-hint hidden" id="titleAutofillHint">Auto-filled from link — edit if needed</p>
                     </div>
 
-                    <!-- Sub-step 2b: Category (reveals after title interaction) -->
-                    <div class="form-group form-group-category sub-step step-hidden" id="subCategory">
+                    <!-- Sub-step 2b: Category — HIDDEN (1a). Backend resolves type; element kept
+                         so link/category-inference logic that writes to #category still works. -->
+                    <div class="form-group form-group-category sub-step step-hidden" id="subCategory" style="display:none">
                         <p class="category-pills-label">Category</p>
                         <div class="category-pills" id="categoryPills">
                             <button type="button" class="category-pill active" data-value="place" onclick="selectCategory(this)">
@@ -2612,7 +2632,7 @@
                     <!-- Sub-step 2b-name: Name (Photo / I'm here / Link modes) -->
                     <div class="sub-step" id="subPlaceName">
                         <div class="form-group">
-                            <label class="field-label-inline">NAME <span class="field-label-optional">— required</span><svg class="field-check" id="nameCheck" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4C8063" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></label>
+                            <label class="field-label-inline">NAME <span class="field-label-optional" style="text-transform:uppercase">— required</span><svg class="field-check" id="nameCheck" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4C8063" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></label>
                             <input type="text" id="placeName" class="edit-input" placeholder="e.g. Onslow, Sony WH-1000XM5, Coursera Python course" autocomplete="off">
                         </div>
                     </div>
@@ -2620,7 +2640,7 @@
                     <!-- Sub-step 2c: Your Note (reveals after category selection) -->
                     <div class="sub-step" id="subNote">
                         <div class="form-group form-group-take">
-                            <label class="field-label-inline">YOUR NOTE<svg class="field-check" id="noteCheck" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4C8063" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></label>
+                            <label class="field-label-inline">YOUR NOTE <span class="field-label-optional" style="color:inherit;text-transform:uppercase">— required</span><svg class="field-check" id="noteCheck" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4C8063" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></label>
                             <p class="take-sublabel">This is the part your circle actually needs.</p>
                             <textarea id="personalNote" class="your-take-textarea" placeholder="Best tonkotsu in town — ask for the spicy option, go after 7pm"></textarea>
                             <input type="hidden" id="description">
@@ -2756,20 +2776,6 @@
                     <!-- Sub-step 2f: Privacy + Save (reveals after note) -->
                     <div class="sub-step" id="subPrivacy">
                         <input type="hidden" id="addedBy" value="">
-                        <div class="form-group visibility-group" style="margin-top: 4px;">
-                            <label class="field-label-inline">Who can see this</label>
-                            <div class="vis-selector" id="visSelector">
-                                <button type="button" class="vis-option active" data-value="private" onclick="selectVisibility(this)">
-                                    <span class="vis-label">Only me</span>
-                                </button>
-                                <button type="button" class="vis-option" data-value="friends" onclick="selectVisibility(this)">
-                                    <span class="vis-label">Friends</span>
-                                </button>
-                            </div>
-                            <p class="vis-hint" id="visHint">Saved privately — only you can see this. Change to Friends when you're ready to share.</p>
-                            <input type="hidden" id="privateToggle" value="true">
-                            <input type="hidden" id="visibilityValue" value="private">
-                        </div>
 
                         <button type="submit" class="submit-btn not-ready" id="submitBtn">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
