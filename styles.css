@@ -4095,6 +4095,32 @@
             pointer-events: none;
         }
 
+        /* ── 1a: required-field checkmarks + Save ready/not-ready ── */
+        .field-check {
+            display: none;
+            vertical-align: -2px;
+            margin-left: 6px;
+        }
+        .field-check.show { display: inline-block; }
+
+        /* Not-ready overrides the maroon gradient with the muted disabled tokens */
+        .submit-btn.not-ready {
+            background: #EDE4D6 !important;
+            color: #B8AA9C !important;
+            box-shadow: none !important;
+            opacity: 1 !important;
+        }
+        .submit-btn.not-ready:hover { transform: none; }
+        .submit-btn.not-ready svg { stroke: #B8AA9C !important; }
+
+        .save-helper {
+            text-align: center;
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 8px;
+            margin-bottom: 0;
+        }
+
         /* ── URL Hero Bar ── */
         /* ===== CLIPBOARD DETECT BANNER ===== */
         .clip-detect-banner {

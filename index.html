@@ -1272,8 +1272,8 @@
         }
         .nearby-item:hover { border-color: #c9a8a8; }
         .nearby-item .ni-body { flex: 1; min-width: 0; }
-        .nearby-item .ni-name { font-size: 15px; font-weight: 500; color: #1f2937; }
-        .nearby-item .ni-sub { font-size: 13px; color: #6b7280; margin-top: 2px; }
+        .nearby-item .ni-name { display: block; font-size: 15px; font-weight: 500; color: #1f2937; }
+        .nearby-item .ni-sub { display: block; font-size: 13px; color: #6b7280; margin-top: 2px; }
         .nearby-item .ni-icon { flex-shrink: 0; color: #9ca3af; }
         .nearby-manual {
           display: flex; align-items: center; gap: 10px;
@@ -2612,7 +2612,7 @@
                     <!-- Sub-step 2b-name: Name (Photo / I'm here / Link modes) -->
                     <div class="sub-step" id="subPlaceName">
                         <div class="form-group">
-                            <label class="field-label-inline">NAME <span class="field-label-optional">— required</span></label>
+                            <label class="field-label-inline">NAME <span class="field-label-optional">— required</span><svg class="field-check" id="nameCheck" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4C8063" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></label>
                             <input type="text" id="placeName" class="edit-input" placeholder="e.g. Onslow, Sony WH-1000XM5, Coursera Python course" autocomplete="off">
                         </div>
                     </div>
@@ -2620,7 +2620,7 @@
                     <!-- Sub-step 2c: Your Note (reveals after category selection) -->
                     <div class="sub-step" id="subNote">
                         <div class="form-group form-group-take">
-                            <label class="field-label-inline">YOUR NOTE</label>
+                            <label class="field-label-inline">YOUR NOTE<svg class="field-check" id="noteCheck" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4C8063" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></label>
                             <p class="take-sublabel">This is the part your circle actually needs.</p>
                             <textarea id="personalNote" class="your-take-textarea" placeholder="Best tonkotsu in town — ask for the spicy option, go after 7pm"></textarea>
                             <input type="hidden" id="description">
@@ -2709,6 +2709,9 @@
                             <div id="nearbyPicker" class="nearby-picker hidden"></div>
                             <input type="hidden" id="userLat" value="">
                             <input type="hidden" id="userLng" value="">
+                            <input type="hidden" id="placeId" value="">
+                            <input type="hidden" id="placeLat" value="">
+                            <input type="hidden" id="placeLng" value="">
                         </div>
                     </div>
 
@@ -2768,10 +2771,11 @@
                             <input type="hidden" id="visibilityValue" value="private">
                         </div>
 
-                        <button type="submit" class="submit-btn" id="submitBtn">
+                        <button type="submit" class="submit-btn not-ready" id="submitBtn">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                             Save Discovery
                         </button>
+                        <p class="save-helper" id="saveHelper">Add a name and note to save</p>
                     </div>
 
                 </div><!-- /wStep2 -->

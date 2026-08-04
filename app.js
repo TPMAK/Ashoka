@@ -10747,15 +10747,27 @@ function dismissEmptyFriends() {
     };
 
     // Live gate: Save Discovery stays disabled until Name + Note are both filled.
+    // Also drives the 1a visuals — required-field checkmarks, the grey not-ready
+    // button token, and the helper text — so there is a single source of truth.
     window._odinUpdateSaveGate = function() {
         const nameEl = document.getElementById('placeName');
         const noteEl = document.getElementById('personalNote');
         const btn = document.getElementById('submitBtn');
         if (!btn) return;
-        const ok = !!(nameEl && nameEl.value.trim()) && !!(noteEl && noteEl.value.trim().length >= 5);
+        const nameOk = !!(nameEl && nameEl.value.trim());
+        const noteOk = !!(noteEl && noteEl.value.trim().length >= 5);
+        const ok = nameOk && noteOk;
         btn.disabled = !ok;
-        btn.style.opacity = ok ? '' : '0.55';
+        btn.classList.toggle('not-ready', !ok);
         btn.style.cursor = ok ? '' : 'not-allowed';
+        // 1a checkmarks
+        const nameCheck = document.getElementById('nameCheck');
+        const noteCheck = document.getElementById('noteCheck');
+        if (nameCheck) nameCheck.classList.toggle('show', nameOk);
+        if (noteCheck) noteCheck.classList.toggle('show', noteOk);
+        // 1a helper text
+        const helper = document.getElementById('saveHelper');
+        if (helper) helper.textContent = ok ? 'Ready to save' : 'Add a name and note to save';
     };
     (function _wireSaveGate() {
         const nameEl = document.getElementById('placeName');
