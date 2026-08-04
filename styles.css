@@ -4095,6 +4095,32 @@
             pointer-events: none;
         }
 
+        /* ── 1a: required-field checkmarks + Save ready/not-ready ── */
+        .field-check {
+            display: none;
+            vertical-align: -2px;
+            margin-left: 6px;
+        }
+        .field-check.show { display: inline-block; }
+
+        /* Not-ready overrides the maroon gradient with the muted disabled tokens */
+        .submit-btn.not-ready {
+            background: #EDE4D6 !important;
+            color: #B8AA9C !important;
+            box-shadow: none !important;
+            opacity: 1 !important;
+        }
+        .submit-btn.not-ready:hover { transform: none; }
+        .submit-btn.not-ready svg { stroke: #B8AA9C !important; }
+
+        .save-helper {
+            text-align: center;
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 8px;
+            margin-bottom: 0;
+        }
+
         /* ── URL Hero Bar ── */
         /* ===== CLIPBOARD DETECT BANNER ===== */
         .clip-detect-banner {
@@ -12239,3 +12265,39 @@ body.map-view-open .content {
     display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink);
 }
 .lists-back-btn:hover { background: #e5e0d8; }
+
+/* ── 1a: visibility segmented pill (moved to top of Add form) ───────────
+   Appended last so these override the earlier .vis-selector/.vis-option rules. */
+.visibility-group--top { margin: 0 0 18px; }
+.vis-selector {
+    display: flex;
+    gap: 4px;
+    background: #F1E8DA;
+    border-radius: 12px;
+    padding: 4px;
+    margin-top: 2px;
+}
+.vis-option {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 8px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: #8C7A6E;
+    cursor: pointer;
+    transition: background 0.18s, color 0.18s;
+    font-family: 'Inter', sans-serif;
+}
+.vis-option:hover { border-color: transparent; }
+.vis-option.active {
+    background: #7B2D45;
+    border-color: transparent;
+}
+.vis-label { font-size: 14px; font-weight: 600; color: #8C7A6E; }
+.vis-option.active .vis-label { color: #ffffff; }
+.vis-ic { stroke: #8C7A6E; flex: none; }
+.vis-option.active .vis-ic { stroke: #ffffff; }
