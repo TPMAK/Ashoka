@@ -4003,7 +4003,19 @@ function openCollection(groupName, items) {
 
     document.getElementById('dcAllItemsSection').style.display = '';
     document.getElementById('dcAllItemsTitle').textContent = groupName;
-    renderGrid();
+
+    // Nearby stays a flat distance-sorted grid; all other sections render as theme rails.
+    var flat = document.getElementById('discoverGrid');
+    var rails = document.getElementById('dcThemeRails');
+    if (currentDiscoverSection === 'nearby') {
+        if (rails) rails.style.display = 'none';
+        if (flat)  flat.style.display  = '';
+        renderGrid();
+    } else if (typeof renderThemeRails === 'function') {
+        renderThemeRails(items);
+    } else {
+        renderGrid();  // safety fallback
+    }
 }
 
 function showAllCollections() {
