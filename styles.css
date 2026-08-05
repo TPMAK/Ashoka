@@ -9673,8 +9673,10 @@
   scrollbar-width:none; }
 .dc-rail::-webkit-scrollbar { display:none; }
 
-/* width override ONLY — do not restyle card internals */
-.dc-rail-card { flex:none; width:158px; scroll-snap-align:start; }
+/* width override ONLY — do not restyle card internals.
+   Compound selector beats .dc-grid-card (which sets width:100%; flex-shrink:1
+   later in the file) so rail cards stay a fixed 158px and never shrink to fit. */
+.dc-rail .dc-rail-card { flex:0 0 158px; width:158px; scroll-snap-align:start; }
 
 .dc-rail-end { flex:none; width:96px; display:flex; flex-direction:column;
   align-items:center; justify-content:center; gap:6px; color:#a89f95; cursor:pointer; }
@@ -10042,6 +10044,22 @@
 .dc-surprise-btn--active {
     transform: scale(0.93);
     background: #be561f;
+}
+/* One-shot attention wiggle when the Discover page is entered */
+.dc-surprise-btn--enter {
+    animation: dcSurpriseWiggle 0.7s ease-in-out 1;
+}
+@keyframes dcSurpriseWiggle {
+    0%   { transform: scale(1)    rotate(0deg); }
+    15%  { transform: scale(1.08) rotate(-6deg); }
+    30%  { transform: scale(1.08) rotate(5deg); }
+    45%  { transform: scale(1.06) rotate(-4deg); }
+    60%  { transform: scale(1.04) rotate(3deg); }
+    80%  { transform: scale(1.02) rotate(-1deg); }
+    100% { transform: scale(1)    rotate(0deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .dc-surprise-btn--enter { animation: none; }
 }
 
 /* ── Surprise strip ── */

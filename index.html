@@ -4513,6 +4513,15 @@
         greetEl.textContent = _dcHeadings[hi] || _dcHeadings[0];
         // Subtitle uses the ODIN_PHRASES discover pool
         _startPhraseRotation('dcSubheading', 'discover', 7000);
+
+        // One-shot attention wiggle on the Surprise button when entering Discover.
+        var sBtn = document.getElementById('dcSurpriseBtn');
+        if (sBtn) {
+            sBtn.classList.remove('dc-surprise-btn--enter');
+            void sBtn.offsetWidth;  // reflow so the animation re-triggers each entry
+            setTimeout(function() { sBtn.classList.add('dc-surprise-btn--enter'); }, 400);
+            setTimeout(function() { sBtn.classList.remove('dc-surprise-btn--enter'); }, 1300);
+        }
     }
 
     // ── Sort control ──
