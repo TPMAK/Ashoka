@@ -7954,6 +7954,33 @@ function startTakePlaceholder(category) {
     }, 5000);
 }
 
+// ===== Rotating placeholder for the NAME field =====
+// Mirrors startTakePlaceholder: cycles example names every 5s while the field
+// is empty and unfocused. Backend resolves type, so a single mixed pool is fine.
+const NAME_PLACEHOLDERS = [
+    'e.g. Onslow',
+    'e.g. Sony WH-1000XM5',
+    'e.g. Coursera — Python course',
+    'e.g. Dr. Lee, dentist',
+    'e.g. Blue Bottle Coffee',
+    'e.g. Dyson V15 vacuum',
+    'e.g. Amir, our plumber'
+];
+let _namePlaceholderTimer = null;
+let _namePlaceholderIdx = 0;
+function startNamePlaceholder() {
+    const input = document.getElementById('placeName');
+    if (!input) return;
+    if (_namePlaceholderTimer) clearInterval(_namePlaceholderTimer);
+    input.placeholder = NAME_PLACEHOLDERS[_namePlaceholderIdx % NAME_PLACEHOLDERS.length];
+    _namePlaceholderTimer = setInterval(() => {
+        // Pause while the user is focused on, or has typed into, the field
+        if (document.activeElement === input || (input.value && input.value.trim())) return;
+        _namePlaceholderIdx = (_namePlaceholderIdx + 1) % NAME_PLACEHOLDERS.length;
+        input.placeholder = NAME_PLACEHOLDERS[_namePlaceholderIdx];
+    }, 5000);
+}
+
 // ===== CAPTURE: CLEAR FORM =====
 function clearCaptureForm() {
     document.getElementById('addForm').reset();
@@ -9069,6 +9096,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initAutoGrow(document.getElementById('title'), 44);
     initAutoGrow(document.getElementById('personalNote'), 120);
+
+    // Start the rotating Name placeholder (self-pauses while typing / when filled)
+    startNamePlaceholder();
 
     // ── Progressive sub-step reveals ──
     // Title input → reveal category pills
