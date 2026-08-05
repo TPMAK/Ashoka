@@ -12323,3 +12323,12 @@ body.map-view-open .content {
     color: #332723;
     line-height: 1.45;
 }
+/* Both required labels share one muted format (NAME was grey, YOUR NOTE was maroon). */
+#addForm .form-group-take .field-label-inline { color: #8C7A6E; }
+/* Placeholders are hints, not focus — lighter + smaller than the typed text. */
+#addForm #placeName::placeholder,
+#addForm .your-take-textarea::placeholder {
+    color: #C4B8AC;
+    font-weight: 400;
+    font-size: 15px;
+}
