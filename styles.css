@@ -9667,16 +9667,19 @@
 .dc-theme-count { font-size:13px; color:#a89f95; font-weight:500; margin-left:7px; }
 .dc-theme-see { background:none; border:none; font-size:13px; color:#7a1f3d; font-weight:600; cursor:pointer; }
 
-/* RAIL — breaks out to edge, pads first card back. Edge = 16px matches wrap mobile. */
+/* RAIL — first card MUST align with the heading/search-bar left edge.
+   The rail host sits at the wrap's content edge, so we add NO left margin/padding
+   (a left breakout here is the recurring "double left margin" bug). We bleed ONLY
+   to the right so the last card can scroll to the screen edge without clipping. */
 .dc-rail { display:flex; gap:12px; overflow-x:auto; scroll-snap-type:x mandatory;
-  margin-left:-16px; margin-right:-16px; padding-left:16px; padding-right:16px;
+  margin-right:-16px; padding-right:16px;
   scrollbar-width:none; }
 .dc-rail::-webkit-scrollbar { display:none; }
 
 /* width override ONLY — do not restyle card internals.
-   Compound selector beats .dc-grid-card (which sets width:100%; flex-shrink:1
-   later in the file) so rail cards stay a fixed 158px and never shrink to fit. */
-.dc-rail .dc-rail-card { flex:0 0 158px; width:158px; scroll-snap-align:start; }
+   192px matches the live-app card width (.hf-card base). Compound selector beats
+   .dc-grid-card (width:100%; flex-shrink:1, defined later) so cards never shrink. */
+.dc-rail .dc-rail-card { flex:0 0 192px; width:192px; scroll-snap-align:start; }
 
 .dc-rail-end { flex:none; width:96px; display:flex; flex-direction:column;
   align-items:center; justify-content:center; gap:6px; color:#a89f95; cursor:pointer; }
@@ -9686,9 +9689,9 @@
 
 .dc-empty { color:#a89f95; font-size:14px; padding:20px 0; }
 
-/* keep rails edge-aligned at wider breakpoints (matches wrap padding steps) */
-@media (min-width:480px) { .dc-rail { margin-left:-20px; margin-right:-20px; padding-left:20px; padding-right:20px; } }
-@media (min-width:768px) { .dc-rail { margin-left:-32px; margin-right:-32px; padding-left:32px; padding-right:32px; } }
+/* right-side bleed only, matched to wrap padding steps (no left breakout) */
+@media (min-width:480px) { .dc-rail { margin-right:-20px; padding-right:20px; } }
+@media (min-width:768px) { .dc-rail { margin-right:-32px; padding-right:32px; } }
 
 /* Pinned search bar — sits directly below the header, never scrolls.
    Full width so the background fills edge-to-edge on all screen sizes. */
