@@ -4095,6 +4095,32 @@
             pointer-events: none;
         }
 
+        /* ── 1a: required-field checkmarks + Save ready/not-ready ── */
+        .field-check {
+            display: none;
+            vertical-align: -2px;
+            margin-left: 6px;
+        }
+        .field-check.show { display: inline-block; }
+
+        /* Not-ready overrides the maroon gradient with the muted disabled tokens */
+        .submit-btn.not-ready {
+            background: #EDE4D6 !important;
+            color: #B8AA9C !important;
+            box-shadow: none !important;
+            opacity: 1 !important;
+        }
+        .submit-btn.not-ready:hover { transform: none; }
+        .submit-btn.not-ready svg { stroke: #B8AA9C !important; }
+
+        .save-helper {
+            text-align: center;
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 8px;
+            margin-bottom: 0;
+        }
+
         /* ── URL Hero Bar ── */
         /* ===== CLIPBOARD DETECT BANNER ===== */
         .clip-detect-banner {
@@ -12239,3 +12265,69 @@ body.map-view-open .content {
     display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink);
 }
 .lists-back-btn:hover { background: #e5e0d8; }
+
+/* ── 1a: visibility segmented pill (moved to top of Add form) ───────────
+   Appended last so these override the earlier .vis-selector/.vis-option rules. */
+.visibility-group--top { margin: 0 0 18px; }
+.vis-selector {
+    display: flex;
+    gap: 4px;
+    background: #F1E8DA;
+    border-radius: 12px;
+    padding: 4px;
+    margin-top: 2px;
+}
+.vis-option {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 8px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: #8C7A6E;
+    cursor: pointer;
+    transition: background 0.18s, color 0.18s;
+    font-family: 'Inter', sans-serif;
+}
+.vis-option:hover { border-color: transparent; }
+.vis-option.active {
+    background: #7B2D45;
+    border-color: transparent;
+}
+.vis-label { font-size: 14px; font-weight: 600; color: #8C7A6E; }
+.vis-option.active .vis-label { color: #ffffff; }
+.vis-ic { stroke: #8C7A6E; flex: none; }
+.vis-option.active .vis-ic { stroke: #ffffff; }
+.visibility-group--top .vis-hint { margin: 8px 2px 0; font-size: 12px; line-height: 1.45; color: #8C7A6E; }
+/* Both visibility hints share one format — no special boxed treatment for Friends. */
+.visibility-group--top .vis-hint.vis-hint--friends {
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+    color: #8C7A6E;
+}
+
+/* ── 1a: Add-form typography to match the design tokens (scoped to #addForm) ── */
+/* Name / Your note labels match the "My Saves" pbox-label style: 14px, 600, dark ink, Title Case. */
+#addForm .field-label-inline { font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink); }
+#addForm .field-label-optional { font-size: 13px; text-transform: none; }
+/* Name + The Word are the focal point: identical font/size/weight, enlarged.
+   Labels stay small (11px) so these two fields clearly dominate. */
+#addForm #placeName,
+#addForm .your-take-textarea {
+    font-size: 16px;          /* softer + smaller, matches live; 16px avoids iOS focus-zoom */
+    font-weight: 400;
+    font-family: inherit;     /* body Inter — lighter than the forced 500 */
+    color: var(--ink);
+    line-height: 1.5;
+}
+/* Placeholders are hints, not focus — lighter + smaller than the typed text. */
+#addForm #placeName::placeholder,
+#addForm .your-take-textarea::placeholder {
+    color: #C4B8AC;
+    font-weight: 400;
+    font-size: 15px;
+}

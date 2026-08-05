@@ -4133,6 +4133,9 @@ function setMode(mode) {
         loadSavedPage();
     } else if (mode === 'input') {
         document.getElementById('inputMode').classList.remove('hidden');
+        // Combined form: reveal the form immediately (no chip step)
+        const _wStep2 = document.getElementById('wStep2');
+        if (_wStep2) { _wStep2.classList.remove('step-hidden'); _wStep2.classList.add('step-reveal'); }
         document.getElementById('inputArea').classList.add('hidden');
         // Step bar removed — Add page is now uncluttered like Discover.
         // Bar element kept in DOM (stays hidden via the .hidden class on #addStepSticky).
@@ -7901,7 +7904,7 @@ function selectVisibility(el) {
             hint.textContent = 'Saved privately — only you can see this. Change to Friends when you\'re ready to share.';
             hint.classList.remove('vis-hint--friends');
         } else {
-            hint.innerHTML = '✦ Your friends can save this — and their circle will see it was saved, but not who added it. Your knowledge travels further, anonymously.';
+            hint.textContent = 'Your friends can save this — and their circle will see it was saved, but not who added it. Your knowledge travels further, anonymously.';
             hint.classList.add('vis-hint--friends');
         }
     }
@@ -7948,6 +7951,33 @@ function startTakePlaceholder(category) {
         if (document.activeElement === textarea) return; // don't rotate while typing
         _takePlaceholderIdx[category] = ((_takePlaceholderIdx[category] || 0) + 1) % pool.length;
         textarea.placeholder = pool[_takePlaceholderIdx[category]];
+    }, 5000);
+}
+
+// ===== Rotating placeholder for the NAME field =====
+// Mirrors startTakePlaceholder: cycles example names every 5s while the field
+// is empty and unfocused. Backend resolves type, so a single mixed pool is fine.
+const NAME_PLACEHOLDERS = [
+    'e.g. Onslow',
+    'e.g. Sony WH-1000XM5',
+    'e.g. Coursera — Python course',
+    'e.g. Dr. Lee, dentist',
+    'e.g. Blue Bottle Coffee',
+    'e.g. Dyson V15 vacuum',
+    'e.g. Amir, our plumber'
+];
+let _namePlaceholderTimer = null;
+let _namePlaceholderIdx = 0;
+function startNamePlaceholder() {
+    const input = document.getElementById('placeName');
+    if (!input) return;
+    if (_namePlaceholderTimer) clearInterval(_namePlaceholderTimer);
+    input.placeholder = NAME_PLACEHOLDERS[_namePlaceholderIdx % NAME_PLACEHOLDERS.length];
+    _namePlaceholderTimer = setInterval(() => {
+        // Pause while the user is focused on, or has typed into, the field
+        if (document.activeElement === input || (input.value && input.value.trim())) return;
+        _namePlaceholderIdx = (_namePlaceholderIdx + 1) % NAME_PLACEHOLDERS.length;
+        input.placeholder = NAME_PLACEHOLDERS[_namePlaceholderIdx];
     }, 5000);
 }
 
@@ -8160,7 +8190,12 @@ function _showClipBanner(trimmed) {
     if (useBtn) {
         useBtn.onclick = function() {
             banner.classList.add('hidden');
-            selectEntryChip('link');
+            // Open the Link enrichment zone so the URL bar + preview are visible,
+            // then fetch. (selectEntryChip is a no-op in the combined form.)
+            if (typeof window.toggleEnrich === 'function') {
+                var linkBtn = document.querySelector('.enrich-btn[data-enrich="link"]');
+                if (linkBtn && !linkBtn.classList.contains('active')) window.toggleEnrich('link');
+            }
             var urlInput = document.getElementById('url');
             if (urlInput) urlInput.value = trimmed;
             _lastOGFetchedUrl = trimmed;
@@ -8312,31 +8347,44 @@ function _revealStep(id) {
 }
 
 function _resetSteps() {
-    // Reset wizard step 2 back to hidden; step 1 (How) always stays visible
-    ['wStep2'].forEach(id => {
+    // Combined form: the form is always visible. "Reset" clears values and
+    // collapses optional enrichment — it does NOT re-hide the core fields.
+
+    // wStep2 wrapper stays visible
+    const _w2 = document.getElementById('wStep2');
+    if (_w2) { _w2.classList.remove('step-hidden'); _w2.classList.add('step-reveal'); }
+
+    // Core fields always visible
+    ['subPlaceName', 'subNote', 'subPrivacy'].forEach(id => {
         const el = document.getElementById(id);
-        if (el) {
-            el.classList.add('step-hidden');
-            el.classList.remove('step-reveal');
-        }
+        if (el) { el.classList.remove('step-hidden'); el.classList.add('step-reveal'); }
     });
-    // Reset all sub-steps within step 2
-    ['subCategory', 'subNote', 'subAddress', 'subPhoto', 'subPrivacy'].forEach(id => {
+
+    // Retired / toggle-controlled stay hidden until their control opens them
+    // (subPhoto: revealed by the Photo toggle or once a photo actually loads)
+    ['subCategory', 'subAddress', 'subPhoto'].forEach(id => {
         const el = document.getElementById(id);
-        if (el) {
-            el.classList.add('step-hidden');
-            el.classList.remove('step-reveal');
-        }
+        if (el) { el.classList.add('step-hidden'); el.classList.remove('step-reveal'); }
     });
-    // Reset sub-step progression flags
+
+    // Collapse optional enrichment zones + clear their active state
+    const urlHeroBar = document.getElementById('urlHeroBar');
+    if (urlHeroBar) urlHeroBar.classList.add('hidden');
+    const photoPickZone = document.getElementById('photoPickZone');
+    if (photoPickZone) photoPickZone.classList.add('hidden');
+    document.querySelectorAll('.enrich-btn').forEach(b => b.classList.remove('active'));
+
+    // Reset legacy progression flags (harmless — kept for Brief 3 cleanup)
     _categoryRevealed = false;
     _noteRevealed = false;
     _privacyRevealed = false;
+
     // Reset autofill hint and clear button (leftover from link flow)
     const _afHint = document.getElementById('titleAutofillHint');
     if (_afHint) _afHint.classList.add('hidden');
     const _cpBtn = document.getElementById('clearPrefillBtn');
     if (_cpBtn) _cpBtn.classList.add('hidden');
+    if (typeof window._odinUpdateSaveGate === 'function') window._odinUpdateSaveGate();
 }
 
 // ===== SILENT GPS BIAS FOR ADDRESS SEARCH =====
@@ -8357,47 +8405,125 @@ function _silentGpsDetect() {
 
 // ===== CAPTURE: LOCATION PREFILL =====
 function prefillCaptureLocation() {
-    const addressField = document.getElementById('address');
     const locStatus = document.getElementById('locationStatus');
     const latField = document.getElementById('userLat');
     const lngField = document.getElementById('userLng');
+    const picker = document.getElementById('nearbyPicker');
 
-    if (!navigator.geolocation) return;
-    if (addressField && addressField.value.trim()) return; // don't overwrite if already filled
+    if (!navigator.geolocation) {
+        if (locStatus) locStatus.textContent = 'Location not available on this device.';
+        return;
+    }
 
-    if (locStatus) locStatus.textContent = '📍 Detecting location...';
+    if (locStatus) locStatus.textContent = 'Finding places near you…';
+    if (picker) { picker.classList.add('hidden'); picker.innerHTML = ''; }
+    // Clear any place coords from a previous pick so they can't leak into this save.
+    ['placeId','placeLat','placeLng'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
+    });
 
     navigator.geolocation.getCurrentPosition(async (pos) => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
-
         if (latField) latField.value = lat;
         if (lngField) lngField.value = lng;
 
         try {
-            const res = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
-                { headers: { 'Accept-Language': 'en' } }
-            );
+            const res = await fetch('https://stanmak.app.n8n.cloud/webhook/nearby', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lat, lng })
+            });
             const data = await res.json();
-            const a = data.address || {};
-            const parts = [
-                a.road,
-                a.suburb || a.neighbourhood,
-                a.city || a.town || a.village,
-                a.country
-            ].filter(Boolean);
-            const formatted = parts.join(', ');
-            if (formatted && addressField && !addressField.value.trim()) {
-                addressField.value = formatted;
-            }
-            if (locStatus) locStatus.textContent = '';
+            const places = (data && Array.isArray(data.places)) ? data.places : [];
+            renderNearbyPicker(places);
         } catch (e) {
-            if (locStatus) locStatus.textContent = '';
+            renderNearbyPicker([]);
         }
-    }, () => {
         if (locStatus) locStatus.textContent = '';
+    }, () => {
+        if (locStatus) locStatus.textContent = 'Location permission denied — type the address instead.';
     }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
+}
+
+function renderNearbyPicker(places) {
+    const picker = document.getElementById('nearbyPicker');
+    if (!picker) return;
+
+    const rows = [];
+    const list = places || [];
+    if (list.length) {
+        rows.push('<p class="nearby-picker-hint">Places near you — tap the one you mean</p>');
+    } else {
+        rows.push('<p class="nearby-picker-hint">No places found nearby — enter the address manually.</p>');
+    }
+
+    list.forEach((p, i) => {
+        const name = escapeHtml(p.name || '');
+        const addr = escapeHtml(p.address || '');
+        const dist = (p.distance != null) ? (p.distance + 'm away') : '';
+        const sub = [addr, dist].filter(Boolean).join(' · ');
+        rows.push(
+            '<button type="button" class="nearby-item" data-idx="' + i + '">' +
+              '<span class="ni-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>' +
+              '<span class="ni-body"><span class="ni-name">' + name + '</span><span class="ni-sub">' + sub + '</span></span>' +
+            '</button>'
+        );
+    });
+
+    rows.push(
+        '<button type="button" class="nearby-manual" id="nearbyManualBtn">' +
+          '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>' +
+          '<span>None of these — enter address manually</span>' +
+        '</button>'
+    );
+
+    picker.innerHTML = rows.join('');
+    picker.classList.remove('hidden');
+
+    picker.querySelectorAll('.nearby-item').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const idx = Number(btn.getAttribute('data-idx'));
+            const place = places[idx];
+            if (!place) return;
+            const addressField = document.getElementById('address');
+            const nameField = document.getElementById('placeName');
+            if (addressField) {
+                addressField.value = place.address || '';
+                addressField.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            // Only fill Name if the user hasn't typed one yet.
+            if (nameField && !nameField.value.trim()) {
+                nameField.value = place.name || '';
+                nameField.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            // Capture the place's exact coords + id so the backend skips geocoding.
+            const placeIdEl  = document.getElementById('placeId');
+            const placeLatEl = document.getElementById('placeLat');
+            const placeLngEl = document.getElementById('placeLng');
+            if (placeIdEl)  placeIdEl.value  = place.place_id || '';
+            if (placeLatEl) placeLatEl.value = (place.lat != null) ? place.lat : '';
+            if (placeLngEl) placeLngEl.value = (place.lng != null) ? place.lng : '';
+            // Re-run the Save gate — programmatic .value changes don't fire it on their own.
+            if (typeof window._odinUpdateSaveGate === 'function') window._odinUpdateSaveGate();
+            picker.classList.add('hidden');
+            picker.innerHTML = '';
+        });
+    });
+
+    const manualBtn = document.getElementById('nearbyManualBtn');
+    if (manualBtn) {
+        manualBtn.addEventListener('click', () => {
+            picker.classList.add('hidden');
+            picker.innerHTML = '';
+            // Abandon any picked place's coords/id — user is entering manually.
+            ['placeId','placeLat','placeLng'].forEach(id => {
+                const el = document.getElementById(id); if (el) el.value = '';
+            });
+            const addressField = document.getElementById('address');
+            if (addressField) addressField.focus();
+        });
+    }
 }
 
 // ===== MAPBOX GEOCODING TOKEN =====
@@ -8624,13 +8750,38 @@ async function fetchAndPrefillOG(url) {
                 og.image = data.thumbnail_url || '';
             }
         } else {
-            // Everything else — route through n8n
-            const res = await fetch(OG_FETCH_WEBHOOK, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url })
-            });
+            // Everything else — route through n8n.
+            // Timeout guard: on flaky mobile networks fetch() can hang forever with
+            // no error, leaving the shimmer spinning. Abort after 10s so we fall
+            // through to catch and give the user feedback instead of a dead-end.
+            const _ogCtrl = new AbortController();
+            const _ogTimeout = setTimeout(() => _ogCtrl.abort(), 10000);
+            let res;
+            try {
+                res = await fetch(OG_FETCH_WEBHOOK, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url }),
+                    signal: _ogCtrl.signal
+                });
+            } finally {
+                clearTimeout(_ogTimeout);
+            }
             if (res.ok) og = await res.json();
+        }
+
+        // Social platforms (Instagram/Facebook) serve generic login-wall metadata
+        // to unauthenticated fetches — e.g. title "Instagram" + "Welcome back to
+        // Instagram…" + a placeholder logo. That's not a real preview, so treat it
+        // as empty rather than mislabelling the item.
+        const _ogTitle = (og && og.title ? String(og.title) : '').trim();
+        const _ogDesc  = (og && og.description ? String(og.description) : '').trim();
+        const _isLoginWallJunk =
+            /^(instagram|facebook|log in|login)$/i.test(_ogTitle) ||
+            /^welcome back to instagram/i.test(_ogDesc) ||
+            /log in to (instagram|facebook)/i.test(_ogDesc);
+        if (_isLoginWallJunk) {
+            og = {};
         }
 
         // Fill form fields if empty
@@ -8715,6 +8866,13 @@ async function fetchAndPrefillOG(url) {
                     if (addressGroup) addressGroup.style.display = 'none';
                 }
             }
+        }
+
+        // If the link returned no usable preview (empty, or neutralised junk),
+        // reassure the user: the app works — this link just had nothing to preview.
+        const _ogHasSomething = !!(og && (og.title || og.image || og.address));
+        if (!_ogHasSomething) {
+            showToast('No preview for this link — just add a name and your note below.', 5000);
         }
 
         // Preload OG image into the photo section (if no user photo already)
@@ -8805,6 +8963,11 @@ async function fetchAndPrefillOG(url) {
     } catch (e) {
         if (ogLoading) ogLoading.classList.add('hidden');
         if (heroHint) heroHint.style.display = 'flex';
+        // The fetch failed or timed out (common on mobile networks / CORS). Don't
+        // leave the user staring at a stalled shimmer — tell them it's fine to
+        // continue manually. Separate message from the empty-preview toast so the
+        // cause is clear.
+        showToast("Couldn't load a preview — just add a name and your note below.", 5000);
         // On error still reveal Step 2 so user can continue manually
         _revealWizardStep('wStep2');
         updateAddStep(2);
@@ -8895,19 +9058,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const val = urlInput.value.trim();
         if (val && val !== _lastOGFetchedUrl && val.startsWith('http')) {
             _lastOGFetchedUrl = val;
-            selectEntryChip('link'); // highlight Link chip whenever a URL is entered
-            fetchAndPrefillOG(val);
+            fetchAndPrefillOG(val);   // selectEntryChip removed — it is a no-op now
         }
     };
 
-    urlInput.addEventListener('paste', () => {
-        // paste fires before value updates, so wait one tick
-        setTimeout(triggerOGFetch, 100);
+    // Robust trigger: `input` fires on paste, typing, autofill, and programmatic
+    // value changes alike. Debounced so we fetch once the URL looks complete,
+    // not on every keystroke. This replaces the fragile paste+setTimeout/blur combo.
+    let _ogDebounce = null;
+    urlInput.addEventListener('input', () => {
+        const val = urlInput.value.trim();
+        if (!/^https?:\/\//i.test(val)) return;   // only fetch real URLs
+        clearTimeout(_ogDebounce);
+        _ogDebounce = setTimeout(triggerOGFetch, 600);
     });
+
+    // Immediate fire on Enter or blur (no wait) for users who paste then click away.
     urlInput.addEventListener('blur', triggerOGFetch);
-    // Also trigger on Enter key in the URL field
     urlInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); triggerOGFetch(); }
+        if (e.key === 'Enter') { e.preventDefault(); clearTimeout(_ogDebounce); triggerOGFetch(); }
     });
 
     // iOS-safe auto-grow helper
@@ -8927,6 +9096,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initAutoGrow(document.getElementById('title'), 44);
     initAutoGrow(document.getElementById('personalNote'), 120);
+
+    // Start the rotating Name placeholder (self-pauses while typing / when filled)
+    startNamePlaceholder();
 
     // ── Progressive sub-step reveals ──
     // Title input → reveal category pills
@@ -9117,7 +9289,14 @@ var submitDiscovery = async function(e) {
         photoFilename: photoFilenames[0] || null,
         ogImageUrl: (photosBase64.length === 0 && _photoSource === 'og') ? (document.getElementById('ogImageUrl')?.value || null) : null,
         visibility: visibilityVal === 'private' ? 'only_me' : visibilityVal,
-        place_name: document.getElementById('placeName')?.value?.trim() || null
+        place_name: document.getElementById('placeName')?.value?.trim() || null,
+        // Exact place coords from a "Here" pick (distinct from user_latitude/longitude).
+        // When present, backend uses these instead of geocoding the address string.
+        place_id: document.getElementById('placeId')?.value || null,
+        latitude: document.getElementById('placeLat')?.value
+            ? parseFloat(document.getElementById('placeLat').value) : null,
+        longitude: document.getElementById('placeLng')?.value
+            ? parseFloat(document.getElementById('placeLng').value) : null
     };
 
     // Post-save nudge: if note is thin, show a gentle prompt in the overlay
@@ -9273,6 +9452,14 @@ function _renderPhotoThumbs() {
     const hintText = document.getElementById('photoCountText');
     const addMoreLink = document.getElementById('photoAddMoreLink');
     if (!strip) return;
+
+    // Ensure the photo sub-panel is visible whenever photos exist, regardless of
+    // which entry chip is active (fixes preview not showing when a photo is added
+    // as an optional extra to a place/link).
+    const subPhoto = document.getElementById('subPhoto');
+    if (subPhoto) {
+        if (_selectedPhotos.length > 0) subPhoto.classList.remove('step-hidden');
+    }
 
     // Revoke previous object URLs to avoid memory leaks
     strip.querySelectorAll('img').forEach(img => {
@@ -10536,97 +10723,90 @@ function dismissEmptyFriends() {
 
     // ---- Override the entry-chip selection ---------------------
     const _origSelectEntryChip = window.selectEntryChip;
-    window.selectEntryChip = function(chip) {
-        _captureMode = chip;
-        try { localStorage.setItem('odin_entry_chip', chip); } catch(e) {}
 
-        // Silent GPS bias for address autocomplete (fires once, no UI)
-        _silentGpsDetect();
+    // Combined form: entry chips are gone. selectEntryChip is now a no-op shim
+    // so any legacy caller doesn't throw. Fields are always visible; enrichment
+    // is handled by toggleEnrich() below.
+    window.selectEntryChip = function(_chip) { /* no-op — combined form */ };
 
-        // Visual active state on the cards
-        document.querySelectorAll('.entry-card').forEach(el => el.classList.remove('active'));
-        const activeChip = document.querySelector(`.entry-card[data-chip="${chip}"]`);
-        if (activeChip) activeChip.classList.add('active');
+    // Optional enrichment toggles: Photo / Link / Location.
+    // Each button shows or hides its zone. capture_mode is DERIVED at submit
+    // time (Brief 2), not set here.
+    window.toggleEnrich = function(kind) {
+        const btn = document.querySelector('.enrich-btn[data-enrich="' + kind + '"]');
+        const isActive = btn && btn.classList.contains('active');
 
-        // Show/hide step 1 zones (URL bar / photo picker) — same as before
-        const urlHeroBar = document.getElementById('urlHeroBar');
-        const photoPickZone = document.getElementById('photoPickZone');
-        if (chip === 'link') {
-            if (urlHeroBar) urlHeroBar.classList.remove('hidden');
-            if (photoPickZone) photoPickZone.classList.add('hidden');
-            const urlInput = document.getElementById('url');
-            if (urlInput) setTimeout(() => urlInput.focus(), 50);
-        } else if (chip === 'photo') {
-            if (urlHeroBar) urlHeroBar.classList.add('hidden');
-            if (photoPickZone) photoPickZone.classList.remove('hidden');
-        } else {
-            if (urlHeroBar) urlHeroBar.classList.add('hidden');
-            if (photoPickZone) photoPickZone.classList.add('hidden');
-        }
-
-        // Reveal wStep2 + skip title/category — go straight to Note
-        const wStep2 = document.getElementById('wStep2');
-        if (wStep2) {
-            wStep2.classList.remove('step-hidden');
-            wStep2.classList.add('step-reveal');
-        }
-        // Name field — Photo, I'm here, AND Link modes. Link uses OG title as a prefill seed.
-        const subPlaceName = document.getElementById('subPlaceName');
-        if (subPlaceName) {
-            if (chip === 'photo' || chip === 'here' || chip === 'link') {
-                subPlaceName.classList.remove('step-hidden');
-                subPlaceName.classList.add('step-reveal');
+        if (kind === 'photo') {
+            const zone = document.getElementById('photoPickZone');
+            if (isActive) {
+                // Toggling OFF: hide the picker. Do NOT touch subPhoto here —
+                // if a photo is already chosen its thumbnail must stay.
+                if (zone) zone.classList.add('hidden');
+                if (btn) btn.classList.remove('active');
             } else {
-                subPlaceName.classList.add('step-hidden');
-                subPlaceName.classList.remove('step-reveal');
-                const pn = document.getElementById('placeName');
-                if (pn) pn.value = '';
+                // Toggling ON: show ONLY the Gallery/Camera picker.
+                // subPhoto (thumbnail block) stays hidden until a photo is actually
+                // selected — the photo-change handler reveals it then. This avoids
+                // the duplicate Gallery/Camera row.
+                if (zone) zone.classList.remove('hidden');
+                if (btn) btn.classList.add('active');
+            }
+        } else if (kind === 'link') {
+            const bar = document.getElementById('urlHeroBar');
+            if (isActive) {
+                if (bar) bar.classList.add('hidden');
+                if (btn) btn.classList.remove('active');
+            } else {
+                if (bar) bar.classList.remove('hidden');
+                if (btn) btn.classList.add('active');
+                const urlInput = document.getElementById('url');
+                if (urlInput) setTimeout(() => urlInput.focus(), 50);
+            }
+        } else if (kind === 'location') {
+            const subAddress = document.getElementById('subAddress');
+            if (isActive) {
+                if (subAddress) subAddress.classList.add('step-hidden');
+                if (btn) btn.classList.remove('active');
+            } else {
+                if (subAddress) subAddress.classList.remove('step-hidden');
+                if (btn) btn.classList.add('active');
+                const addr = document.getElementById('address');
+                if (addr) setTimeout(() => addr.focus(), 50);
             }
         }
-
-        const subNote = document.getElementById('subNote');
-        if (subNote) {
-            subNote.classList.remove('step-hidden');
-            subNote.classList.add('step-reveal');
-        }
-        const subPrivacy = document.getElementById('subPrivacy');
-        if (subPrivacy) {
-            subPrivacy.classList.remove('step-hidden');
-            subPrivacy.classList.add('step-reveal');
-        }
-        const subPhoto = document.getElementById('subPhoto');
-        // Photo mode already has its picker (photoPickZone) above — keep subPhoto
-        // hidden so we don't duplicate Gallery/Camera buttons. _handlePhotoChange
-        // will reveal subPhoto once a photo is selected, showing only the preview.
-        // Link mode: photo is OG-driven, no manual photo UI here.
-        if (subPhoto && chip !== 'link' && chip !== 'photo') {
-            subPhoto.classList.remove('step-hidden');
-            subPhoto.classList.add('step-reveal');
-        }
-
-        // Default privacy = Only me (re-assert in case user toggled before)
-        const privInput = document.getElementById('privateToggle');
-        const visField = document.getElementById('visibilityValue');
-        if (privInput) privInput.value = 'true';
-        if (visField) visField.value = 'private';
-        document.querySelectorAll('.vis-option').forEach(el => el.classList.remove('active'));
-        const privPill = document.querySelector('.vis-option[data-value="private"]');
-        if (privPill) privPill.classList.add('active');
-
-        // Apply mode-specific address UI
-        _applyModeAddressUI(chip);
-
-        // Focus the note for fast typing (except photo/link where user has another action first)
-        if (chip === 'here' || chip === 'type') {
-            setTimeout(() => {
-                const note = document.getElementById('personalNote');
-                if (note) note.focus();
-            }, 200);
-        }
-
-        // Update step indicator
-        if (typeof updateAddStep === 'function') updateAddStep(2);
     };
+
+    // Live gate: Save Discovery stays disabled until Name + Note are both filled.
+    // Also drives the 1a visuals — required-field checkmarks, the grey not-ready
+    // button token, and the helper text — so there is a single source of truth.
+    window._odinUpdateSaveGate = function() {
+        const nameEl = document.getElementById('placeName');
+        const noteEl = document.getElementById('personalNote');
+        const btn = document.getElementById('submitBtn');
+        if (!btn) return;
+        const nameOk = !!(nameEl && nameEl.value.trim());
+        const noteOk = !!(noteEl && noteEl.value.trim().length >= 5);
+        const ok = nameOk && noteOk;
+        btn.disabled = !ok;
+        btn.classList.toggle('not-ready', !ok);
+        btn.style.cursor = ok ? '' : 'not-allowed';
+        // 1a checkmarks
+        const nameCheck = document.getElementById('nameCheck');
+        const noteCheck = document.getElementById('noteCheck');
+        if (nameCheck) nameCheck.classList.toggle('show', nameOk);
+        if (noteCheck) noteCheck.classList.toggle('show', noteOk);
+        // 1a helper text
+        const helper = document.getElementById('saveHelper');
+        if (helper) helper.textContent = ok ? 'Ready to save' : 'Add a name and note to save';
+    };
+    (function _wireSaveGate() {
+        const nameEl = document.getElementById('placeName');
+        const noteEl = document.getElementById('personalNote');
+        if (nameEl) nameEl.addEventListener('input', window._odinUpdateSaveGate);
+        if (noteEl) noteEl.addEventListener('input', window._odinUpdateSaveGate);
+        // Run once on load so the button starts disabled
+        setTimeout(window._odinUpdateSaveGate, 300);
+    })();
 
     // ---- Validate + inject capture_mode on submit --------------
     const _origSubmit = window.submitDiscovery;
@@ -10634,11 +10814,12 @@ function dismissEmptyFriends() {
         if (e && e.preventDefault) e.preventDefault();
         if (!currentUser) { alert('Please login first'); return; }
 
-        // Resolve mode (fall back to localStorage / 'type')
-        if (!_captureMode) {
-            try { _captureMode = localStorage.getItem('odin_entry_chip') || 'type'; } catch(_) { _captureMode = 'type'; }
-        }
-        let mode = _captureMode;
+        // Derive capture_mode from what's actually attached (no chips anymore).
+        // Priority: photo beats link beats plain type. User photo is source of truth.
+        const _hasPhotos = Array.isArray(_selectedPhotos) && _selectedPhotos.length > 0;
+        const _urlValRaw = (document.getElementById('url')?.value || '').trim();
+        let mode = _hasPhotos ? 'photo' : (_urlValRaw ? 'link' : 'type');
+        _captureMode = mode;
 
         // Note: required, min 10 chars
         const noteEl = document.getElementById('personalNote');
@@ -10663,6 +10844,25 @@ function dismissEmptyFriends() {
         }
         const formMsg = document.getElementById('formMessage');
         if (formMsg) formMsg.innerHTML = '';
+
+        // Name is required in the combined form.
+        const nameEl = document.getElementById('placeName');
+        const nameVal = (nameEl?.value || '').trim();
+        if (!nameVal) {
+            if (nameEl) {
+                nameEl.focus();
+                nameEl.style.borderColor = '#7B2D45';
+                nameEl.style.boxShadow = '0 0 0 2px rgba(123,45,69,0.15)';
+                nameEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            if (typeof showToast === 'function') {
+                showToast('Give it a name so your circle can recognise it.', 4000);
+            }
+            setTimeout(() => {
+                if (nameEl) { nameEl.style.borderColor = ''; nameEl.style.boxShadow = ''; }
+            }, 2500);
+            return;
+        }
 
         // "I'm here" with no address + no manual entry -> soft-fallback to 'type' mode
         const addrVal = (document.getElementById('address')?.value || '').trim();
@@ -10769,6 +10969,23 @@ function dismissEmptyFriends() {
         // Reset hidden category (backend ignores it but keep DOM consistent)
         const catSel = document.getElementById('category');
         if (catSel) catSel.value = 'place';
+
+        // 1a: fully refresh the form UI after submit — visibility pill back to
+        // "Only me", hint reset, required checkmarks cleared, Save back to not-ready.
+        try {
+            document.querySelectorAll('#visSelector .vis-option').forEach(o => o.classList.remove('active'));
+            const _defVis = document.querySelector('#visSelector .vis-option[data-value="private"]');
+            if (_defVis) _defVis.classList.add('active');
+            const _vh = document.getElementById('visHint');
+            if (_vh) {
+                _vh.textContent = 'Saved privately — only you can see this. Change to Friends when you\'re ready to share.';
+                _vh.classList.remove('vis-hint--friends');
+            }
+            const _pt = document.getElementById('privateToggle'); if (_pt) _pt.value = 'true';
+            const _vv = document.getElementById('visibilityValue'); if (_vv) _vv.value = 'private';
+            // Recompute checkmarks + Save gate against the now-empty fields
+            if (typeof window._odinUpdateSaveGate === 'function') window._odinUpdateSaveGate();
+        } catch (_) {}
         // Reset our flow state
         _captureMode = null;
         try { localStorage.removeItem('odin_entry_chip'); } catch(_) {}
