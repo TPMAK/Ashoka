@@ -12311,8 +12311,9 @@ body.map-view-open .content {
 }
 
 /* ── 1a: Add-form typography to match the design tokens (scoped to #addForm) ── */
-#addForm .field-label-inline { font-size: 11px; font-weight: 700; letter-spacing: 0.6px; }
-#addForm .field-label-optional { font-size: 11px; }
+/* Name / Your note labels match the "My Saves" pbox-label style: 14px, 600, dark ink, Title Case. */
+#addForm .field-label-inline { font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink); }
+#addForm .field-label-optional { font-size: 13px; text-transform: none; }
 /* Name + The Word are the focal point: identical font/size/weight, enlarged.
    Labels stay small (11px) so these two fields clearly dominate. */
 #addForm #placeName,
@@ -12323,8 +12324,6 @@ body.map-view-open .content {
     color: #332723;
     line-height: 1.45;
 }
-/* Both required labels share one muted format (NAME was grey, YOUR NOTE was maroon). */
-#addForm .form-group-take .field-label-inline { color: #8C7A6E; }
 /* Placeholders are hints, not focus — lighter + smaller than the typed text. */
 #addForm #placeName::placeholder,
 #addForm .your-take-textarea::placeholder {
