@@ -10021,6 +10021,8 @@
 
 /* ── Surprise Me button ── */
 .dc-surprise-btn {
+    position: relative;
+    overflow: hidden;   /* clips the entrance shimmer sweep */
     flex-shrink: 0;
     display: flex;
     align-items: center;
@@ -10048,17 +10050,27 @@
     transform: scale(0.93);
     background: #be561f;
 }
-/* One-shot attention blink when the Discover page is entered — fades the button
-   in/out a few times with a soft glow, no bounce/movement. */
-.dc-surprise-btn--enter {
-    animation: dcSurpriseBlink 0.5s ease-in-out 3;
+/* One-shot magical shimmer when the Discover page is entered — a diagonal light
+   streak sweeps left→right across the button. No bounce/movement. */
+.dc-surprise-btn--enter::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -60%;
+    width: 45%;
+    height: 100%;
+    background: linear-gradient(120deg, transparent, rgba(255,255,255,0.6), transparent);
+    transform: skewX(-20deg);
+    animation: dcSurpriseSheen 0.8s ease-in-out 2;
+    pointer-events: none;
 }
-@keyframes dcSurpriseBlink {
-    0%, 100% { opacity: 1;    box-shadow: 0 1px 4px rgba(212,98,42,0.25); }
-    50%      { opacity: 0.35; box-shadow: 0 2px 14px rgba(212,98,42,0.55); }
+@keyframes dcSurpriseSheen {
+    0%   { left: -60%; }
+    55%  { left: 130%; }
+    100% { left: 130%; }
 }
 @media (prefers-reduced-motion: reduce) {
-    .dc-surprise-btn--enter { animation: none; }
+    .dc-surprise-btn--enter::after { animation: none; }
 }
 
 /* ── Surprise strip ── */
