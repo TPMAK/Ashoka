@@ -7904,7 +7904,7 @@ function selectVisibility(el) {
             hint.textContent = 'Saved privately — only you can see this. Change to Friends when you\'re ready to share.';
             hint.classList.remove('vis-hint--friends');
         } else {
-            hint.innerHTML = '✦ Your friends can save this — and their circle will see it was saved, but not who added it. Your knowledge travels further, anonymously.';
+            hint.textContent = 'Your friends can save this — and their circle will see it was saved, but not who added it. Your knowledge travels further, anonymously.';
             hint.classList.add('vis-hint--friends');
         }
     }
@@ -10939,6 +10939,23 @@ function dismissEmptyFriends() {
         // Reset hidden category (backend ignores it but keep DOM consistent)
         const catSel = document.getElementById('category');
         if (catSel) catSel.value = 'place';
+
+        // 1a: fully refresh the form UI after submit — visibility pill back to
+        // "Only me", hint reset, required checkmarks cleared, Save back to not-ready.
+        try {
+            document.querySelectorAll('#visSelector .vis-option').forEach(o => o.classList.remove('active'));
+            const _defVis = document.querySelector('#visSelector .vis-option[data-value="private"]');
+            if (_defVis) _defVis.classList.add('active');
+            const _vh = document.getElementById('visHint');
+            if (_vh) {
+                _vh.textContent = 'Saved privately — only you can see this. Change to Friends when you\'re ready to share.';
+                _vh.classList.remove('vis-hint--friends');
+            }
+            const _pt = document.getElementById('privateToggle'); if (_pt) _pt.value = 'true';
+            const _vv = document.getElementById('visibilityValue'); if (_vv) _vv.value = 'private';
+            // Recompute checkmarks + Save gate against the now-empty fields
+            if (typeof window._odinUpdateSaveGate === 'function') window._odinUpdateSaveGate();
+        } catch (_) {}
         // Reset our flow state
         _captureMode = null;
         try { localStorage.removeItem('odin_entry_chip'); } catch(_) {}

@@ -12301,3 +12301,33 @@ body.map-view-open .content {
 .vis-option.active .vis-label { color: #ffffff; }
 .vis-ic { stroke: #8C7A6E; flex: none; }
 .vis-option.active .vis-ic { stroke: #ffffff; }
+.visibility-group--top .vis-hint { margin: 8px 2px 0; font-size: 12px; line-height: 1.45; color: #8C7A6E; }
+/* Both visibility hints share one format — no special boxed treatment for Friends. */
+.visibility-group--top .vis-hint.vis-hint--friends {
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+    color: #8C7A6E;
+}
+
+/* ── 1a: Add-form typography to match the design tokens (scoped to #addForm) ── */
+/* Name / Your note labels match the "My Saves" pbox-label style: 14px, 600, dark ink, Title Case. */
+#addForm .field-label-inline { font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink); }
+#addForm .field-label-optional { font-size: 13px; text-transform: none; }
+/* Name + The Word are the focal point: identical font/size/weight, enlarged.
+   Labels stay small (11px) so these two fields clearly dominate. */
+#addForm #placeName,
+#addForm .your-take-textarea {
+    font-size: 18px;
+    font-weight: 500;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: #332723;
+    line-height: 1.45;
+}
+/* Placeholders are hints, not focus — lighter + smaller than the typed text. */
+#addForm #placeName::placeholder,
+#addForm .your-take-textarea::placeholder {
+    color: #C4B8AC;
+    font-weight: 400;
+    font-size: 15px;
+}
