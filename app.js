@@ -7904,7 +7904,7 @@ function selectVisibility(el) {
             hint.textContent = 'Saved privately — only you can see this. Change to Friends when you\'re ready to share.';
             hint.classList.remove('vis-hint--friends');
         } else {
-            hint.innerHTML = '✦ Your friends can save this — and their circle will see it was saved, but not who added it. Your knowledge travels further, anonymously.';
+            hint.textContent = 'Your friends can save this — and their circle will see it was saved, but not who added it. Your knowledge travels further, anonymously.';
             hint.classList.add('vis-hint--friends');
         }
     }

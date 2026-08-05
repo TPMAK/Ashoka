@@ -12301,10 +12301,25 @@ body.map-view-open .content {
 .vis-option.active .vis-label { color: #ffffff; }
 .vis-ic { stroke: #8C7A6E; flex: none; }
 .vis-option.active .vis-ic { stroke: #ffffff; }
-.visibility-group--top .vis-hint { margin: 8px 2px 0; font-size: 12px; line-height: 1.45; }
+.visibility-group--top .vis-hint { margin: 8px 2px 0; font-size: 12px; line-height: 1.45; color: #8C7A6E; }
+/* Both visibility hints share one format — no special boxed treatment for Friends. */
+.visibility-group--top .vis-hint.vis-hint--friends {
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+    color: #8C7A6E;
+}
 
 /* ── 1a: Add-form typography to match the design tokens (scoped to #addForm) ── */
 #addForm .field-label-inline { font-size: 11px; font-weight: 700; letter-spacing: 0.6px; }
 #addForm .field-label-optional { font-size: 11px; }
-#addForm #placeName { font-size: 16px; font-weight: 500; }
-#addForm .your-take-textarea { font-size: 15px; }
+/* Name + The Word are the focal point: identical font/size/weight, enlarged.
+   Labels stay small (11px) so these two fields clearly dominate. */
+#addForm #placeName,
+#addForm .your-take-textarea {
+    font-size: 18px;
+    font-weight: 500;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: #332723;
+    line-height: 1.45;
+}
