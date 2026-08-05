@@ -12301,3 +12301,10 @@ body.map-view-open .content {
 .vis-option.active .vis-label { color: #ffffff; }
 .vis-ic { stroke: #8C7A6E; flex: none; }
 .vis-option.active .vis-ic { stroke: #ffffff; }
+.visibility-group--top .vis-hint { margin: 8px 2px 0; font-size: 12px; line-height: 1.45; }
+
+/* ── 1a: Add-form typography to match the design tokens (scoped to #addForm) ── */
+#addForm .field-label-inline { font-size: 11px; font-weight: 700; letter-spacing: 0.6px; }
+#addForm .field-label-optional { font-size: 11px; }
+#addForm #placeName { font-size: 16px; font-weight: 500; }
+#addForm .your-take-textarea { font-size: 15px; }
