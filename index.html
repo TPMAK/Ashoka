@@ -4331,6 +4331,9 @@
         var flat = document.getElementById('discoverGrid');
         if (!host) return;
         if (flat) flat.style.display = 'none';
+        // Rails are finite (RAIL_MAX per theme) — no "Load More" in rails view.
+        var lm = document.getElementById('loadMoreContainer');
+        if (lm) lm.classList.add('hidden');
         host.style.display = '';
         host.innerHTML = '';
 
@@ -4520,7 +4523,7 @@
             sBtn.classList.remove('dc-surprise-btn--enter');
             void sBtn.offsetWidth;  // reflow so the animation re-triggers each entry
             setTimeout(function() { sBtn.classList.add('dc-surprise-btn--enter'); }, 400);
-            setTimeout(function() { sBtn.classList.remove('dc-surprise-btn--enter'); }, 1300);
+            setTimeout(function() { sBtn.classList.remove('dc-surprise-btn--enter'); }, 2000);
         }
     }
 
