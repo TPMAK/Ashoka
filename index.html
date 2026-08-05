@@ -2071,6 +2071,7 @@
                                 </select>
                             </div>
                         </div>
+                        <div class="dc-theme-rails" id="dcThemeRails"></div>
                         <div class="discover-grid" id="discoverGrid"></div>
                         <div class="load-more-container hidden" id="loadMoreContainer">
                             <button class="load-more-btn" onclick="loadMore()">Load More</button>
@@ -4243,6 +4244,10 @@
     // ── Smart section tabs ──
     var currentDiscoverSection = 'all';
 
+    // Fixed theme display order — value-first, not by count.
+    var THEME_ORDER = ['Eat', 'Kids', 'Cook', 'Life'];
+    var RAIL_MAX = 12;  // finite by design — cap items shown per rail
+
     function setDiscoverSection(el, section) {
         currentDiscoverSection = section;
         document.querySelectorAll('.dc-stab').forEach(function(b) { b.classList.remove('active'); });
@@ -4316,6 +4321,87 @@
         if (circleHeader) circleHeader.style.display = 'flex';
 
         openCollection(titleEl ? titleEl.textContent : section, items);
+    }
+
+    // Render the current section's items as vertical theme sections, each a
+    // horizontal rail. items are ALREADY sorted by setDiscoverSection (All=recent,
+    // Trending=saves_count, New=recent) — we preserve that order inside each theme.
+    function renderThemeRails(items) {
+        var host = document.getElementById('dcThemeRails');
+        var flat = document.getElementById('discoverGrid');
+        if (!host) return;
+        if (flat) flat.style.display = 'none';
+        // Rails are finite (RAIL_MAX per theme) — no "Load More" in rails view.
+        var lm = document.getElementById('loadMoreContainer');
+        if (lm) lm.classList.add('hidden');
+        host.style.display = '';
+        host.innerHTML = '';
+
+        if (!items || !items.length) {
+            host.innerHTML = '<div class="dc-empty">No discoveries yet.</div>';
+            return;
+        }
+
+        // Group by theme, preserving incoming sort order within each group
+        var groups = {};
+        items.forEach(function(it) {
+            var key = (THEME_ORDER.indexOf(it.theme) >= 0) ? it.theme : 'Life';
+            (groups[key] = groups[key] || []).push(it);
+        });
+
+        THEME_ORDER.forEach(function(theme) {
+            var all = groups[theme];
+            if (!all || !all.length) return;              // skip empty themes
+            var railItems = all.slice(0, RAIL_MAX);
+
+            var section = document.createElement('div');
+            section.className = 'dc-theme';
+
+            var head = document.createElement('div');
+            head.className = 'dc-theme-head';
+            head.innerHTML =
+                '<div><span class="dc-theme-name">' + theme + '</span>' +
+                '<span class="dc-theme-count">' + all.length + '</span></div>';
+            var seeBtn = document.createElement('button');
+            seeBtn.className = 'dc-theme-see';
+            seeBtn.textContent = 'See all';
+            seeBtn.onclick = function() { openThemeFlat(theme); };
+            head.appendChild(seeBtn);
+            section.appendChild(head);
+
+            var rail = document.createElement('div');
+            rail.className = 'dc-rail';
+            railItems.forEach(function(it) {
+                // REUSE createCard. index must map into filteredDiscoveries for the drawer.
+                var idx = filteredDiscoveries.findIndex(function(d) { return d.id === it.id; });
+                var card = createCard(it, idx >= 0 ? idx : 0);
+                if (card) { card.classList.add('dc-rail-card'); rail.appendChild(card); }
+            });
+
+            // finite cap → tap to see the whole theme flat
+            var cap = document.createElement('div');
+            cap.className = 'dc-rail-end';
+            cap.innerHTML = '<div class="dc-rail-end-circle">→</div><span>See all ' + all.length + '</span>';
+            cap.onclick = function() { openThemeFlat(theme); };
+            rail.appendChild(cap);
+
+            section.appendChild(rail);
+            host.appendChild(section);
+        });
+    }
+
+    // "See all" for one theme → flat grid of just that theme, using the existing renderer.
+    function openThemeFlat(theme) {
+        var host = document.getElementById('dcThemeRails');
+        var flat = document.getElementById('discoverGrid');
+        filteredDiscoveries = (allDiscoveries || []).filter(function(d) {
+            return ((THEME_ORDER.indexOf(d.theme) >= 0) ? d.theme : 'Life') === theme;
+        });
+        displayedCount = 0;
+        if (host) host.style.display = 'none';
+        if (flat) flat.style.display = '';
+        document.getElementById('dcAllItemsTitle').textContent = theme;
+        renderGrid();  // existing flat-grid renderer
     }
 
     // ── Surprise Me ──
@@ -4430,6 +4516,15 @@
         greetEl.textContent = _dcHeadings[hi] || _dcHeadings[0];
         // Subtitle uses the ODIN_PHRASES discover pool
         _startPhraseRotation('dcSubheading', 'discover', 7000);
+
+        // One-shot attention wiggle on the Surprise button when entering Discover.
+        var sBtn = document.getElementById('dcSurpriseBtn');
+        if (sBtn) {
+            sBtn.classList.remove('dc-surprise-btn--enter');
+            void sBtn.offsetWidth;  // reflow so the animation re-triggers each entry
+            setTimeout(function() { sBtn.classList.add('dc-surprise-btn--enter'); }, 400);
+            setTimeout(function() { sBtn.classList.remove('dc-surprise-btn--enter'); }, 2000);
+        }
     }
 
     // ── Sort control ──
