@@ -2060,7 +2060,11 @@
 
                     <!-- All items flat grid (shown when a collection is selected) -->
                     <div id="dcAllItemsSection" style="display:none;">
-                        <div class="dc-section-header" style="margin-top:20px;">
+                        <!-- Header row hidden: theme rails have their own headings and the
+                             tab drives ordering, so the "All / Most recent" row is redundant.
+                             Kept in DOM (display:none) because JS still writes to
+                             #dcAllItemsTitle and #dcSortSelect. -->
+                        <div class="dc-section-header" style="margin-top:20px;display:none;">
                             <h2 class="dc-section-title" id="dcAllItemsTitle">All items</h2>
                             <div class="dc-sort-wrap">
                                 <select class="dc-sort-select" id="dcSortSelect" onchange="applyDiscoverSort(this.value)">
