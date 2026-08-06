@@ -1158,6 +1158,7 @@
 
         /* Home launcher — hero search input */
         .launcher-search-hero {
+            position: relative;
             display: flex;
             align-items: center;
             gap: 10px;
@@ -1182,8 +1183,26 @@
             font-size: 16px; /* 16px prevents iOS zoom-on-focus */
             font-family: inherit;
         }
-        .launcher-search-input::placeholder { color: #8a8078; transition: color 0.3s ease; }
-        .launcher-search-input.ph-fade::placeholder { color: transparent; }
+        /* Native placeholder hidden — a wrapping overlay div shows the rotating text instead */
+        .launcher-search-input::placeholder { color: transparent; }
+        .launcher-search-ph {
+            position: absolute;
+            left: 50px;                 /* clear the search icon */
+            right: 52px;                /* clear the go arrow */
+            top: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            font-size: 16px;
+            line-height: 1.25;
+            color: #8a8078;
+            pointer-events: none;       /* taps fall through to the input */
+            white-space: normal;        /* wrap to a 2nd line */
+            overflow: hidden;
+            transition: opacity 0.3s ease;
+        }
+        .launcher-search-ph.ph-fade { opacity: 0; }
+        .launcher-search-hero.has-value .launcher-search-ph { opacity: 0; }
         .launcher-search-go {
             flex-shrink: 0;
             display: inline-flex;
@@ -1773,7 +1792,8 @@
                         <!-- Search — hero live input -->
                         <div class="launcher-search-hero">
                             <svg class="launcher-search-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                            <input type="text" id="launcherSearchInput" class="launcher-search-input" placeholder="Search like you’d ask a friend" onkeypress="if(event.key==='Enter') runHomeSearch()" autocomplete="off" enterkeyhint="search">
+                            <input type="text" id="launcherSearchInput" class="launcher-search-input" placeholder="Search like you’d ask a friend" oninput="_syncLauncherPh()" onkeypress="if(event.key==='Enter') runHomeSearch()" autocomplete="off" enterkeyhint="search">
+                            <div class="launcher-search-ph" id="launcherSearchPh">Search like you’d ask a friend</div>
                             <button type="button" class="launcher-search-go" onclick="runHomeSearch()" aria-label="Search">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                             </button>
@@ -3257,23 +3277,32 @@
     // Native placeholder can't animate, so we fade its colour to transparent,
     // swap the text, then fade back — matching the Add label's fade.
     var _launcherSearchTimer = null;
+    // Hide the overlay placeholder as soon as the user types (and show it again when cleared).
+    function _syncLauncherPh() {
+        var inp  = document.getElementById('launcherSearchInput');
+        var hero = inp && inp.closest ? inp.closest('.launcher-search-hero') : null;
+        if (!inp || !hero) return;
+        hero.classList.toggle('has-value', !!(inp.value && inp.value.trim()));
+    }
     function _startLauncherSearchRotation() {
         var input = document.getElementById('launcherSearchInput');
-        if (!input) return;
+        var ph    = document.getElementById('launcherSearchPh');
+        if (!input || !ph) return;
         var examples = (typeof _getPlaceholderPool === 'function') ? _getPlaceholderPool() : [];
         var pool = ['Search like you’d ask a friend'].concat(examples);
         var idx = 0;
-        input.placeholder = pool[0];
+        ph.textContent = pool[0];
         if (_launcherSearchTimer) clearInterval(_launcherSearchTimer);
         _launcherSearchTimer = setInterval(function() {
             var inp = document.getElementById('launcherSearchInput');
-            if (!inp) return;
+            var el  = document.getElementById('launcherSearchPh');
+            if (!inp || !el) return;
             if (inp.value && inp.value.trim()) return;   // pause while the user is typing
-            inp.classList.add('ph-fade');
+            el.classList.add('ph-fade');                 // fade out
             setTimeout(function() {
                 idx = (idx + 1) % pool.length;
-                inp.placeholder = pool[idx];
-                inp.classList.remove('ph-fade');
+                el.textContent = pool[idx];
+                el.classList.remove('ph-fade');          // fade back in
             }, 300);
         }, 5000);
     }
