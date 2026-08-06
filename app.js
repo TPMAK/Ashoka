@@ -4828,7 +4828,12 @@ function filterAndRender() {
 
     updateActiveFiltersBar();
     displayedCount = 0;
-    renderGrid();
+    if (currentDiscoverSection && currentDiscoverSection !== 'nearby'
+        && typeof renderThemeRails === 'function') {
+        renderThemeRails(filteredDiscoveries);
+    } else {
+        renderGrid();
+    }
 }
 
 function updateActiveFiltersBar() {
