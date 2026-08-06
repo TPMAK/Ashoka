@@ -5096,7 +5096,7 @@ async function loadDiscoveries() {
                         // Fetch full item details for eligible IDs in one batched query
                         const { data: extData, error: extFetchError } = await supabaseClient
                             .from('knowledge_items')
-                            .select('id, title, photo_url, address, latitude, longitude, description, type, category, feed_card_summary, place_name, created_at, added_by, visibility')
+                            .select('id, title, photo_url, address, latitude, longitude, description, type, category, feed_card_summary, place_name, created_at, added_by, visibility, theme')
                             .in('id', eligibleIds)
                             .gte('created_at', twoWeeksAgo.toISOString())
                             .order('created_at', { ascending: false });

@@ -4248,6 +4248,8 @@
 
     // Fixed theme display order — value-first, not by count.
     var THEME_ORDER = ['Eat', 'Life', 'Kids', 'Cook'];
+    var THEME_FALLBACK = 'More';   // visible catch-all for missing/unknown theme
+    var RENDER_ORDER = THEME_ORDER.concat([THEME_FALLBACK]);
     var RAIL_MAX = 12;  // finite by design — cap items shown per rail
 
     function setDiscoverSection(el, section) {
@@ -4343,11 +4345,13 @@
         // Group by theme, preserving incoming sort order within each group
         var groups = {};
         items.forEach(function(it) {
-            var key = (THEME_ORDER.indexOf(it.theme) >= 0) ? it.theme : 'Life';
+            // Only the four real themes are valid; anything else (null/undefined/unknown)
+            // goes to the visible "More" bucket — never silently into Life.
+            var key = (THEME_ORDER.indexOf(it.theme) >= 0) ? it.theme : THEME_FALLBACK;
             (groups[key] = groups[key] || []).push(it);
         });
 
-        THEME_ORDER.forEach(function(theme) {
+        RENDER_ORDER.forEach(function(theme) {
             var all = groups[theme];
             if (!all || !all.length) return;              // skip empty themes
             var railItems = all.slice(0, RAIL_MAX);
