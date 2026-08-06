@@ -1991,7 +1991,7 @@
                     <div class="dc-section-tabs-row">
                         <div class="dc-section-tabs" id="dcSectionTabs">
                             <button class="dc-stab active" data-section="all" onclick="setDiscoverSection(this,'all')">All</button>
-                            <button class="dc-stab" data-section="trending" onclick="setDiscoverSection(this,'trending')">Trending</button>
+                            <button class="dc-stab" data-section="rediscover" onclick="setDiscoverSection(this,'rediscover')">Rediscover</button>
                             <button class="dc-stab" data-section="new" onclick="setDiscoverSection(this,'new')">New</button>
                             <button class="dc-stab" data-section="nearby" onclick="setDiscoverSection(this,'nearby')">Near me</button>
                         </div>
@@ -2039,7 +2039,7 @@
 
                     <!-- Collection cards -->
                     <div class="dc-section-header" id="dcCircleHeader" style="display:none;">
-                        <h2 class="dc-section-title" id="dcCircleTitle">Trending this week</h2>
+                        <h2 class="dc-section-title" id="dcCircleTitle">Discover</h2>
                     </div>
                     <div class="dc-collections-grid" id="dcCollectionsGrid"></div>
 
@@ -3115,12 +3115,10 @@
         ],
         discover: [
             'See what your world is excited about.',
-            'Trending here means trusted people saved it.',
             'Explore what your circle has built together.',
             'Every item here passed the friend test.',
             'The bigger your circle, the richer this gets.',
             'Real places. Real takes. Real people.',
-            'Trending doesn\'t mean viral. It means trusted.',
             'Your Knowledge, all in one place.',
             'Discover more by knowing more people.',
             'What\'s popular here actually means something.',
@@ -4249,7 +4247,7 @@
     var currentDiscoverSection = 'all';
 
     // Fixed theme display order — value-first, not by count.
-    var THEME_ORDER = ['Eat', 'Kids', 'Cook', 'Life'];
+    var THEME_ORDER = ['Eat', 'Life', 'Kids', 'Cook'];
     var RAIL_MAX = 12;  // finite by design — cap items shown per rail
 
     function setDiscoverSection(el, section) {
@@ -4271,18 +4269,14 @@
             });
             if (titleEl) titleEl.textContent = 'All';
             if (dr) dr.style.display = 'none';
-        } else if (section === 'trending') {
-            // Most saved this week
-            var oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-            var recent = allD.filter(function(d) {
-                if (!d.created_at) return true;
-                return new Date(d.created_at) >= oneWeekAgo;
-            });
-            var pool = recent.length >= 3 ? recent : allD;
-            items = pool.slice().sort(function(a, b) {
-                return ((b.saves_count || 0) - (a.saves_count || 0));
-            });
-            if (titleEl) titleEl.textContent = 'Trending this week';
+        } else if (section === 'rediscover') {
+            // Random shuffle of all items — fresh mix every tap (Fisher–Yates)
+            items = allD.slice();
+            for (var i = items.length - 1; i > 0; i--) {
+                var j = Math.floor(Math.random() * (i + 1));
+                var tmp = items[i]; items[i] = items[j]; items[j] = tmp;
+            }
+            if (titleEl) titleEl.textContent = 'Rediscover';
             if (dr) dr.style.display = 'none';
         } else if (section === 'nearby') {
             // Location-aware — filter to items with latitude/longitude
@@ -4315,7 +4309,7 @@
         // Set default sort per section
         var sortEl = document.getElementById('dcSortSelect');
         if (sortEl) {
-            if (section === 'trending') sortEl.value = 'saves';
+            if (section === 'rediscover') sortEl.value = 'recent';
             else if (section === 'nearby') sortEl.value = 'nearest';
             else if (section === 'new') sortEl.value = 'recent';
             else sortEl.value = 'recent';
@@ -4504,7 +4498,6 @@
 
     // ── Discover heading + rotating subtitle ──
     var _dcHeadings = [
-        'See what\'s trending',
         'What\'s your circle into?',
         'Discover',
         'Find something new',
