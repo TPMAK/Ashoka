@@ -1162,11 +1162,13 @@
             align-items: center;
             gap: 10px;
             width: 100%;
+            height: 64px;
             background: #FFFFFF;
-            border: 2px solid #7B2D45;
+            border: 1px solid #d9cfbf;         /* defined border — equal with Add */
             border-radius: 16px;
-            padding: 16px 18px;
+            padding: 0 16px;
             box-sizing: border-box;
+            box-shadow: 0 2px 8px rgba(122,34,48,0.06);
         }
         .launcher-search-icon { color: #7B2D45; flex-shrink: 0; }
         .launcher-search-input {
@@ -1180,20 +1182,23 @@
             font-size: 16px; /* 16px prevents iOS zoom-on-focus */
             font-family: inherit;
         }
-        .launcher-search-input::placeholder { color: #8a8a8a; }
+        .launcher-search-input::placeholder { color: #8a8078; transition: color 0.3s ease; }
+        .launcher-search-input.ph-fade::placeholder { color: transparent; }
         .launcher-search-go {
             flex-shrink: 0;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 40px; height: 40px;
+            width: 28px; height: 28px;
             border: none;
-            border-radius: 12px;
-            background: #7B2D45;
-            color: #fff;
+            border-radius: 0;
+            background: transparent;        /* plain wine arrow — matches Add's arrow */
+            color: #7B2D45;
             cursor: pointer;
+            padding: 0;
         }
-        .launcher-search-go:hover { background: #6a2439; }
+        .launcher-search-go:hover { color: #6a2439; }
+        .launcher-search-go svg { width: 20px; height: 20px; }
 
         /* Home launcher — Add full-width row */
         .launcher-add-row {
@@ -1201,11 +1206,11 @@
             align-items: center;
             gap: 10px;                    /* match search hero gap */
             width: 100%;
-            height: 76px;                 /* match search hero height — neat stacked pair */
+            height: 64px;                 /* equal weight — same height as search */
             background: #fff;
-            border: 1px solid #e6ddd0;
+            border: 1px solid #d9cfbf;    /* defined border — equal with search */
             border-radius: 16px;
-            padding: 0 18px;              /* match search hero horizontal padding → icons align */
+            padding: 0 16px;              /* match search hero horizontal padding → icons align */
             cursor: pointer;
             text-align: left;
             box-sizing: border-box;
@@ -1225,8 +1230,8 @@
         .launcher-add-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
         .launcher-add-label {
             font-weight: 400;
-            font-size: 14px;
-            color: #7a6a60;               /* warm muted — soft but readable */
+            font-size: 16px;              /* same size as search placeholder */
+            color: #8a8078;
             line-height: 1.3;
             transition: opacity 0.3s ease;
             display: -webkit-box;
@@ -1234,7 +1239,7 @@
             -webkit-box-orient: vertical;
             overflow: hidden;
         }
-        .launcher-add-chev { color: #c3b3a8; flex-shrink: 0; display: inline-flex; }
+        .launcher-add-chev { color: #7B2D45; flex-shrink: 0; display: inline-flex; }
         .launcher-add-sub { font-size: 13px; color: #6b6b6b; }
         /* Add to list — bottom sheet */
         .atl-sheet { position: fixed; inset: 0; z-index: 9000; display: none; }
@@ -1782,7 +1787,7 @@
                             <div class="launcher-add-text">
                                 <span class="launcher-add-label" id="launcherAddLabel">Add something</span>
                             </div>
-                            <svg class="launcher-add-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+                            <svg class="launcher-add-chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                         </button>
                     </div>
 
@@ -3245,7 +3250,32 @@
     function _startAddRotation() {
         if (typeof _startPhraseRotation !== 'function') return;
         ODIN_PHRASES.add = _getAddPool();   // recompute daypart each time Home shows
-        _startPhraseRotation('launcherAddLabel', 'add', 4500);
+        _startPhraseRotation('launcherAddLabel', 'add', 5000);
+    }
+
+    // Launcher search bar — rotate the placeholder through search examples.
+    // Native placeholder can't animate, so we fade its colour to transparent,
+    // swap the text, then fade back — matching the Add label's fade.
+    var _launcherSearchTimer = null;
+    function _startLauncherSearchRotation() {
+        var input = document.getElementById('launcherSearchInput');
+        if (!input) return;
+        var examples = (typeof _getPlaceholderPool === 'function') ? _getPlaceholderPool() : [];
+        var pool = ['Search like you’d ask a friend'].concat(examples);
+        var idx = 0;
+        input.placeholder = pool[0];
+        if (_launcherSearchTimer) clearInterval(_launcherSearchTimer);
+        _launcherSearchTimer = setInterval(function() {
+            var inp = document.getElementById('launcherSearchInput');
+            if (!inp) return;
+            if (inp.value && inp.value.trim()) return;   // pause while the user is typing
+            inp.classList.add('ph-fade');
+            setTimeout(function() {
+                idx = (idx + 1) % pool.length;
+                inp.placeholder = pool[idx];
+                inp.classList.remove('ph-fade');
+            }, 300);
+        }, 5000);
     }
 
     function _firstName() {
@@ -3363,22 +3393,28 @@
     },
     anytime: {
         en: [
-            'Doctor or dentist my friends trust',
-            'Tradie my circle has used',
-            'A recipe someone in my circle cooks',
-            'Supermarket find my friends rate',
-            'Something to learn or watch',
-            'Parenting tip from my friends',
-            'Massage or spa my friends rate',
+            'A swim school or kids activity my friends rate',
+            'Lego or a kids gift someone found',
+            'A recipe or cooking show from my circle',
+            'A kitchen staple my friends swear by',
+            'A plant shop or garden find nearby',
+            'A tradie or home repair my circle used',
+            'A doctor, dentist or skin tip my friends trust',
+            'Something to watch or learn',
+            'A trip a friend planned',
+            'Elderly care or a service my friends used',
         ],
         zh: [
-            '朋友睇開嘅醫生或牙醫',
-            '朋友用過嘅師傅（水電、地板、清潔）',
-            '朋友屋企整嘅食譜',
-            '朋友會喺超市買嘅好嘢',
-            '有咩好嘢可以學下或者睇下？',
-            '朋友分享過嘅湊仔心得',
-            '朋友按摩或者spa去邊間？',
+            '朋友推介嘅游泳班或者小朋友活動',
+            '朋友搵到嘅Lego或者小朋友禮物',
+            '朋友分享嘅食譜或者煮食節目',
+            '朋友大力推介嘅廚房必備',
+            '附近嘅植物店或者花園好物',
+            '朋友用過嘅師傅或者家居維修',
+            '朋友信得過嘅醫生、牙醫或者護膚貼士',
+            '有咩好嘢可以睇下或者學下？',
+            '朋友計劃過嘅旅行',
+            '朋友用過嘅長者照顧或者服務',
         ],
     },
     };
@@ -4085,7 +4121,9 @@
                 ? ODIN_PHRASES.home : subs;
             subEl.textContent = _homePool[Math.floor(Math.random() * _homePool.length)];
         }
-        _startAddRotation();
+        // Both rotate at 5s, staggered 2.5s so only one line changes at a time.
+        _startLauncherSearchRotation();
+        setTimeout(_startAddRotation, 2500);
     }
 
     function updateStyleToggleUI() {
