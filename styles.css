@@ -666,11 +666,13 @@
 
         .home-search-bar {
             width: 100%;
-            padding: 10px 44px 10px 40px;
+            padding: 9px 44px 9px 40px;
+            min-height: 58px;              /* room for up to 2 lines of placeholder */
             font-size: 15px;
+            line-height: 1.3;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             border: 1.5px solid var(--border);
-            border-radius: 50px;
+            border-radius: 22px;           /* rounded rect reads better than a tall pill */
             background: var(--surface);
             color: var(--ink);
             outline: none;
@@ -911,16 +913,15 @@
             left: 1.5px;
             right: 1.5px;
             bottom: 1.5px;
-            padding: 10px 42px 10px 38px;  /* input padding minus border */
+            padding: 8px 42px 8px 38px;  /* input padding minus border */
             display: flex;
             align-items: center;
             font-size: 15px;
-            line-height: 1;
+            line-height: 1.3;
             color: var(--muted);
             pointer-events: none;
-            white-space: nowrap;
+            white-space: normal;          /* allow wrap to a 2nd line */
             overflow: hidden;
-            text-overflow: ellipsis;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
 
