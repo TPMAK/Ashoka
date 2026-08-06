@@ -3246,25 +3246,41 @@
             'Where did you eat this week?',
             'Drop a recipe you swear by…',
             'Add a café worth a second trip…',
-            'Best breakfast spot lately?'
+            'Best breakfast spot lately?',
+            'A tradie or handyman who did a good job…',
+            'A doctor or dentist you’d recommend…',
+            'A kids activity that was a hit…',
+            'A product you’d buy again…'
         ];
         if (h >= 11 && h < 15) return [  // lunch
             'Add a restaurant you’d send a friend to…',
             'Best lunch you’ve had recently?',
             'A place you keep going back to…',
-            'Save a shop only locals know…'
+            'Save a shop only locals know…',
+            'A dish worth ordering again…',
+            'A hidden gem from your travels…',
+            'A service that saved you time…',
+            'A physio or clinic you’d recommend…'
         ];
         if (h >= 15 && h < 18) return [  // afternoon
             'Add a kids spot that actually worked…',
             'A place you’d hate to forget…',
             'Something you told a friend about lately?',
-            'Save a café worth a second trip…'
+            'Save a café worth a second trip…',
+            'A hot pool or spot from a road trip…',
+            'A recipe or cooking tip to pass on…',
+            'A garden centre or plant shop you liked…',
+            'A swim school or class worth it…'
         ];
         return [                          // evening / night
             'Best thing you booked this month?',
             'Add a restaurant you’d send a friend to…',
             'Drop a recipe you swear by…',
-            'A place you’d hate to forget…'
+            'A place you’d hate to forget…',
+            'A trip worth planning again…',
+            'A wine or winery you enjoyed…',
+            'Something you learned worth sharing…',
+            'A late-night spot worth knowing…'
         ];
     }
     function _startAddRotation() {
@@ -4689,6 +4705,9 @@
             'Try "bakery or patisserie nearby"',
             'Ask "best coffee roaster in town"',
             'Try "quiet café to work from"',
+            'Ask "a dentist my friends trust"',
+            'Try "a swim school for the kids"',
+            'Ask "acai bowl or healthy breakfast"',
         ];
         if (hour >= 11 && hour < 14) return [
             'Try "dumplings your friends saved"',
@@ -4696,6 +4715,9 @@
             'Try "good Japanese for lunch"',
             'Ask "a Thai spot nearby"',
             'Try "Korean fried chicken near me"',
+            'Ask "where to get good sushi"',
+            'Try "a pho place with a queue"',
+            'Ask "a quick healthy lunch"',
         ];
         if (hour >= 14 && hour < 18) return [
             'Try "café with good wifi"',
@@ -4703,6 +4725,9 @@
             'Try "a farmers market worth visiting"',
             'Ask "things to do in Queenstown"',
             'Try "hot pools worth the drive"',
+            'Ask "a physio or acupuncturist my friends rate"',
+            'Try "a plant shop or garden centre"',
+            'Ask "a dessert spot for the kids"',
         ];
         if (hour >= 18 && hour < 23) return [
             'Try "dinner spot for tonight"',
@@ -4710,11 +4735,16 @@
             'Try "plan a trip to Melbourne"',
             'Ask "best wine bar nearby"',
             'Try "steak spot for tonight"',
+            'Ask "a winery worth visiting"',
+            'Try "where to eat in Rotorua"',
+            'Ask "a Japanese restaurant my friends love"',
         ];
         return [
             'Try "late night food open now"',
             'Ask "somewhere open right now"',
             'Try "comfort food nearby"',
+            'Ask "a recipe I can cook tonight"',
+            'Try "a movie or show worth watching"',
         ];
     }
 
