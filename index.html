@@ -3214,17 +3214,33 @@
     function _startPhraseRotation(subtitleId, phraseKey, intervalMs) {
         var el = document.getElementById(subtitleId);
         if (!el) return;
-        var pool = ODIN_PHRASES[phraseKey] || [];
-        var idx  = Math.floor(Math.random() * pool.length);
-        el.textContent = pool[idx];
+        var basePool = ODIN_PHRASES[phraseKey] || [];
+        if (!basePool.length) return;
+        function _shuf(src) {                            // Fisher–Yates copy
+            var a = src.slice();
+            for (var i = a.length - 1; i > 0; i--) {
+                var j = Math.floor(Math.random() * (i + 1));
+                var t = a[i]; a[i] = a[j]; a[j] = t;
+            }
+            return a;
+        }
+        var order = _shuf(basePool);                     // random order each time
+        var idx   = 0;
+        el.textContent = order[0];
         if (_phraseTimers[subtitleId]) clearInterval(_phraseTimers[subtitleId]);
         _phraseTimers[subtitleId] = setInterval(function() {
             var el2 = document.getElementById(subtitleId);
             if (!el2) return;
             el2.classList.add('page-subtitle-fade');
             setTimeout(function() {
-                idx = (idx + 1) % pool.length;
-                el2.textContent = pool[idx];
+                idx++;
+                if (idx >= order.length) {               // reshuffle for a fresh random order
+                    var last = order[order.length - 1];
+                    order = _shuf(basePool);
+                    if (order.length > 1 && order[0] === last) order.push(order.shift());  // no back-to-back repeat
+                    idx = 0;
+                }
+                el2.textContent = order[idx];
                 el2.classList.remove('page-subtitle-fade');
             }, 350);
         }, intervalMs || 6000);
@@ -3305,7 +3321,16 @@
         var ph    = document.getElementById('launcherSearchPh');
         if (!input || !ph) return;
         var examples = (typeof _getPlaceholderPool === 'function') ? _getPlaceholderPool() : [];
-        var pool = ['Search like you’d ask a friend'].concat(examples);
+        var basePool = ['Search like you’d ask a friend'].concat(examples);
+        function _shuf(src) {                            // Fisher–Yates copy
+            var a = src.slice();
+            for (var i = a.length - 1; i > 0; i--) {
+                var j = Math.floor(Math.random() * (i + 1));
+                var t = a[i]; a[i] = a[j]; a[j] = t;
+            }
+            return a;
+        }
+        var pool = _shuf(basePool);                      // random order each time Home opens
         var idx = 0;
         ph.textContent = pool[0];
         if (_launcherSearchTimer) clearInterval(_launcherSearchTimer);
@@ -3316,7 +3341,13 @@
             if (inp.value && inp.value.trim()) return;   // pause while the user is typing
             el.classList.add('ph-fade');                 // fade out
             setTimeout(function() {
-                idx = (idx + 1) % pool.length;
+                idx++;
+                if (idx >= pool.length) {                // reshuffle for a fresh random order
+                    var last = pool[pool.length - 1];
+                    pool = _shuf(basePool);
+                    if (pool.length > 1 && pool[0] === last) pool.push(pool.shift());  // no back-to-back repeat
+                    idx = 0;
+                }
                 el.textContent = pool[idx];
                 el.classList.remove('ph-fade');          // fade back in
             }, 300);
