@@ -25,7 +25,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- IMPORTANT: Add Supabase JS SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link rel="stylesheet" href="styles.css?v=51">
+    <link rel="stylesheet" href="styles.css?v=58">
     <style>
                 /* ── New Landing Page: Two-column split ── */
         :root {
@@ -1162,11 +1162,13 @@
             align-items: center;
             gap: 10px;
             width: 100%;
+            height: 64px;
             background: #FFFFFF;
-            border: 2px solid #7B2D45;
+            border: 1px solid #d9cfbf;         /* defined border — equal with Add */
             border-radius: 16px;
-            padding: 16px 18px;
+            padding: 0 16px;
             box-sizing: border-box;
+            box-shadow: 0 2px 8px rgba(122,34,48,0.06);
         }
         .launcher-search-icon { color: #7B2D45; flex-shrink: 0; }
         .launcher-search-input {
@@ -1180,39 +1182,64 @@
             font-size: 16px; /* 16px prevents iOS zoom-on-focus */
             font-family: inherit;
         }
-        .launcher-search-input::placeholder { color: #8a8a8a; }
+        .launcher-search-input::placeholder { color: #8a8078; transition: color 0.3s ease; }
+        .launcher-search-input.ph-fade::placeholder { color: transparent; }
         .launcher-search-go {
             flex-shrink: 0;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 40px; height: 40px;
+            width: 28px; height: 28px;
             border: none;
-            border-radius: 12px;
-            background: #7B2D45;
-            color: #fff;
+            border-radius: 0;
+            background: transparent;        /* plain wine arrow — matches Add's arrow */
+            color: #7B2D45;
             cursor: pointer;
+            padding: 0;
         }
-        .launcher-search-go:hover { background: #6a2439; }
+        .launcher-search-go:hover { color: #6a2439; }
+        .launcher-search-go svg { width: 20px; height: 20px; }
 
         /* Home launcher — Add full-width row */
         .launcher-add-row {
             display: flex;
             align-items: center;
-            gap: 14px;
+            gap: 10px;                    /* match search hero gap */
             width: 100%;
+            height: 64px;                 /* equal weight — same height as search */
             background: #fff;
-            border: 1px solid rgba(0,0,0,0.06);
+            border: 1px solid #d9cfbf;    /* defined border — equal with search */
             border-radius: 16px;
-            padding: 13px 18px;
+            padding: 0 16px;              /* match search hero horizontal padding → icons align */
             cursor: pointer;
             text-align: left;
             box-sizing: border-box;
+            box-shadow: 0 2px 8px rgba(122,34,48,0.06);   /* subtle lift = reads as button */
+            transition: background 0.15s, box-shadow 0.15s;
         }
-        .launcher-add-row:hover { background: #FBF8F3; }
-        .launcher-add-icon { color: #7B2D45; flex-shrink: 0; display: inline-flex; }
-        .launcher-add-text { display: flex; flex-direction: column; }
-        .launcher-add-label { font-weight: 600; font-size: 16px; color: #1a1a1a; }
+        .launcher-add-row:hover { background: #fdfbf7; box-shadow: 0 3px 12px rgba(122,34,48,0.10); }
+        .launcher-add-icon {
+            width: 24px; height: 24px;    /* same outline icon language as the search magnifier */
+            color: #7B2D45;
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .launcher-add-icon svg { width: 24px; height: 24px; }
+        .launcher-add-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+        .launcher-add-label {
+            font-weight: 400;
+            font-size: 16px;              /* same size as search placeholder */
+            color: #8a8078;
+            line-height: 1.3;
+            transition: opacity 0.3s ease;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .launcher-add-chev { color: #7B2D45; flex-shrink: 0; display: inline-flex; }
         .launcher-add-sub { font-size: 13px; color: #6b6b6b; }
         /* Add to list — bottom sheet */
         .atl-sheet { position: fixed; inset: 0; z-index: 9000; display: none; }
@@ -1247,6 +1274,40 @@
         }
         .drawer-addlist-btn:hover { background: #F5F0E8; }
         .drawer-addlist-label { line-height: 1; }
+
+        /* --- Combined Add form: enrichment toggles --- */
+        .enrich-row-wrap { margin: 18px 0 4px; }
+        .enrich-divider { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+        .enrich-divider::before, .enrich-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+        .enrich-divider span { font-size: 11px; color: var(--muted); letter-spacing: .03em; white-space: nowrap; }
+        .enrich-row { display: flex; gap: 8px; }
+        .enrich-btn {
+            flex: 1; height: 44px; border: 1px solid var(--border); border-radius: 8px;
+            background: var(--lp-surface); color: var(--ink); font-size: 13px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+            font-family: inherit; transition: background .15s, border-color .15s, color .15s;
+        }
+        .enrich-btn:hover { border-color: var(--mason); }
+        .enrich-btn.active { background: #F5ECEF; border-color: var(--wb); color: var(--wb); }
+        .nearby-picker { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .nearby-picker.hidden { display: none; }
+        .nearby-picker-hint { font-size: 12px; color: #6b7280; margin: 0 0 2px; }
+        .nearby-item {
+          display: flex; align-items: center; gap: 12px;
+          padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px;
+          background: #fff; cursor: pointer; text-align: left; width: 100%;
+        }
+        .nearby-item:hover { border-color: #c9a8a8; }
+        .nearby-item .ni-body { flex: 1; min-width: 0; }
+        .nearby-item .ni-name { display: block; font-size: 15px; font-weight: 500; color: #1f2937; }
+        .nearby-item .ni-sub { display: block; font-size: 13px; color: #6b7280; margin-top: 2px; }
+        .nearby-item .ni-icon { flex-shrink: 0; color: #9ca3af; }
+        .nearby-manual {
+          display: flex; align-items: center; gap: 10px;
+          padding: 10px 12px; border: 1px dashed #d1d5db; border-radius: 8px;
+          cursor: pointer; font-size: 14px; color: #6b7280; background: transparent;
+          text-align: left; width: 100%;
+        }
     </style>
 </head>
 <body class="odin-newcapture">
@@ -1724,8 +1785,9 @@
                                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
                             </div>
                             <div class="launcher-add-text">
-                                <span class="launcher-add-label">Add something</span>
+                                <span class="launcher-add-label" id="launcherAddLabel">Add something</span>
                             </div>
+                            <svg class="launcher-add-chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                         </button>
                     </div>
 
@@ -1957,7 +2019,7 @@
                     <div class="dc-section-tabs-row">
                         <div class="dc-section-tabs" id="dcSectionTabs">
                             <button class="dc-stab active" data-section="all" onclick="setDiscoverSection(this,'all')">All</button>
-                            <button class="dc-stab" data-section="trending" onclick="setDiscoverSection(this,'trending')">Trending</button>
+                            <button class="dc-stab" data-section="rediscover" onclick="setDiscoverSection(this,'rediscover')">Rediscover</button>
                             <button class="dc-stab" data-section="new" onclick="setDiscoverSection(this,'new')">New</button>
                             <button class="dc-stab" data-section="nearby" onclick="setDiscoverSection(this,'nearby')">Near me</button>
                         </div>
@@ -2005,7 +2067,7 @@
 
                     <!-- Collection cards -->
                     <div class="dc-section-header" id="dcCircleHeader" style="display:none;">
-                        <h2 class="dc-section-title" id="dcCircleTitle">Trending this week</h2>
+                        <h2 class="dc-section-title" id="dcCircleTitle">Discover</h2>
                     </div>
                     <div class="dc-collections-grid" id="dcCollectionsGrid"></div>
 
@@ -2026,7 +2088,11 @@
 
                     <!-- All items flat grid (shown when a collection is selected) -->
                     <div id="dcAllItemsSection" style="display:none;">
-                        <div class="dc-section-header" style="margin-top:20px;">
+                        <!-- Header row hidden: theme rails have their own headings and the
+                             tab drives ordering, so the "All / Most recent" row is redundant.
+                             Kept in DOM (display:none) because JS still writes to
+                             #dcAllItemsTitle and #dcSortSelect. -->
+                        <div class="dc-section-header" style="margin-top:20px;display:none;">
                             <h2 class="dc-section-title" id="dcAllItemsTitle">All items</h2>
                             <div class="dc-sort-wrap">
                                 <select class="dc-sort-select" id="dcSortSelect" onchange="applyDiscoverSort(this.value)">
@@ -2037,6 +2103,7 @@
                                 </select>
                             </div>
                         </div>
+                        <div class="dc-theme-rails" id="dcThemeRails"></div>
                         <div class="discover-grid" id="discoverGrid"></div>
                         <div class="load-more-container hidden" id="loadMoreContainer">
                             <button class="load-more-btn" onclick="loadMore()">Load More</button>
@@ -2514,34 +2581,122 @@
                 <!-- WIZARD STEP 1 — How                       -->
                 <!-- ══════════════════════════════════════════ -->
                 <div id="wStep1" class="wizard-step">
+                </div><!-- /wStep1 -->
 
-                    <!-- Entry chips -->
-                    <div class="entry-cards-wrap">
-                        <div class="entry-cards-label">How do you want to add it?</div>
-                        <div class="entry-cards" id="entryChips">
-                            <button type="button" class="entry-card" data-chip="photo" onclick="selectEntryChip('photo')">
-                                <div class="entry-card-icon entry-card-icon--photo">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                                </div>
-                                <span class="entry-card-label">Photo</span>
+                <form id="addForm" onsubmit="submitDiscovery(event)">
+
+                <!-- ══════════════════════════════════════════ -->
+                <!-- WIZARD STEP 2 — Preview + Details          -->
+                <!-- ══════════════════════════════════════════ -->
+                <div id="wStep2" class="wizard-step step-hidden">
+
+                    <!-- Visibility (1a): moved to top, segmented-pill style with icons -->
+                    <div class="form-group visibility-group visibility-group--top">
+                        <div class="vis-selector" id="visSelector">
+                            <button type="button" class="vis-option active" data-value="private" onclick="selectVisibility(this)">
+                                <svg class="vis-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                                <span class="vis-label">Only me</span>
                             </button>
-                            <button type="button" class="entry-card" data-chip="link" onclick="selectEntryChip('link')">
-                                <div class="entry-card-icon entry-card-icon--link">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                                </div>
-                                <span class="entry-card-label">Link</span>
+                            <button type="button" class="vis-option" data-value="friends" onclick="selectVisibility(this)">
+                                <svg class="vis-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M2 20c0-3 3-5 7-5s7 2 7 5"/><circle cx="17" cy="8" r="2.5"/><path d="M22 20c0-2.2-1.8-4-4-4.3"/></svg>
+                                <span class="vis-label">Friends</span>
                             </button>
-                            <button type="button" class="entry-card" data-chip="here" onclick="selectEntryChip('here')">
-                                <div class="entry-card-icon entry-card-icon--here">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                                </div>
-                                <span class="entry-card-label">I'm here</span>
+                        </div>
+                        <input type="hidden" id="privateToggle" value="true">
+                        <input type="hidden" id="visibilityValue" value="private">
+                        <p class="vis-hint" id="visHint">Saved privately — only you can see this. Change to Friends when you're ready to share.</p>
+                    </div>
+
+                    <!-- OG Preview Card — shown after link fetch -->
+                    <div class="og-preview-card hidden" id="ogPreviewCard">
+                        <img id="ogPreviewImg" class="og-preview-img" src="" alt="">
+                        <div class="og-preview-body">
+                            <div class="og-preview-title" id="ogPreviewTitle"></div>
+                            <div class="og-preview-desc" id="ogPreviewDesc"></div>
+                            <div class="og-preview-url" id="ogPreviewUrl"></div>
+                        </div>
+                        <button type="button" class="og-preview-close" onclick="clearOGPreview()" title="Remove preview">&times;</button>
+                    </div>
+
+                    <!-- Sub-step 2a: Title — HIDDEN (1a). Backend resolves title; element kept
+                         so link auto-fill / auto-grow logic that writes to #title still works. -->
+                    <div class="form-group form-group-title" id="subTitle" style="display:none">
+                        <label class="field-label-inline">Title or name of this discovery</label>
+                        <div class="title-field-row">
+                            <textarea id="title" class="title-input-large" placeholder="Name — or leave blank to auto-generate" rows="1"></textarea>
+                            <button type="button" class="clear-prefill-btn hidden" id="clearPrefillBtn" onclick="clearPrefillFields()" title="Clear auto-filled fields">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                Clear
                             </button>
-                            <button type="button" class="entry-card" data-chip="type" onclick="selectEntryChip('type')">
-                                <div class="entry-card-icon entry-card-icon--type">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                </div>
-                                <span class="entry-card-label">Type it</span>
+                        </div>
+                        <p class="autofill-hint hidden" id="titleAutofillHint">Auto-filled from link — edit if needed</p>
+                    </div>
+
+                    <!-- Sub-step 2b: Category — HIDDEN (1a). Backend resolves type; element kept
+                         so link/category-inference logic that writes to #category still works. -->
+                    <div class="form-group form-group-category sub-step step-hidden" id="subCategory" style="display:none">
+                        <p class="category-pills-label">Category</p>
+                        <div class="category-pills" id="categoryPills">
+                            <button type="button" class="category-pill active" data-value="place" onclick="selectCategory(this)">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                                Place
+                            </button>
+                            <button type="button" class="category-pill" data-value="product" onclick="selectCategory(this)">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
+                                Product
+                            </button>
+                            <button type="button" class="category-pill" data-value="service" onclick="selectCategory(this)">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                                Service
+                            </button>
+                            <button type="button" class="category-pill" data-value="advice" onclick="selectCategory(this)">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                                Advice
+                            </button>
+                        </div>
+                        <select id="category" style="display:none;">
+                            <option value="place">Place</option>
+                            <option value="product">Product</option>
+                            <option value="service">Service</option>
+                            <option value="advice">Advice</option>
+                        </select>
+                    </div>
+
+                    <!-- Sub-step 2b-name: Name (Photo / I'm here / Link modes) -->
+                    <div class="sub-step" id="subPlaceName">
+                        <div class="form-group">
+                            <label class="field-label-inline">Name <span class="field-label-optional">— required</span><svg class="field-check" id="nameCheck" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4C8063" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></label>
+                            <input type="text" id="placeName" class="edit-input" placeholder="e.g. Onslow, Sony WH-1000XM5, Coursera Python course" autocomplete="off">
+                        </div>
+                    </div>
+
+                    <!-- Sub-step 2c: Your Note (reveals after category selection) -->
+                    <div class="sub-step" id="subNote">
+                        <div class="form-group form-group-take">
+                            <label class="field-label-inline">Your note <span class="field-label-optional">— required</span><svg class="field-check" id="noteCheck" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4C8063" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></label>
+                            <p class="take-sublabel">This is the part your circle actually needs.</p>
+                            <textarea id="personalNote" class="your-take-textarea" placeholder="Best tonkotsu in town — ask for the spicy option, go after 7pm"></textarea>
+                            <input type="hidden" id="description">
+                        </div>
+                    </div>
+
+                    <!-- Optional enrichment toggles (replaces the old 4-chip mode picker) -->
+                    <div class="enrich-row-wrap">
+                        <div class="enrich-divider">
+                            <span>Add anything else — optional</span>
+                        </div>
+                        <div class="enrich-row" id="enrichRow">
+                            <button type="button" class="enrich-btn" data-enrich="photo" onclick="toggleEnrich('photo')">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                                Photo
+                            </button>
+                            <button type="button" class="enrich-btn" data-enrich="link" onclick="toggleEnrich('link')">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                                Link
+                            </button>
+                            <button type="button" class="enrich-btn" data-enrich="location" onclick="toggleEnrich('location')">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                                Location
                             </button>
                         </div>
                     </div>
@@ -2588,85 +2743,6 @@
                         </div>
                     </div>
 
-                </div><!-- /wStep1 -->
-
-                <form id="addForm" onsubmit="submitDiscovery(event)">
-
-                <!-- ══════════════════════════════════════════ -->
-                <!-- WIZARD STEP 2 — Preview + Details          -->
-                <!-- ══════════════════════════════════════════ -->
-                <div id="wStep2" class="wizard-step step-hidden">
-                    <!-- OG Preview Card — shown after link fetch -->
-                    <div class="og-preview-card hidden" id="ogPreviewCard">
-                        <img id="ogPreviewImg" class="og-preview-img" src="" alt="">
-                        <div class="og-preview-body">
-                            <div class="og-preview-title" id="ogPreviewTitle"></div>
-                            <div class="og-preview-desc" id="ogPreviewDesc"></div>
-                            <div class="og-preview-url" id="ogPreviewUrl"></div>
-                        </div>
-                        <button type="button" class="og-preview-close" onclick="clearOGPreview()" title="Remove preview">&times;</button>
-                    </div>
-
-                    <!-- Sub-step 2a: Title -->
-                    <div class="form-group form-group-title" id="subTitle">
-                        <label class="field-label-inline">Title or name of this discovery</label>
-                        <div class="title-field-row">
-                            <textarea id="title" class="title-input-large" placeholder="Name — or leave blank to auto-generate" rows="1"></textarea>
-                            <button type="button" class="clear-prefill-btn hidden" id="clearPrefillBtn" onclick="clearPrefillFields()" title="Clear auto-filled fields">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                                Clear
-                            </button>
-                        </div>
-                        <p class="autofill-hint hidden" id="titleAutofillHint">Auto-filled from link — edit if needed</p>
-                    </div>
-
-                    <!-- Sub-step 2b: Category (reveals after title interaction) -->
-                    <div class="form-group form-group-category sub-step step-hidden" id="subCategory">
-                        <p class="category-pills-label">Category</p>
-                        <div class="category-pills" id="categoryPills">
-                            <button type="button" class="category-pill active" data-value="place" onclick="selectCategory(this)">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                                Place
-                            </button>
-                            <button type="button" class="category-pill" data-value="product" onclick="selectCategory(this)">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
-                                Product
-                            </button>
-                            <button type="button" class="category-pill" data-value="service" onclick="selectCategory(this)">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-                                Service
-                            </button>
-                            <button type="button" class="category-pill" data-value="advice" onclick="selectCategory(this)">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                                Advice
-                            </button>
-                        </div>
-                        <select id="category" style="display:none;">
-                            <option value="place">Place</option>
-                            <option value="product">Product</option>
-                            <option value="service">Service</option>
-                            <option value="advice">Advice</option>
-                        </select>
-                    </div>
-
-                    <!-- Sub-step 2b-name: Name (Photo / I'm here / Link modes) -->
-                    <div class="sub-step step-hidden" id="subPlaceName">
-                        <div class="form-group">
-                            <label class="field-label-inline">NAME <span class="field-label-optional">— optional, helps friends recognise it</span></label>
-                            <input type="text" id="placeName" class="edit-input" placeholder="e.g. Onslow, Sony WH-1000XM5, Coursera Python course" autocomplete="off">
-                        </div>
-                    </div>
-
-                    <!-- Sub-step 2c: Your Note (reveals after category selection) -->
-                    <div class="sub-step step-hidden" id="subNote">
-                        <div class="form-group form-group-take">
-                            <label class="field-label-inline">YOUR NOTE</label>
-                            <p class="take-sublabel">This is the part your circle actually needs.</p>
-                            <textarea id="personalNote" class="your-take-textarea" placeholder="Best tonkotsu in town — ask for the spicy option, go after 7pm"></textarea>
-                            <input type="hidden" id="description">
-                        </div>
-                    </div>
-
                     <!-- Sub-step 2d: Address (reveals after note, only for place/service) -->
                     <div class="sub-step step-hidden" id="subAddress" style="position: relative; z-index: 10;">
                         <div class="form-group address-group" style="position: relative;">
@@ -2683,8 +2759,12 @@
                             </div>
                             <div id="addressDropdown" class="address-dropdown hidden"></div>
                             <small id="locationStatus" style="color: #6b7280; font-size: 13px;"></small>
+                            <div id="nearbyPicker" class="nearby-picker hidden"></div>
                             <input type="hidden" id="userLat" value="">
                             <input type="hidden" id="userLng" value="">
+                            <input type="hidden" id="placeId" value="">
+                            <input type="hidden" id="placeLat" value="">
+                            <input type="hidden" id="placeLng" value="">
                         </div>
                     </div>
 
@@ -2694,7 +2774,7 @@
                     <div class="sub-step step-hidden" id="subPhoto">
                         <div class="form-group" style="margin-bottom: 4px;">
                             <!-- No photo state: label wrappers = reliable cross-platform file picker trigger -->
-                            <div id="subPhotoEmpty" class="sub-photo-empty-row">
+                            <div id="subPhotoEmpty" class="sub-photo-empty-row" style="display:none;">
                                 <label for="photoGallery" class="add-photo-btn">
                                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                                     Gallery
@@ -2727,27 +2807,14 @@
                     </div>
 
                     <!-- Sub-step 2f: Privacy + Save (reveals after note) -->
-                    <div class="sub-step step-hidden" id="subPrivacy">
+                    <div class="sub-step" id="subPrivacy">
                         <input type="hidden" id="addedBy" value="">
-                        <div class="form-group visibility-group" style="margin-top: 4px;">
-                            <label class="field-label-inline">Who can see this</label>
-                            <div class="vis-selector" id="visSelector">
-                                <button type="button" class="vis-option active" data-value="private" onclick="selectVisibility(this)">
-                                    <span class="vis-label">Only me</span>
-                                </button>
-                                <button type="button" class="vis-option" data-value="friends" onclick="selectVisibility(this)">
-                                    <span class="vis-label">Friends</span>
-                                </button>
-                            </div>
-                            <p class="vis-hint" id="visHint">Saved privately — only you can see this. Change to Friends when you're ready to share.</p>
-                            <input type="hidden" id="privateToggle" value="true">
-                            <input type="hidden" id="visibilityValue" value="private">
-                        </div>
 
-                        <button type="submit" class="submit-btn" id="submitBtn">
+                        <button type="submit" class="submit-btn not-ready" id="submitBtn">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                             Save Discovery
                         </button>
+                        <p class="save-helper" id="saveHelper">Add a name and note to save</p>
                     </div>
 
                 </div><!-- /wStep2 -->
@@ -3036,7 +3103,7 @@
 
     </div><!-- end mainApp -->
 
-    <script src="app.js?v=54"></script>
+    <script src="app.js?v=57"></script>
     <script>
     // ===== NAVIGATION HISTORY (back button) =====
     var _navHistory = [];    // stack of mode strings
@@ -3076,12 +3143,10 @@
         ],
         discover: [
             'See what your world is excited about.',
-            'Trending here means trusted people saved it.',
             'Explore what your circle has built together.',
             'Every item here passed the friend test.',
             'The bigger your circle, the richer this gets.',
             'Real places. Real takes. Real people.',
-            'Trending doesn\'t mean viral. It means trusted.',
             'Your Knowledge, all in one place.',
             'Discover more by knowing more people.',
             'What\'s popular here actually means something.',
@@ -3150,6 +3215,67 @@
         if (h >= 5  && h < 12) return 'Good morning';
         if (h >= 12 && h < 18) return 'Good afternoon';
         return 'Good evening';
+    }
+
+    // ── "Add something" button — rotating theme-nudge prompt, time-of-day aware ──
+    // Blends theme nudges (Eat/Life/Kids/Cook) with memory jogs so the primary
+    // Add button teaches what belongs in Odin. Rotated by _startPhraseRotation.
+    function _getAddPool() {
+        var h = new Date().getHours();
+        if (h >= 5 && h < 11) return [   // morning
+            'Where did you eat this week?',
+            'Drop a recipe you swear by…',
+            'Add a café worth a second trip…',
+            'Best breakfast spot lately?'
+        ];
+        if (h >= 11 && h < 15) return [  // lunch
+            'Add a restaurant you’d send a friend to…',
+            'Best lunch you’ve had recently?',
+            'A place you keep going back to…',
+            'Save a shop only locals know…'
+        ];
+        if (h >= 15 && h < 18) return [  // afternoon
+            'Add a kids spot that actually worked…',
+            'A place you’d hate to forget…',
+            'Something you told a friend about lately?',
+            'Save a café worth a second trip…'
+        ];
+        return [                          // evening / night
+            'Best thing you booked this month?',
+            'Add a restaurant you’d send a friend to…',
+            'Drop a recipe you swear by…',
+            'A place you’d hate to forget…'
+        ];
+    }
+    function _startAddRotation() {
+        if (typeof _startPhraseRotation !== 'function') return;
+        ODIN_PHRASES.add = _getAddPool();   // recompute daypart each time Home shows
+        _startPhraseRotation('launcherAddLabel', 'add', 5000);
+    }
+
+    // Launcher search bar — rotate the placeholder through search examples.
+    // Native placeholder can't animate, so we fade its colour to transparent,
+    // swap the text, then fade back — matching the Add label's fade.
+    var _launcherSearchTimer = null;
+    function _startLauncherSearchRotation() {
+        var input = document.getElementById('launcherSearchInput');
+        if (!input) return;
+        var examples = (typeof _getPlaceholderPool === 'function') ? _getPlaceholderPool() : [];
+        var pool = ['Search like you’d ask a friend'].concat(examples);
+        var idx = 0;
+        input.placeholder = pool[0];
+        if (_launcherSearchTimer) clearInterval(_launcherSearchTimer);
+        _launcherSearchTimer = setInterval(function() {
+            var inp = document.getElementById('launcherSearchInput');
+            if (!inp) return;
+            if (inp.value && inp.value.trim()) return;   // pause while the user is typing
+            inp.classList.add('ph-fade');
+            setTimeout(function() {
+                idx = (idx + 1) % pool.length;
+                inp.placeholder = pool[idx];
+                inp.classList.remove('ph-fade');
+            }, 300);
+        }, 5000);
     }
 
     function _firstName() {
@@ -3267,22 +3393,28 @@
     },
     anytime: {
         en: [
-            'Doctor or dentist my friends trust',
-            'Tradie my circle has used',
-            'A recipe someone in my circle cooks',
-            'Supermarket find my friends rate',
-            'Something to learn or watch',
-            'Parenting tip from my friends',
-            'Massage or spa my friends rate',
+            'A swim school or kids activity my friends rate',
+            'Lego or a kids gift someone found',
+            'A recipe or cooking show from my circle',
+            'A kitchen staple my friends swear by',
+            'A plant shop or garden find nearby',
+            'A tradie or home repair my circle used',
+            'A doctor, dentist or skin tip my friends trust',
+            'Something to watch or learn',
+            'A trip a friend planned',
+            'Elderly care or a service my friends used',
         ],
         zh: [
-            '朋友睇開嘅醫生或牙醫',
-            '朋友用過嘅師傅（水電、地板、清潔）',
-            '朋友屋企整嘅食譜',
-            '朋友會喺超市買嘅好嘢',
-            '有咩好嘢可以學下或者睇下？',
-            '朋友分享過嘅湊仔心得',
-            '朋友按摩或者spa去邊間？',
+            '朋友推介嘅游泳班或者小朋友活動',
+            '朋友搵到嘅Lego或者小朋友禮物',
+            '朋友分享嘅食譜或者煮食節目',
+            '朋友大力推介嘅廚房必備',
+            '附近嘅植物店或者花園好物',
+            '朋友用過嘅師傅或者家居維修',
+            '朋友信得過嘅醫生、牙醫或者護膚貼士',
+            '有咩好嘢可以睇下或者學下？',
+            '朋友計劃過嘅旅行',
+            '朋友用過嘅長者照顧或者服務',
         ],
     },
     };
@@ -3979,12 +4111,19 @@
 
         var gi = Math.floor(Math.random() * greetings.length);
         lineEl.innerHTML = greetings[gi] + '<span id="launcherGreetingName" class="launcher-name highlight">' + safeName + '</span>';
-        // Use ODIN_PHRASES home pool for subtitle (branding nudges)
-        if (subEl && typeof _startPhraseRotation === 'function') {
-            _startPhraseRotation('launcherSubGreeting', 'home', 7000);
-        } else if (subEl) {
-            subEl.textContent = subs[Math.floor(Math.random() * subs.length)];
+        // Subtitle: pick ONE line per page load (fresh on refresh), not a live
+        // rotation — so the Add button below is the only thing moving on screen.
+        if (subEl) {
+            if (_phraseTimers && _phraseTimers['launcherSubGreeting']) {
+                clearInterval(_phraseTimers['launcherSubGreeting']);
+            }
+            var _homePool = (typeof ODIN_PHRASES !== 'undefined' && ODIN_PHRASES.home && ODIN_PHRASES.home.length)
+                ? ODIN_PHRASES.home : subs;
+            subEl.textContent = _homePool[Math.floor(Math.random() * _homePool.length)];
         }
+        // Both rotate at 5s, staggered 2.5s so only one line changes at a time.
+        _startLauncherSearchRotation();
+        setTimeout(_startAddRotation, 2500);
     }
 
     function updateStyleToggleUI() {
@@ -4209,6 +4348,12 @@
     // ── Smart section tabs ──
     var currentDiscoverSection = 'all';
 
+    // Fixed theme display order — value-first, not by count.
+    var THEME_ORDER = ['Eat', 'Life', 'Kids', 'Cook'];
+    var THEME_FALLBACK = 'More';   // visible catch-all for missing/unknown theme
+    var RENDER_ORDER = THEME_ORDER.concat([THEME_FALLBACK]);
+    var RAIL_MAX = 12;  // finite by design — cap items shown per rail
+
     function setDiscoverSection(el, section) {
         currentDiscoverSection = section;
         document.querySelectorAll('.dc-stab').forEach(function(b) { b.classList.remove('active'); });
@@ -4228,18 +4373,14 @@
             });
             if (titleEl) titleEl.textContent = 'All';
             if (dr) dr.style.display = 'none';
-        } else if (section === 'trending') {
-            // Most saved this week
-            var oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-            var recent = allD.filter(function(d) {
-                if (!d.created_at) return true;
-                return new Date(d.created_at) >= oneWeekAgo;
-            });
-            var pool = recent.length >= 3 ? recent : allD;
-            items = pool.slice().sort(function(a, b) {
-                return ((b.saves_count || 0) - (a.saves_count || 0));
-            });
-            if (titleEl) titleEl.textContent = 'Trending this week';
+        } else if (section === 'rediscover') {
+            // Random shuffle of all items — fresh mix every tap (Fisher–Yates)
+            items = allD.slice();
+            for (var i = items.length - 1; i > 0; i--) {
+                var j = Math.floor(Math.random() * (i + 1));
+                var tmp = items[i]; items[i] = items[j]; items[j] = tmp;
+            }
+            if (titleEl) titleEl.textContent = 'Rediscover';
             if (dr) dr.style.display = 'none';
         } else if (section === 'nearby') {
             // Location-aware — filter to items with latitude/longitude
@@ -4272,7 +4413,7 @@
         // Set default sort per section
         var sortEl = document.getElementById('dcSortSelect');
         if (sortEl) {
-            if (section === 'trending') sortEl.value = 'saves';
+            if (section === 'rediscover') sortEl.value = 'recent';
             else if (section === 'nearby') sortEl.value = 'nearest';
             else if (section === 'new') sortEl.value = 'recent';
             else sortEl.value = 'recent';
@@ -4282,6 +4423,89 @@
         if (circleHeader) circleHeader.style.display = 'flex';
 
         openCollection(titleEl ? titleEl.textContent : section, items);
+    }
+
+    // Render the current section's items as vertical theme sections, each a
+    // horizontal rail. items are ALREADY sorted by setDiscoverSection (All=recent,
+    // Trending=saves_count, New=recent) — we preserve that order inside each theme.
+    function renderThemeRails(items) {
+        var host = document.getElementById('dcThemeRails');
+        var flat = document.getElementById('discoverGrid');
+        if (!host) return;
+        if (flat) flat.style.display = 'none';
+        // Rails are finite (RAIL_MAX per theme) — no "Load More" in rails view.
+        var lm = document.getElementById('loadMoreContainer');
+        if (lm) lm.classList.add('hidden');
+        host.style.display = '';
+        host.innerHTML = '';
+
+        if (!items || !items.length) {
+            host.innerHTML = '<div class="dc-empty">No discoveries yet.</div>';
+            return;
+        }
+
+        // Group by theme, preserving incoming sort order within each group
+        var groups = {};
+        items.forEach(function(it) {
+            // Only the four real themes are valid; anything else (null/undefined/unknown)
+            // goes to the visible "More" bucket — never silently into Life.
+            var key = (THEME_ORDER.indexOf(it.theme) >= 0) ? it.theme : THEME_FALLBACK;
+            (groups[key] = groups[key] || []).push(it);
+        });
+
+        RENDER_ORDER.forEach(function(theme) {
+            var all = groups[theme];
+            if (!all || !all.length) return;              // skip empty themes
+            var railItems = all.slice(0, RAIL_MAX);
+
+            var section = document.createElement('div');
+            section.className = 'dc-theme';
+
+            var head = document.createElement('div');
+            head.className = 'dc-theme-head';
+            head.innerHTML =
+                '<div><span class="dc-theme-name">' + theme + '</span>' +
+                '<span class="dc-theme-count">' + all.length + '</span></div>';
+            var seeBtn = document.createElement('button');
+            seeBtn.className = 'dc-theme-see';
+            seeBtn.textContent = 'See all';
+            seeBtn.onclick = function() { openThemeFlat(theme); };
+            head.appendChild(seeBtn);
+            section.appendChild(head);
+
+            var rail = document.createElement('div');
+            rail.className = 'dc-rail';
+            railItems.forEach(function(it) {
+                // REUSE createCard. index must map into filteredDiscoveries for the drawer.
+                var idx = filteredDiscoveries.findIndex(function(d) { return d.id === it.id; });
+                var card = createCard(it, idx >= 0 ? idx : 0);
+                if (card) { card.classList.add('dc-rail-card'); rail.appendChild(card); }
+            });
+
+            // finite cap → tap to see the whole theme flat
+            var cap = document.createElement('div');
+            cap.className = 'dc-rail-end';
+            cap.innerHTML = '<div class="dc-rail-end-circle">→</div><span>See all ' + all.length + '</span>';
+            cap.onclick = function() { openThemeFlat(theme); };
+            rail.appendChild(cap);
+
+            section.appendChild(rail);
+            host.appendChild(section);
+        });
+    }
+
+    // "See all" for one theme → flat grid of just that theme, using the existing renderer.
+    function openThemeFlat(theme) {
+        var host = document.getElementById('dcThemeRails');
+        var flat = document.getElementById('discoverGrid');
+        filteredDiscoveries = (allDiscoveries || []).filter(function(d) {
+            return ((THEME_ORDER.indexOf(d.theme) >= 0) ? d.theme : 'Life') === theme;
+        });
+        displayedCount = 0;
+        if (host) host.style.display = 'none';
+        if (flat) flat.style.display = '';
+        document.getElementById('dcAllItemsTitle').textContent = theme;
+        renderGrid();  // existing flat-grid renderer
     }
 
     // ── Surprise Me ──
@@ -4380,7 +4604,6 @@
 
     // ── Discover heading + rotating subtitle ──
     var _dcHeadings = [
-        'See what\'s trending',
         'What\'s your circle into?',
         'Discover',
         'Find something new',
@@ -4396,6 +4619,15 @@
         greetEl.textContent = _dcHeadings[hi] || _dcHeadings[0];
         // Subtitle uses the ODIN_PHRASES discover pool
         _startPhraseRotation('dcSubheading', 'discover', 7000);
+
+        // One-shot attention wiggle on the Surprise button when entering Discover.
+        var sBtn = document.getElementById('dcSurpriseBtn');
+        if (sBtn) {
+            sBtn.classList.remove('dc-surprise-btn--enter');
+            void sBtn.offsetWidth;  // reflow so the animation re-triggers each entry
+            setTimeout(function() { sBtn.classList.add('dc-surprise-btn--enter'); }, 400);
+            setTimeout(function() { sBtn.classList.remove('dc-surprise-btn--enter'); }, 2000);
+        }
     }
 
     // ── Sort control ──

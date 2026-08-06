@@ -3598,7 +3598,7 @@
         /* ── The Word (pull-quote) ── */
         .drawer-quote {
             border-left: 3px solid var(--wb);
-            padding: 12px 16px;
+            padding: 9px 14px;
             margin-bottom: 8px;
             background: rgba(123, 45, 69, 0.04);
             border-radius: 0 10px 10px 0;
@@ -3609,12 +3609,12 @@
             color: var(--wb);
             text-transform: uppercase;
             letter-spacing: 0.6px;
-            margin-bottom: 5px;
+            margin-bottom: 3px;
         }
         .drawer-quote-text {
             color: var(--ink);
             font-size: 15px;
-            line-height: 1.6;
+            line-height: 1.45;
             font-style: italic;
         }
         .drawer-quote-locked .drawer-quote-text {
@@ -3705,6 +3705,29 @@
             background: rgba(123, 45, 69, 0.04);
         }
         .drawer-btn-secondary svg { flex-shrink: 0; }
+
+        /* Hybrid action buttons — icon stacked above a small label. Compact
+           enough that 2, 3, or 4 buttons (Directions · Website · Share · Add to
+           list) all fit one line at phone width, while keeping labels for clarity. */
+        .drawer-action-btns .drawer-btn-primary,
+        .drawer-action-btns .drawer-btn-secondary {
+            flex-direction: column;
+            gap: 3px;
+            padding: 9px 4px;
+            font-size: 11px;
+            font-weight: 500;
+            min-width: 0;
+            line-height: 1.2;
+        }
+        .drawer-action-btns .drawer-btn-primary svg,
+        .drawer-action-btns .drawer-btn-secondary svg {
+            width: 18px;
+            height: 18px;
+        }
+        /* Secondary icons in brand maroon (labels stay ink); primary stays white */
+        .drawer-action-btns .drawer-btn-secondary svg {
+            color: #7B2D45;
+        }
 
         /* ── Social section ── */
         .drawer-social {
@@ -4070,6 +4093,32 @@
         .submit-btn:disabled {
             opacity: 0.6;
             pointer-events: none;
+        }
+
+        /* ── 1a: required-field checkmarks + Save ready/not-ready ── */
+        .field-check {
+            display: none;
+            vertical-align: -2px;
+            margin-left: 6px;
+        }
+        .field-check.show { display: inline-block; }
+
+        /* Not-ready overrides the maroon gradient with the muted disabled tokens */
+        .submit-btn.not-ready {
+            background: #EDE4D6 !important;
+            color: #B8AA9C !important;
+            box-shadow: none !important;
+            opacity: 1 !important;
+        }
+        .submit-btn.not-ready:hover { transform: none; }
+        .submit-btn.not-ready svg { stroke: #B8AA9C !important; }
+
+        .save-helper {
+            text-align: center;
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 8px;
+            margin-bottom: 0;
         }
 
         /* ── URL Hero Bar ── */
@@ -9154,10 +9203,10 @@
 .launcher-page {
     max-width: 600px;
     margin: 0 auto;
-    padding: 20px 20px 12px;
+    padding: 14px 20px 12px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
 }
 
 @media (min-width: 768px) {
@@ -9191,9 +9240,9 @@
     display: flex;
     align-items: center;
     background: #ffffff;
-    border-radius: 14px;
-    padding: 14px 8px;
-    margin: 14px 0 0;
+    border-radius: 16px;
+    padding: 12px 8px;
+    margin: 0;
     box-shadow: 0 1px 4px rgba(0,0,0,0.06);
     gap: 0;
 }
@@ -9208,8 +9257,8 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 3px;
-    padding: 4px;
+    gap: 2px;
+    padding: 2px;
     background: transparent;
     border: 0;
     cursor: pointer;
@@ -9225,21 +9274,21 @@
 .hstat-num {
     font-family: 'Fraunces', Georgia, serif;
     font-weight: 700;
-    font-size: 22px;
+    font-size: 19px;
     line-height: 1;
     color: var(--ink, #1f1f1f);
 }
 
 .hstat-label {
     font-family: 'Inter', sans-serif;
-    font-size: 12px;
+    font-size: 11px;
     color: var(--muted);
     letter-spacing: 0.01em;
 }
 
 /* Knowledge — hero (stands out in brand maroon) */
 .hstat-hero .hstat-num {
-    font-size: 24px;
+    font-size: 20px;
     color: #7B2D45;
 }
 
@@ -9251,7 +9300,7 @@
 /* Separators become thin vertical dividers (glyph hidden) */
 .hstat-sep {
     width: 1px;
-    height: 32px;
+    height: 24px;
     background: #f0ece4;
     flex-shrink: 0;
     font-size: 0;
@@ -9278,7 +9327,7 @@
 .launcher-tiles {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
 }
 
 .launcher-row {
@@ -9609,6 +9658,68 @@
 }
 .discover-scroll-wrap::-webkit-scrollbar { display: none; }
 
+/* ===== Discover theme rails ===== */
+.dc-theme-rails { display:block; }
+
+.dc-theme { margin-top:22px; }
+.dc-theme-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 0 0 14px;
+}
+.dc-theme-head > div:first-child {
+    display: flex;
+    align-items: baseline;
+    gap: 11px;
+}
+.dc-theme-name {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-style: italic;
+    font-size: 27px;
+    font-weight: 400;
+    color: #7a2230;
+    line-height: 1.1;
+}
+.dc-theme-count {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    background: #7a2230;
+    padding: 3px 11px;
+    border-radius: 20px;
+    transform: translateY(-4px);
+    letter-spacing: .01em;
+}
+.dc-theme-see { background:none; border:none; font-size:13px; color:#7a1f3d; font-weight:600; cursor:pointer; }
+
+/* RAIL — first card MUST align with the heading/search-bar left edge.
+   The rail host sits at the wrap's content edge, so we add NO left margin/padding
+   (a left breakout here is the recurring "double left margin" bug). We bleed ONLY
+   to the right so the last card can scroll to the screen edge without clipping. */
+.dc-rail { display:flex; gap:12px; overflow-x:auto; scroll-snap-type:x mandatory;
+  margin-right:-16px; padding-right:16px;
+  scrollbar-width:none; }
+.dc-rail::-webkit-scrollbar { display:none; }
+
+/* width override ONLY — do not restyle card internals.
+   192px matches the live-app card width (.hf-card base). Compound selector beats
+   .dc-grid-card (width:100%; flex-shrink:1, defined later) so cards never shrink. */
+.dc-rail .dc-rail-card { flex:0 0 192px; width:192px; scroll-snap-align:start; }
+
+.dc-rail-end { flex:none; width:96px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:6px; color:#a89f95; cursor:pointer; }
+.dc-rail-end-circle { width:40px; height:40px; border-radius:50%;
+  border:1.5px dashed #ece5db; display:flex; align-items:center; justify-content:center; font-size:16px; }
+.dc-rail-end span { font-size:11px; text-align:center; line-height:1.3; }
+
+.dc-empty { color:#a89f95; font-size:14px; padding:20px 0; }
+
+/* right-side bleed only, matched to wrap padding steps (no left breakout) */
+@media (min-width:480px) { .dc-rail { margin-right:-20px; padding-right:20px; } }
+@media (min-width:768px) { .dc-rail { margin-right:-32px; padding-right:32px; } }
+
 /* Pinned search bar — sits directly below the header, never scrolls.
    Full width so the background fills edge-to-edge on all screen sizes. */
 .dc-search-pinned {
@@ -9937,6 +10048,8 @@
 
 /* ── Surprise Me button ── */
 .dc-surprise-btn {
+    position: relative;
+    overflow: hidden;   /* clips the entrance shimmer sweep */
     flex-shrink: 0;
     display: flex;
     align-items: center;
@@ -9963,6 +10076,28 @@
 .dc-surprise-btn--active {
     transform: scale(0.93);
     background: #be561f;
+}
+/* One-shot magical shimmer when the Discover page is entered — a diagonal light
+   streak sweeps left→right across the button. No bounce/movement. */
+.dc-surprise-btn--enter::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -60%;
+    width: 45%;
+    height: 100%;
+    background: linear-gradient(120deg, transparent, rgba(255,255,255,0.6), transparent);
+    transform: skewX(-20deg);
+    animation: dcSurpriseSheen 0.8s ease-in-out 2;
+    pointer-events: none;
+}
+@keyframes dcSurpriseSheen {
+    0%   { left: -60%; }
+    55%  { left: 130%; }
+    100% { left: 130%; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .dc-surprise-btn--enter::after { animation: none; }
 }
 
 /* ── Surprise strip ── */
@@ -12216,3 +12351,69 @@ body.map-view-open .content {
     display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink);
 }
 .lists-back-btn:hover { background: #e5e0d8; }
+
+/* ── 1a: visibility segmented pill (moved to top of Add form) ───────────
+   Appended last so these override the earlier .vis-selector/.vis-option rules. */
+.visibility-group--top { margin: 0 0 18px; }
+.vis-selector {
+    display: flex;
+    gap: 4px;
+    background: #F1E8DA;
+    border-radius: 12px;
+    padding: 4px;
+    margin-top: 2px;
+}
+.vis-option {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 8px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: #8C7A6E;
+    cursor: pointer;
+    transition: background 0.18s, color 0.18s;
+    font-family: 'Inter', sans-serif;
+}
+.vis-option:hover { border-color: transparent; }
+.vis-option.active {
+    background: #7B2D45;
+    border-color: transparent;
+}
+.vis-label { font-size: 14px; font-weight: 600; color: #8C7A6E; }
+.vis-option.active .vis-label { color: #ffffff; }
+.vis-ic { stroke: #8C7A6E; flex: none; }
+.vis-option.active .vis-ic { stroke: #ffffff; }
+.visibility-group--top .vis-hint { margin: 8px 2px 0; font-size: 12px; line-height: 1.45; color: #8C7A6E; }
+/* Both visibility hints share one format — no special boxed treatment for Friends. */
+.visibility-group--top .vis-hint.vis-hint--friends {
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+    color: #8C7A6E;
+}
+
+/* ── 1a: Add-form typography to match the design tokens (scoped to #addForm) ── */
+/* Name / Your note labels match the "My Saves" pbox-label style: 14px, 600, dark ink, Title Case. */
+#addForm .field-label-inline { font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink); }
+#addForm .field-label-optional { font-size: 13px; text-transform: none; }
+/* Name + The Word are the focal point: identical font/size/weight, enlarged.
+   Labels stay small (11px) so these two fields clearly dominate. */
+#addForm #placeName,
+#addForm .your-take-textarea {
+    font-size: 16px;          /* softer + smaller, matches live; 16px avoids iOS focus-zoom */
+    font-weight: 400;
+    font-family: inherit;     /* body Inter — lighter than the forced 500 */
+    color: var(--ink);
+    line-height: 1.5;
+}
+/* Placeholders are hints, not focus — lighter + smaller than the typed text. */
+#addForm #placeName::placeholder,
+#addForm .your-take-textarea::placeholder {
+    color: #C4B8AC;
+    font-weight: 400;
+    font-size: 15px;
+}
