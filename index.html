@@ -1199,21 +1199,41 @@
         .launcher-add-row {
             display: flex;
             align-items: center;
-            gap: 14px;
+            gap: 12px;
             width: 100%;
-            min-height: 58px;
-            background: #fff;
-            border: 1px solid rgba(0,0,0,0.06);
+            height: 60px;                 /* fixed — reserves 2 lines, no jump on rotate */
+            background: #fdfbf7;
+            border: 1px solid #efe8dd;
             border-radius: 16px;
-            padding: 13px 18px;
+            padding: 0 16px;
             cursor: pointer;
             text-align: left;
             box-sizing: border-box;
         }
-        .launcher-add-row:hover { background: #FBF8F3; }
-        .launcher-add-icon { color: #7B2D45; flex-shrink: 0; display: inline-flex; }
+        .launcher-add-row:hover { background: #f7f1e8; }
+        .launcher-add-icon {
+            width: 26px; height: 26px;
+            border-radius: 50%;
+            background: #f1e7ea;          /* pale wine chip */
+            color: #7a2230;
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .launcher-add-icon svg { width: 15px; height: 15px; }
         .launcher-add-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-        .launcher-add-label { font-weight: 600; font-size: 16px; color: #1a1a1a; line-height: 1.25; transition: opacity 0.3s ease; }
+        .launcher-add-label {
+            font-weight: 400;
+            font-size: 14px;
+            color: #9a8f86;               /* muted — recedes behind the search hero */
+            line-height: 1.3;
+            transition: opacity 0.3s ease;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
         .launcher-add-sub { font-size: 13px; color: #6b6b6b; }
         /* Add to list — bottom sheet */
         .atl-sheet { position: fixed; inset: 0; z-index: 9000; display: none; }
