@@ -4003,7 +4003,25 @@ function openCollection(groupName, items) {
 
     document.getElementById('dcAllItemsSection').style.display = '';
     document.getElementById('dcAllItemsTitle').textContent = groupName;
-    renderGrid();
+
+    // Nearby stays a flat distance-sorted grid; all other sections render as theme rails.
+    var flat = document.getElementById('discoverGrid');
+    var rails = document.getElementById('dcThemeRails');
+    if (currentDiscoverSection === 'nearby') {
+        if (rails) rails.style.display = 'none';
+        if (flat)  flat.style.display  = '';
+        // Nearest-first: setDiscoverSection only filters to items with coords,
+        // it doesn't sort. Sort by distance here so the flat grid is ordered.
+        filteredDiscoveries.sort(function(a, b) {
+            return (a.distance_km == null ? Infinity : a.distance_km) -
+                   (b.distance_km == null ? Infinity : b.distance_km);
+        });
+        renderGrid();
+    } else if (typeof renderThemeRails === 'function') {
+        renderThemeRails(items);
+    } else {
+        renderGrid();  // safety fallback
+    }
 }
 
 function showAllCollections() {
@@ -4810,7 +4828,12 @@ function filterAndRender() {
 
     updateActiveFiltersBar();
     displayedCount = 0;
-    renderGrid();
+    if (currentDiscoverSection && currentDiscoverSection !== 'nearby'
+        && typeof renderThemeRails === 'function') {
+        renderThemeRails(filteredDiscoveries);
+    } else {
+        renderGrid();
+    }
 }
 
 function updateActiveFiltersBar() {
@@ -5073,7 +5096,7 @@ async function loadDiscoveries() {
                         // Fetch full item details for eligible IDs in one batched query
                         const { data: extData, error: extFetchError } = await supabaseClient
                             .from('knowledge_items')
-                            .select('id, title, photo_url, address, latitude, longitude, description, type, category, feed_card_summary, place_name, created_at, added_by, visibility')
+                            .select('id, title, photo_url, address, latitude, longitude, description, type, category, feed_card_summary, place_name, created_at, added_by, visibility, theme')
                             .in('id', eligibleIds)
                             .gte('created_at', twoWeeksAgo.toISOString())
                             .order('created_at', { ascending: false });

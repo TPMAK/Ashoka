@@ -666,11 +666,13 @@
 
         .home-search-bar {
             width: 100%;
-            padding: 10px 44px 10px 40px;
+            padding: 9px 44px 9px 40px;
+            min-height: 58px;              /* room for up to 2 lines of placeholder */
             font-size: 15px;
+            line-height: 1.3;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             border: 1.5px solid var(--border);
-            border-radius: 50px;
+            border-radius: 22px;           /* rounded rect reads better than a tall pill */
             background: var(--surface);
             color: var(--ink);
             outline: none;
@@ -911,16 +913,15 @@
             left: 1.5px;
             right: 1.5px;
             bottom: 1.5px;
-            padding: 10px 42px 10px 38px;  /* input padding minus border */
+            padding: 8px 42px 8px 38px;  /* input padding minus border */
             display: flex;
             align-items: center;
             font-size: 15px;
-            line-height: 1;
+            line-height: 1.3;
             color: var(--muted);
             pointer-events: none;
-            white-space: nowrap;
+            white-space: normal;          /* allow wrap to a 2nd line */
             overflow: hidden;
-            text-overflow: ellipsis;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
 
@@ -940,7 +941,9 @@
         /* ── Home Feed Card — polished, matches discovery card ── */
         .hf-card {
             flex-shrink: 0;
-            width: 192px;
+            /* 2 full cards + a slim peek of the 3rd on phones; caps at 192px on wide screens.
+               76 = 16 left inset + 12 gap + 12 gap + ~36 peek of the next card. */
+            width: clamp(150px, calc((100vw - 76px) / 2), 192px);
             background: #ffffff;
             border-radius: 16px;
             overflow: hidden;
@@ -6178,6 +6181,25 @@
     opacity: 0.7;
 }
 
+/* My Lists has no photos/avatars to show, so give its icon a colourful,
+   on-brand badge with the same visual weight as Saves/Circle. */
+#profileBoxListsVisual .pbox-icon-placeholder {
+    width: 58px;
+    height: 58px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #7B2D45 0%, #A6415F 55%, #C9873B 130%);
+    color: #ffffff;
+    opacity: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(123, 45, 69, 0.28);
+}
+#profileBoxListsVisual .pbox-icon-placeholder svg {
+    width: 28px;
+    height: 28px;
+}
+
 .pbox-thumbs-stack,
 .pbox-avatars-stack {
     display: flex;
@@ -6394,6 +6416,17 @@
     font-size: 11px;
     color: var(--muted);
     font-weight: 500;
+}
+
+/* One-line intro under My Lists — explains the feature at the point of entry */
+.pbox-desc {
+    margin: -2px 0 0;
+    padding: 0 14px 13px;
+    background: #fff;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #8a7f75;
+    text-align: left;
 }
 
 /* Settings list rows */
@@ -9240,8 +9273,8 @@
     display: flex;
     align-items: center;
     background: #ffffff;
-    border-radius: 14px;
-    padding: 10px 8px;
+    border-radius: 16px;
+    padding: 12px 8px;
     margin: 0;
     box-shadow: 0 1px 4px rgba(0,0,0,0.06);
     gap: 0;
@@ -9658,6 +9691,68 @@
 }
 .discover-scroll-wrap::-webkit-scrollbar { display: none; }
 
+/* ===== Discover theme rails ===== */
+.dc-theme-rails { display:block; }
+
+.dc-theme { margin-top:22px; }
+.dc-theme-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 0 0 14px;
+}
+.dc-theme-head > div:first-child {
+    display: flex;
+    align-items: baseline;
+    gap: 11px;
+}
+.dc-theme-name {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-style: italic;
+    font-size: 27px;
+    font-weight: 400;
+    color: #7a2230;
+    line-height: 1.1;
+}
+.dc-theme-count {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    background: #7a2230;
+    padding: 3px 11px;
+    border-radius: 20px;
+    transform: translateY(-4px);
+    letter-spacing: .01em;
+}
+.dc-theme-see { background:none; border:none; font-size:13px; color:#7a1f3d; font-weight:600; cursor:pointer; }
+
+/* RAIL — first card MUST align with the heading/search-bar left edge.
+   The rail host sits at the wrap's content edge, so we add NO left margin/padding
+   (a left breakout here is the recurring "double left margin" bug). We bleed ONLY
+   to the right so the last card can scroll to the screen edge without clipping. */
+.dc-rail { display:flex; gap:12px; overflow-x:auto; scroll-snap-type:x mandatory;
+  margin-right:-16px; padding-right:16px;
+  scrollbar-width:none; }
+.dc-rail::-webkit-scrollbar { display:none; }
+
+/* width override ONLY — do not restyle card internals.
+   192px matches the live-app card width (.hf-card base). Compound selector beats
+   .dc-grid-card (width:100%; flex-shrink:1, defined later) so cards never shrink. */
+.dc-rail .dc-rail-card { flex:0 0 auto; width: clamp(150px, calc((100vw - 76px) / 2), 192px); scroll-snap-align:start; }
+
+.dc-rail-end { flex:none; width:96px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:6px; color:#a89f95; cursor:pointer; }
+.dc-rail-end-circle { width:40px; height:40px; border-radius:50%;
+  border:1.5px dashed #ece5db; display:flex; align-items:center; justify-content:center; font-size:16px; }
+.dc-rail-end span { font-size:11px; text-align:center; line-height:1.3; }
+
+.dc-empty { color:#a89f95; font-size:14px; padding:20px 0; }
+
+/* right-side bleed only, matched to wrap padding steps (no left breakout) */
+@media (min-width:480px) { .dc-rail { margin-right:-20px; padding-right:20px; } }
+@media (min-width:768px) { .dc-rail { margin-right:-32px; padding-right:32px; } }
+
 /* Pinned search bar — sits directly below the header, never scrolls.
    Full width so the background fills edge-to-edge on all screen sizes. */
 .dc-search-pinned {
@@ -9986,6 +10081,8 @@
 
 /* ── Surprise Me button ── */
 .dc-surprise-btn {
+    position: relative;
+    overflow: hidden;   /* clips the entrance shimmer sweep */
     flex-shrink: 0;
     display: flex;
     align-items: center;
@@ -10012,6 +10109,28 @@
 .dc-surprise-btn--active {
     transform: scale(0.93);
     background: #be561f;
+}
+/* One-shot magical shimmer when the Discover page is entered — a diagonal light
+   streak sweeps left→right across the button. No bounce/movement. */
+.dc-surprise-btn--enter::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -60%;
+    width: 45%;
+    height: 100%;
+    background: linear-gradient(120deg, transparent, rgba(255,255,255,0.6), transparent);
+    transform: skewX(-20deg);
+    animation: dcSurpriseSheen 0.8s ease-in-out 2;
+    pointer-events: none;
+}
+@keyframes dcSurpriseSheen {
+    0%   { left: -60%; }
+    55%  { left: 130%; }
+    100% { left: 130%; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .dc-surprise-btn--enter::after { animation: none; }
 }
 
 /* ── Surprise strip ── */

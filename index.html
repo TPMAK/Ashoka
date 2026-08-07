@@ -25,7 +25,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- IMPORTANT: Add Supabase JS SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link rel="stylesheet" href="styles.css?v=58">
+    <link rel="stylesheet" href="styles.css?v=63">
     <style>
                 /* ── New Landing Page: Two-column split ── */
         :root {
@@ -1158,15 +1158,18 @@
 
         /* Home launcher — hero search input */
         .launcher-search-hero {
+            position: relative;
             display: flex;
             align-items: center;
             gap: 10px;
             width: 100%;
+            height: 64px;
             background: #FFFFFF;
-            border: 2px solid #7B2D45;
+            border: 1px solid #d9cfbf;         /* defined border — equal with Add */
             border-radius: 16px;
-            padding: 16px 18px;
+            padding: 0 16px;
             box-sizing: border-box;
+            box-shadow: 0 2px 8px rgba(122,34,48,0.06);
         }
         .launcher-search-icon { color: #7B2D45; flex-shrink: 0; }
         .launcher-search-input {
@@ -1176,43 +1179,89 @@
             border: none;
             outline: none;
             color: #1a1a1a;
-            caret-color: #7B2D45;
+            caret-color: transparent;      /* real caret hidden — we show a fake blinking one */
+            pointer-events: none;          /* taps fall through to the whole-bar handler */
             font-size: 16px; /* 16px prevents iOS zoom-on-focus */
             font-family: inherit;
         }
-        .launcher-search-input::placeholder { color: #8a8a8a; }
+        .launcher-search-hero { cursor: pointer; }   /* taps open the Search page */
+        /* Native placeholder hidden — a wrapping overlay div shows the rotating text instead */
+        .launcher-search-input::placeholder { color: transparent; }
+        .launcher-search-ph {
+            position: absolute;
+            left: 50px;                 /* clear the search icon */
+            right: 52px;                /* clear the go arrow */
+            top: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            font-size: 16px;            /* match Add label typography exactly */
+            font-weight: 400;
+            line-height: 1.3;
+            color: #8a8078;
+            pointer-events: none;       /* taps fall through to the whole-bar handler */
+            white-space: normal;        /* wrap to a 2nd line */
+            overflow: hidden;
+            transition: opacity 0.3s ease;
+        }
+        .launcher-search-ph.ph-fade { opacity: 0; }
+        .launcher-search-hero.has-value .launcher-search-ph { opacity: 0; }
         .launcher-search-go {
             flex-shrink: 0;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 40px; height: 40px;
+            width: 20px; height: 20px;      /* same size as Add chevron so arrows match */
             border: none;
-            border-radius: 12px;
-            background: #7B2D45;
-            color: #fff;
+            border-radius: 0;
+            background: transparent;        /* plain wine arrow — matches Add's arrow */
+            color: #7B2D45;
             cursor: pointer;
+            padding: 0;
         }
-        .launcher-search-go:hover { background: #6a2439; }
+        .launcher-search-go:hover { color: #6a2439; }
+        .launcher-search-go svg { width: 20px; height: 20px; }
 
         /* Home launcher — Add full-width row */
         .launcher-add-row {
             display: flex;
             align-items: center;
-            gap: 14px;
+            gap: 10px;                    /* match search hero gap */
             width: 100%;
+            height: 64px;                 /* equal weight — same height as search */
             background: #fff;
-            border: 1px solid rgba(0,0,0,0.06);
+            border: 1px solid #d9cfbf;    /* defined border — equal with search */
             border-radius: 16px;
-            padding: 13px 18px;
+            padding: 0 16px;              /* match search hero horizontal padding → icons align */
             cursor: pointer;
             text-align: left;
             box-sizing: border-box;
+            box-shadow: 0 2px 8px rgba(122,34,48,0.06);   /* subtle lift = reads as button */
+            transition: background 0.15s, box-shadow 0.15s;
         }
-        .launcher-add-row:hover { background: #FBF8F3; }
-        .launcher-add-icon { color: #7B2D45; flex-shrink: 0; display: inline-flex; }
-        .launcher-add-text { display: flex; flex-direction: column; }
-        .launcher-add-label { font-weight: 600; font-size: 16px; color: #1a1a1a; }
+        .launcher-add-row:hover { background: #fdfbf7; box-shadow: 0 3px 12px rgba(122,34,48,0.10); }
+        .launcher-add-icon {
+            width: 24px; height: 24px;    /* same outline icon language as the search magnifier */
+            color: #7B2D45;
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .launcher-add-icon svg { width: 24px; height: 24px; }
+        .launcher-add-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+        .launcher-add-label {
+            font-weight: 400;
+            font-size: 16px;              /* same size as search placeholder */
+            color: #8a8078;
+            line-height: 1.3;
+            transition: opacity 0.3s ease;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .launcher-add-chev { color: #7B2D45; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; }
         .launcher-add-sub { font-size: 13px; color: #6b6b6b; }
         /* Add to list — bottom sheet */
         .atl-sheet { position: fixed; inset: 0; z-index: 9000; display: none; }
@@ -1744,10 +1793,11 @@
                     <!-- Main action tiles -->
                     <div class="launcher-tiles">
                         <!-- Search — hero live input -->
-                        <div class="launcher-search-hero">
+                        <div class="launcher-search-hero" role="button" tabindex="0" onclick="openLauncherSearch()" onkeydown="if(event.key==='Enter'||event.key===' ') openLauncherSearch()" aria-label="Search">
                             <svg class="launcher-search-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                            <input type="text" id="launcherSearchInput" class="launcher-search-input" placeholder="Search like you’d ask a friend" onkeypress="if(event.key==='Enter') runHomeSearch()" autocomplete="off" enterkeyhint="search">
-                            <button type="button" class="launcher-search-go" onclick="runHomeSearch()" aria-label="Search">
+                            <input type="text" id="launcherSearchInput" class="launcher-search-input" placeholder="Search like you’d ask a friend" readonly tabindex="-1" aria-hidden="true" autocomplete="off">
+                            <div class="launcher-search-ph" id="launcherSearchPh">Search like you’d ask a friend</div>
+                            <button type="button" class="launcher-search-go" onclick="openLauncherSearch()" aria-label="Search">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                             </button>
                         </div>
@@ -1758,8 +1808,9 @@
                                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
                             </div>
                             <div class="launcher-add-text">
-                                <span class="launcher-add-label">Add something</span>
+                                <span class="launcher-add-label" id="launcherAddLabel">Add something</span>
                             </div>
+                            <svg class="launcher-add-chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                         </button>
                     </div>
 
@@ -1991,7 +2042,7 @@
                     <div class="dc-section-tabs-row">
                         <div class="dc-section-tabs" id="dcSectionTabs">
                             <button class="dc-stab active" data-section="all" onclick="setDiscoverSection(this,'all')">All</button>
-                            <button class="dc-stab" data-section="trending" onclick="setDiscoverSection(this,'trending')">Trending</button>
+                            <button class="dc-stab" data-section="rediscover" onclick="setDiscoverSection(this,'rediscover')">Rediscover</button>
                             <button class="dc-stab" data-section="new" onclick="setDiscoverSection(this,'new')">New</button>
                             <button class="dc-stab" data-section="nearby" onclick="setDiscoverSection(this,'nearby')">Near me</button>
                         </div>
@@ -2039,7 +2090,7 @@
 
                     <!-- Collection cards -->
                     <div class="dc-section-header" id="dcCircleHeader" style="display:none;">
-                        <h2 class="dc-section-title" id="dcCircleTitle">Trending this week</h2>
+                        <h2 class="dc-section-title" id="dcCircleTitle">Discover</h2>
                     </div>
                     <div class="dc-collections-grid" id="dcCollectionsGrid"></div>
 
@@ -2060,7 +2111,11 @@
 
                     <!-- All items flat grid (shown when a collection is selected) -->
                     <div id="dcAllItemsSection" style="display:none;">
-                        <div class="dc-section-header" style="margin-top:20px;">
+                        <!-- Header row hidden: theme rails have their own headings and the
+                             tab drives ordering, so the "All / Most recent" row is redundant.
+                             Kept in DOM (display:none) because JS still writes to
+                             #dcAllItemsTitle and #dcSortSelect. -->
+                        <div class="dc-section-header" style="margin-top:20px;display:none;">
                             <h2 class="dc-section-title" id="dcAllItemsTitle">All items</h2>
                             <div class="dc-sort-wrap">
                                 <select class="dc-sort-select" id="dcSortSelect" onchange="applyDiscoverSort(this.value)">
@@ -2071,6 +2126,7 @@
                                 </select>
                             </div>
                         </div>
+                        <div class="dc-theme-rails" id="dcThemeRails"></div>
                         <div class="discover-grid" id="discoverGrid"></div>
                         <div class="load-more-container hidden" id="loadMoreContainer">
                             <button class="load-more-btn" onclick="loadMore()">Load More</button>
@@ -2246,6 +2302,7 @@
                                 <span class="pbox-label">My Lists</span>
                                 <span class="pbox-count" id="pboxListsCount"></span>
                             </div>
+                            <p class="pbox-desc">Group your saves into your own lists, private to you. Open a list and tap Copy to paste it into your AI — handy for trip planning.</p>
                         </div>
                     </div>
 
@@ -3110,12 +3167,10 @@
         ],
         discover: [
             'See what your world is excited about.',
-            'Trending here means trusted people saved it.',
             'Explore what your circle has built together.',
             'Every item here passed the friend test.',
             'The bigger your circle, the richer this gets.',
             'Real places. Real takes. Real people.',
-            'Trending doesn\'t mean viral. It means trusted.',
             'Your Knowledge, all in one place.',
             'Discover more by knowing more people.',
             'What\'s popular here actually means something.',
@@ -3163,17 +3218,33 @@
     function _startPhraseRotation(subtitleId, phraseKey, intervalMs) {
         var el = document.getElementById(subtitleId);
         if (!el) return;
-        var pool = ODIN_PHRASES[phraseKey] || [];
-        var idx  = Math.floor(Math.random() * pool.length);
-        el.textContent = pool[idx];
+        var basePool = ODIN_PHRASES[phraseKey] || [];
+        if (!basePool.length) return;
+        function _shuf(src) {                            // Fisher–Yates copy
+            var a = src.slice();
+            for (var i = a.length - 1; i > 0; i--) {
+                var j = Math.floor(Math.random() * (i + 1));
+                var t = a[i]; a[i] = a[j]; a[j] = t;
+            }
+            return a;
+        }
+        var order = _shuf(basePool);                     // random order each time
+        var idx   = 0;
+        el.textContent = order[0];
         if (_phraseTimers[subtitleId]) clearInterval(_phraseTimers[subtitleId]);
         _phraseTimers[subtitleId] = setInterval(function() {
             var el2 = document.getElementById(subtitleId);
             if (!el2) return;
             el2.classList.add('page-subtitle-fade');
             setTimeout(function() {
-                idx = (idx + 1) % pool.length;
-                el2.textContent = pool[idx];
+                idx++;
+                if (idx >= order.length) {               // reshuffle for a fresh random order
+                    var last = order[order.length - 1];
+                    order = _shuf(basePool);
+                    if (order.length > 1 && order[0] === last) order.push(order.shift());  // no back-to-back repeat
+                    idx = 0;
+                }
+                el2.textContent = order[idx];
                 el2.classList.remove('page-subtitle-fade');
             }, 350);
         }, intervalMs || 6000);
@@ -3184,6 +3255,107 @@
         if (h >= 5  && h < 12) return 'Good morning';
         if (h >= 12 && h < 18) return 'Good afternoon';
         return 'Good evening';
+    }
+
+    // ── "Add something" button — rotating theme-nudge prompt, time-of-day aware ──
+    // Blends theme nudges (Eat/Life/Kids/Cook) with memory jogs so the primary
+    // Add button teaches what belongs in Odin. Rotated by _startPhraseRotation.
+    function _getAddPool() {
+        var h = new Date().getHours();
+        if (h >= 5 && h < 11) return [   // morning
+            'Where did you eat this week?',
+            'Drop a recipe you swear by…',
+            'Add a café worth a second trip…',
+            'Best breakfast spot lately?',
+            'A tradie or handyman who did a good job…',
+            'A doctor or dentist you’d recommend…',
+            'A kids activity that was a hit…',
+            'A product you’d buy again…'
+        ];
+        if (h >= 11 && h < 15) return [  // lunch
+            'Add a restaurant you’d send a friend to…',
+            'Best lunch you’ve had recently?',
+            'A place you keep going back to…',
+            'Save a shop only locals know…',
+            'A dish worth ordering again…',
+            'A hidden gem from your travels…',
+            'A service that saved you time…',
+            'A physio or clinic you’d recommend…'
+        ];
+        if (h >= 15 && h < 18) return [  // afternoon
+            'Add a kids spot that actually worked…',
+            'A place you’d hate to forget…',
+            'Something you told a friend about lately?',
+            'Save a café worth a second trip…',
+            'A hot pool or spot from a road trip…',
+            'A recipe or cooking tip to pass on…',
+            'A garden centre or plant shop you liked…',
+            'A swim school or class worth it…'
+        ];
+        return [                          // evening / night
+            'Best thing you booked this month?',
+            'Add a restaurant you’d send a friend to…',
+            'Drop a recipe you swear by…',
+            'A place you’d hate to forget…',
+            'A trip worth planning again…',
+            'A wine or winery you enjoyed…',
+            'Something you learned worth sharing…',
+            'A late-night spot worth knowing…'
+        ];
+    }
+    function _startAddRotation() {
+        if (typeof _startPhraseRotation !== 'function') return;
+        ODIN_PHRASES.add = _getAddPool();   // recompute daypart each time Home shows
+        _startPhraseRotation('launcherAddLabel', 'add', 5000);
+    }
+
+    // Launcher search bar — rotate the placeholder through search examples.
+    // Native placeholder can't animate, so we fade its colour to transparent,
+    // swap the text, then fade back — matching the Add label's fade.
+    var _launcherSearchTimer = null;
+    // Hide the overlay placeholder as soon as the user types (and show it again when cleared).
+    function _syncLauncherPh() {
+        var inp  = document.getElementById('launcherSearchInput');
+        var hero = inp && inp.closest ? inp.closest('.launcher-search-hero') : null;
+        if (!inp || !hero) return;
+        hero.classList.toggle('has-value', !!(inp.value && inp.value.trim()));
+    }
+    function _startLauncherSearchRotation() {
+        var input = document.getElementById('launcherSearchInput');
+        var ph    = document.getElementById('launcherSearchPh');
+        if (!input || !ph) return;
+        var examples = (typeof _getPlaceholderPool === 'function') ? _getPlaceholderPool() : [];
+        var basePool = ['Search like you’d ask a friend'].concat(examples);
+        function _shuf(src) {                            // Fisher–Yates copy
+            var a = src.slice();
+            for (var i = a.length - 1; i > 0; i--) {
+                var j = Math.floor(Math.random() * (i + 1));
+                var t = a[i]; a[i] = a[j]; a[j] = t;
+            }
+            return a;
+        }
+        var pool = _shuf(basePool);                      // random order each time Home opens
+        var idx = 0;
+        ph.textContent = pool[0];
+        if (_launcherSearchTimer) clearInterval(_launcherSearchTimer);
+        _launcherSearchTimer = setInterval(function() {
+            var inp = document.getElementById('launcherSearchInput');
+            var el  = document.getElementById('launcherSearchPh');
+            if (!inp || !el) return;
+            if (inp.value && inp.value.trim()) return;   // pause while the user is typing
+            el.classList.add('ph-fade');                 // fade out
+            setTimeout(function() {
+                idx++;
+                if (idx >= pool.length) {                // reshuffle for a fresh random order
+                    var last = pool[pool.length - 1];
+                    pool = _shuf(basePool);
+                    if (pool.length > 1 && pool[0] === last) pool.push(pool.shift());  // no back-to-back repeat
+                    idx = 0;
+                }
+                el.textContent = pool[idx];
+                el.classList.remove('ph-fade');          // fade back in
+            }, 300);
+        }, 5000);
     }
 
     function _firstName() {
@@ -3222,32 +3394,32 @@
     morning: {
         en: [
             'Where should I get coffee this morning?',
-            'Good breakfast spot my friends like',
-            'Where do my friends go for morning coffee?',
-            'Where can I get good coffee near me?',
+            'Best flat white nearby',
+            'A brunch spot my friends rate',
+            'A bakery or patisserie my friends love',
             'Where do my friends go for breakfast?',
         ],
         zh: [
             '附近邊度飲咖啡好？',
+            '附近邊度有靚咖啡？',
+            '朋友推介嘅brunch',
+            '朋友鍾意邊間麵包西餅店？',
             '朋友去邊度食早餐？',
-            '附近有冇好café？',
-            '附近邊度有好咖啡？',
-            '朋友去邊度食早餐好？',
         ],
     },
     lunch: {
         en: [
             'Good Japanese for lunch',
-            'Quick lunch spot nearby',
-            'Noodles my friends saved',
-            'Where can I find good sushi near me?',
+            'Dumplings my friends saved',
+            'Ramen or noodles nearby',
+            'A Thai spot my friends like',
             'Where is a good spot for lunch nearby?',
         ],
         zh: [
             '朋友去邊度食lunch？',
+            '朋友收藏咗邊間小籠包或者餃子？',
             '附近有冇好拉麵或烏冬？',
-            '去邊度食中午好？',
-            '附近邊度有好壽司？',
+            '有冇好食嘅泰國菜？',
             '附近邊度食lunch好？',
         ],
     },
@@ -3255,68 +3427,74 @@
         en: [
             'Good café to sit and work this afternoon',
             'Dessert or gelato nearby',
-            'Afternoon coffee my friends like',
-            'Where can I get dessert or gelato near me?',
+            'A coffee roaster my friends like',
+            'A farmers market worth visiting',
             'Where do parents take kids nearby?',
         ],
         zh: [
-            '下午茶去邊好？',
             '有冇舒服咖啡廳可以坐低做嘢？',
             '附近有咩甜品或雪糕好食？',
-            '附近邊度有甜品或者雪糕？',
+            '朋友鍾意邊間咖啡烘焙店？',
+            '有冇好行嘅農夫市集？',
             '平日帶小朋友去邊度好？',
         ],
     },
     evening: {
         en: [
             'Good dinner spot for tonight',
-            'Italian restaurant my friends like',
+            'An Italian place my friends like',
             'Somewhere good for a steak tonight',
-            'Where should I go for dinner tonight?',
-            'Good Italian or Japanese near me?',
+            'Korean fried chicken nearby',
+            'Good Japanese or Thai near me?',
         ],
         zh: [
             '今晚食乜好？',
             '朋友去邊度食晚餐？',
-            '有冇好嘅中餐廳或日本餐廳？',
-            '今晚去邊度食好？',
-            '附近有好嘅意大利菜或者日本菜？',
+            '有冇好嘅意大利菜？',
+            '附近有冇好嘅韓式炸雞？',
+            '附近有好嘅日本菜或者泰國菜？',
         ],
     },
     latenight: {
         en: [
             'Late night food my friends know',
-            'Bar my friends actually like',
-            'Where to get cocktails tonight',
-            'Where can I get late-night food near me?',
-            'Bar or drinks nearby tonight?',
+            'A bar my friends actually like',
+            'Where to get a drink tonight',
+            'Somewhere open now',
+            'Comfort food nearby tonight',
         ],
         zh: [
             '夜晚食宵夜去邊好？',
             '朋友會去邊間酒吧？',
-            '夜晚有咩好去處？',
-            '夜晚邊度有宵夜食？',
-            '附近有咩酒吧或者飲嘢地方？',
+            '夜晚去邊度飲嘢好？',
+            '有咩宵夜依家開緊？',
+            '夜晚想食啲暖胃嘢',
         ],
     },
     anytime: {
         en: [
-            'Doctor or dentist my friends trust',
-            'Tradie my circle has used',
-            'A recipe someone in my circle cooks',
-            'Supermarket find my friends rate',
-            'Something to learn or watch',
-            'Parenting tip from my friends',
-            'Massage or spa my friends rate',
+            'Things to do in Queenstown',
+            'Plan a trip to Melbourne',
+            'A hot pool or thermal spa worth the drive',
+            'A dentist or physio my friends trust',
+            'A plumber or handyman my circle used',
+            'A swim school or kids activity my friends rate',
+            'A recipe or cooking video from my circle',
+            'A wine or winery my friends liked',
+            'Japan food spots my friends saved',
+            'Something to watch or learn',
         ],
         zh: [
-            '朋友睇開嘅醫生或牙醫',
-            '朋友用過嘅師傅（水電、地板、清潔）',
-            '朋友屋企整嘅食譜',
-            '朋友會喺超市買嘅好嘢',
-            '有咩好嘢可以學下或者睇下？',
-            '朋友分享過嘅湊仔心得',
-            '朋友按摩或者spa去邊間？',
+            '皇后鎮有咩好玩？',
+            '計劃去墨爾本旅行',
+            '有咩溫泉或水療值得去？',
+            '朋友信得過嘅牙醫或者物理治療師',
+            '朋友用過嘅水喉師傅或者維修師傅',
+            '朋友推介嘅游泳班或者小朋友活動',
+            '朋友分享嘅食譜或者煮食片',
+            '朋友鍾意嘅酒或者酒莊',
+            '朋友喺日本收藏嘅餐廳',
+            '有咩好嘢可以睇下或者學下？',
         ],
     },
     };
@@ -3381,19 +3559,19 @@
     var _SEARCH_PLACEHOLDER_POOL = [
         // English — natural language prompts
         'Try "good ramen my friends like"',
-        'Ask "where did Sunny eat last week?"',
-        'Try "quiet café with wifi nearby"',
-        'Ask "best birthday cake spot in the area"',
-        'Try "cocktail bar for tonight"',
-        'Ask "Italian place my circle recommends"',
-        'Try "where to bring kids for lunch"',
-        'Ask "drawing method I saved last month"',
+        'Ask "best flat white nearby"',
+        'Try "dumplings my friends saved"',
+        'Ask "things to do in Queenstown"',
+        'Try "plan a trip to Melbourne"',
+        'Ask "a dentist my friends trust"',
+        'Try "hot pools worth the drive"',
+        'Ask "a recipe my friends shared"',
         // Traditional Chinese
         '問「附近邊度食好？」',
         '試試「朋友推介嘅咖啡廳」',
-        '問「上次Sunny講嘅餐廳係邊度？」',
-        '試試「晚上飲嘢去邊好？」',
-        '問「我收藏咗咩好嘢食？」',
+        '問「皇后鎮有咩好玩？」',
+        '試試「計劃去墨爾本旅行」',
+        '問「朋友信得過嘅牙醫」',
         '試試「附近有冇靚甜品店？」',
     ];
 
@@ -4013,12 +4191,19 @@
 
         var gi = Math.floor(Math.random() * greetings.length);
         lineEl.innerHTML = greetings[gi] + '<span id="launcherGreetingName" class="launcher-name highlight">' + safeName + '</span>';
-        // Use ODIN_PHRASES home pool for subtitle (branding nudges)
-        if (subEl && typeof _startPhraseRotation === 'function') {
-            _startPhraseRotation('launcherSubGreeting', 'home', 7000);
-        } else if (subEl) {
-            subEl.textContent = subs[Math.floor(Math.random() * subs.length)];
+        // Subtitle: pick ONE line per page load (fresh on refresh), not a live
+        // rotation — so the Add button below is the only thing moving on screen.
+        if (subEl) {
+            if (_phraseTimers && _phraseTimers['launcherSubGreeting']) {
+                clearInterval(_phraseTimers['launcherSubGreeting']);
+            }
+            var _homePool = (typeof ODIN_PHRASES !== 'undefined' && ODIN_PHRASES.home && ODIN_PHRASES.home.length)
+                ? ODIN_PHRASES.home : subs;
+            subEl.textContent = _homePool[Math.floor(Math.random() * _homePool.length)];
         }
+        // Both rotate at 5s, staggered 2.5s so only one line changes at a time.
+        _startLauncherSearchRotation();
+        setTimeout(_startAddRotation, 2500);
     }
 
     function updateStyleToggleUI() {
@@ -4243,6 +4428,12 @@
     // ── Smart section tabs ──
     var currentDiscoverSection = 'all';
 
+    // Fixed theme display order — value-first, not by count.
+    var THEME_ORDER = ['Eat', 'Life', 'Kids', 'Cook'];
+    var THEME_FALLBACK = 'More';   // visible catch-all for missing/unknown theme
+    var RENDER_ORDER = THEME_ORDER.concat([THEME_FALLBACK]);
+    var RAIL_MAX = 12;  // finite by design — cap items shown per rail
+
     function setDiscoverSection(el, section) {
         currentDiscoverSection = section;
         document.querySelectorAll('.dc-stab').forEach(function(b) { b.classList.remove('active'); });
@@ -4262,18 +4453,14 @@
             });
             if (titleEl) titleEl.textContent = 'All';
             if (dr) dr.style.display = 'none';
-        } else if (section === 'trending') {
-            // Most saved this week
-            var oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-            var recent = allD.filter(function(d) {
-                if (!d.created_at) return true;
-                return new Date(d.created_at) >= oneWeekAgo;
-            });
-            var pool = recent.length >= 3 ? recent : allD;
-            items = pool.slice().sort(function(a, b) {
-                return ((b.saves_count || 0) - (a.saves_count || 0));
-            });
-            if (titleEl) titleEl.textContent = 'Trending this week';
+        } else if (section === 'rediscover') {
+            // Random shuffle of all items — fresh mix every tap (Fisher–Yates)
+            items = allD.slice();
+            for (var i = items.length - 1; i > 0; i--) {
+                var j = Math.floor(Math.random() * (i + 1));
+                var tmp = items[i]; items[i] = items[j]; items[j] = tmp;
+            }
+            if (titleEl) titleEl.textContent = 'Rediscover';
             if (dr) dr.style.display = 'none';
         } else if (section === 'nearby') {
             // Location-aware — filter to items with latitude/longitude
@@ -4306,7 +4493,7 @@
         // Set default sort per section
         var sortEl = document.getElementById('dcSortSelect');
         if (sortEl) {
-            if (section === 'trending') sortEl.value = 'saves';
+            if (section === 'rediscover') sortEl.value = 'recent';
             else if (section === 'nearby') sortEl.value = 'nearest';
             else if (section === 'new') sortEl.value = 'recent';
             else sortEl.value = 'recent';
@@ -4316,6 +4503,89 @@
         if (circleHeader) circleHeader.style.display = 'flex';
 
         openCollection(titleEl ? titleEl.textContent : section, items);
+    }
+
+    // Render the current section's items as vertical theme sections, each a
+    // horizontal rail. items are ALREADY sorted by setDiscoverSection (All=recent,
+    // Trending=saves_count, New=recent) — we preserve that order inside each theme.
+    function renderThemeRails(items) {
+        var host = document.getElementById('dcThemeRails');
+        var flat = document.getElementById('discoverGrid');
+        if (!host) return;
+        if (flat) flat.style.display = 'none';
+        // Rails are finite (RAIL_MAX per theme) — no "Load More" in rails view.
+        var lm = document.getElementById('loadMoreContainer');
+        if (lm) lm.classList.add('hidden');
+        host.style.display = '';
+        host.innerHTML = '';
+
+        if (!items || !items.length) {
+            host.innerHTML = '<div class="dc-empty">No discoveries yet.</div>';
+            return;
+        }
+
+        // Group by theme, preserving incoming sort order within each group
+        var groups = {};
+        items.forEach(function(it) {
+            // Only the four real themes are valid; anything else (null/undefined/unknown)
+            // goes to the visible "More" bucket — never silently into Life.
+            var key = (THEME_ORDER.indexOf(it.theme) >= 0) ? it.theme : THEME_FALLBACK;
+            (groups[key] = groups[key] || []).push(it);
+        });
+
+        RENDER_ORDER.forEach(function(theme) {
+            var all = groups[theme];
+            if (!all || !all.length) return;              // skip empty themes
+            var railItems = all.slice(0, RAIL_MAX);
+
+            var section = document.createElement('div');
+            section.className = 'dc-theme';
+
+            var head = document.createElement('div');
+            head.className = 'dc-theme-head';
+            head.innerHTML =
+                '<div><span class="dc-theme-name">' + theme + '</span>' +
+                '<span class="dc-theme-count">' + all.length + '</span></div>';
+            var seeBtn = document.createElement('button');
+            seeBtn.className = 'dc-theme-see';
+            seeBtn.textContent = 'See all';
+            seeBtn.onclick = function() { openThemeFlat(theme); };
+            head.appendChild(seeBtn);
+            section.appendChild(head);
+
+            var rail = document.createElement('div');
+            rail.className = 'dc-rail';
+            railItems.forEach(function(it) {
+                // REUSE createCard. index must map into filteredDiscoveries for the drawer.
+                var idx = filteredDiscoveries.findIndex(function(d) { return d.id === it.id; });
+                var card = createCard(it, idx >= 0 ? idx : 0);
+                if (card) { card.classList.add('dc-rail-card'); rail.appendChild(card); }
+            });
+
+            // finite cap → tap to see the whole theme flat
+            var cap = document.createElement('div');
+            cap.className = 'dc-rail-end';
+            cap.innerHTML = '<div class="dc-rail-end-circle">→</div><span>See all ' + all.length + '</span>';
+            cap.onclick = function() { openThemeFlat(theme); };
+            rail.appendChild(cap);
+
+            section.appendChild(rail);
+            host.appendChild(section);
+        });
+    }
+
+    // "See all" for one theme → flat grid of just that theme, using the existing renderer.
+    function openThemeFlat(theme) {
+        var host = document.getElementById('dcThemeRails');
+        var flat = document.getElementById('discoverGrid');
+        filteredDiscoveries = (allDiscoveries || []).filter(function(d) {
+            return ((THEME_ORDER.indexOf(d.theme) >= 0) ? d.theme : 'Life') === theme;
+        });
+        displayedCount = 0;
+        if (host) host.style.display = 'none';
+        if (flat) flat.style.display = '';
+        document.getElementById('dcAllItemsTitle').textContent = theme;
+        renderGrid();  // existing flat-grid renderer
     }
 
     // ── Surprise Me ──
@@ -4414,7 +4684,6 @@
 
     // ── Discover heading + rotating subtitle ──
     var _dcHeadings = [
-        'See what\'s trending',
         'What\'s your circle into?',
         'Discover',
         'Find something new',
@@ -4430,6 +4699,15 @@
         greetEl.textContent = _dcHeadings[hi] || _dcHeadings[0];
         // Subtitle uses the ODIN_PHRASES discover pool
         _startPhraseRotation('dcSubheading', 'discover', 7000);
+
+        // One-shot attention wiggle on the Surprise button when entering Discover.
+        var sBtn = document.getElementById('dcSurpriseBtn');
+        if (sBtn) {
+            sBtn.classList.remove('dc-surprise-btn--enter');
+            void sBtn.offsetWidth;  // reflow so the animation re-triggers each entry
+            setTimeout(function() { sBtn.classList.add('dc-surprise-btn--enter'); }, 400);
+            setTimeout(function() { sBtn.classList.remove('dc-surprise-btn--enter'); }, 2000);
+        }
     }
 
     // ── Sort control ──
@@ -4458,36 +4736,50 @@
         var hour = new Date().getHours();
         if (hour >= 5  && hour < 11) return [
             'Try "best flat white nearby"',
-            'Ask "eggs benedict spots your friends love"',
-            'Try "bakery open early"',
-            'Ask "best acai bowl in town"',
+            'Ask "a brunch spot your friends love"',
+            'Try "bakery or patisserie nearby"',
+            'Ask "best coffee roaster in town"',
             'Try "quiet café to work from"',
+            'Ask "a dentist my friends trust"',
+            'Try "a swim school for the kids"',
+            'Ask "acai bowl or healthy breakfast"',
         ];
         if (hour >= 11 && hour < 14) return [
-            'Try "quick lunch nearby"',
-            'Ask "best poke bowl your friends tried"',
-            'Try "good sushi for lunch"',
-            'Ask "healthy lunch spots"',
-            'Try "ramen your friends recommend"',
+            'Try "dumplings your friends saved"',
+            'Ask "best ramen your friends tried"',
+            'Try "good Japanese for lunch"',
+            'Ask "a Thai spot nearby"',
+            'Try "Korean fried chicken near me"',
+            'Ask "where to get good sushi"',
+            'Try "a pho place with a queue"',
+            'Ask "a quick healthy lunch"',
         ];
         if (hour >= 14 && hour < 18) return [
             'Try "café with good wifi"',
-            'Ask "best matcha latte in the area"',
-            'Try "quiet place to work"',
-            'Ask "afternoon snack spots"',
-            'Try "somewhere cosy to read"',
+            'Ask "best gelato in the area"',
+            'Try "a farmers market worth visiting"',
+            'Ask "things to do in Queenstown"',
+            'Try "hot pools worth the drive"',
+            'Ask "a physio or acupuncturist my friends rate"',
+            'Try "a plant shop or garden centre"',
+            'Ask "a dessert spot for the kids"',
         ];
         if (hour >= 18 && hour < 23) return [
             'Try "dinner spot for tonight"',
-            'Ask "best cocktail bar your friends like"',
-            'Try "date night restaurant"',
-            'Ask "rooftop bar nearby"',
-            'Try "great pasta near me"',
+            'Ask "an Italian place your friends like"',
+            'Try "plan a trip to Melbourne"',
+            'Ask "best wine bar nearby"',
+            'Try "steak spot for tonight"',
+            'Ask "a winery worth visiting"',
+            'Try "where to eat in Rotorua"',
+            'Ask "a Japanese restaurant my friends love"',
         ];
         return [
             'Try "late night food open now"',
-            'Ask "best 24hr eats"',
-            'Try "night cap bar nearby"',
+            'Ask "somewhere open right now"',
+            'Try "comfort food nearby"',
+            'Ask "a recipe I can cook tonight"',
+            'Try "a movie or show worth watching"',
         ];
     }
 
@@ -5558,6 +5850,14 @@
         // Home page live search: send query straight to search page.
         // Passes query as the first arg to sendMessage() so it does not
         // depend on #messageInput existing yet after the mode switch.
+        // Whole home search bar is a launch pad — tapping anywhere opens the Search page
+        // and focuses its input so the keyboard comes up there.
+        function openLauncherSearch() {
+            setMode('search');
+            var t = document.getElementById('messageInput');
+            if (t) { try { t.focus(); } catch (e) {} }
+        }
+
         function runHomeSearch() {
             var el = document.getElementById('launcherSearchInput');
             if (!el) return;
