@@ -941,7 +941,9 @@
         /* ── Home Feed Card — polished, matches discovery card ── */
         .hf-card {
             flex-shrink: 0;
-            width: 192px;
+            /* 2 full cards + a slim peek of the 3rd on phones; caps at 192px on wide screens.
+               76 = 16 left inset + 12 gap + 12 gap + ~36 peek of the next card. */
+            width: clamp(150px, calc((100vw - 76px) / 2), 192px);
             background: #ffffff;
             border-radius: 16px;
             overflow: hidden;
