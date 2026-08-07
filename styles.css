@@ -6418,6 +6418,17 @@
     font-weight: 500;
 }
 
+/* One-line intro under My Lists — explains the feature at the point of entry */
+.pbox-desc {
+    margin: -2px 0 0;
+    padding: 0 14px 13px;
+    background: #fff;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #8a7f75;
+    text-align: left;
+}
+
 /* Settings list rows */
 .profile-settings-list {
     margin-top: 16px;
