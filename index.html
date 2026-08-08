@@ -2041,8 +2041,8 @@
                     <!-- Smart section tabs -->
                     <div class="dc-section-tabs-row">
                         <div class="dc-section-tabs" id="dcSectionTabs">
-                            <button class="dc-stab active" data-section="all" onclick="setDiscoverSection(this,'all')">All</button>
-                            <button class="dc-stab" data-section="rediscover" onclick="setDiscoverSection(this,'rediscover')">Rediscover</button>
+                            <button class="dc-stab active" data-section="rediscover" onclick="setDiscoverSection(this,'rediscover')">Rediscover</button>
+                            <button class="dc-stab" data-section="all" onclick="setDiscoverSection(this,'all')">All</button>
                             <button class="dc-stab" data-section="new" onclick="setDiscoverSection(this,'new')">New</button>
                             <button class="dc-stab" data-section="nearby" onclick="setDiscoverSection(this,'nearby')">Near me</button>
                         </div>
@@ -4426,7 +4426,7 @@
     }
 
     // ── Smart section tabs ──
-    var currentDiscoverSection = 'all';
+    var currentDiscoverSection = 'rediscover';
 
     // Fixed theme display order — value-first, not by count.
     var THEME_ORDER = ['Eat', 'Life', 'Kids', 'Cook'];
