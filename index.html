@@ -4884,8 +4884,15 @@
     var _FEED_SESSION_KEY = 'odin_feed_session_seed';
 
     function _getFeedSeed() {
-        // Generate a fresh seed on every call so the feed order changes on every home visit
+        // Session-stable: shuffle order is fixed for the whole session.
+        // Written once per session; cleared on logout via localStorage.clear()
+        // + sessionStorage is per-tab-session by nature. Navigating home does
+        // NOT re-shuffle mid-session.
+        var KEY = 'odin_feed_session_seed';
+        var existing = sessionStorage.getItem(KEY);
+        if (existing) return parseInt(existing, 10);
         var seed = (Date.now() % 999983) + Math.floor(Math.random() * 16000);
+        sessionStorage.setItem(KEY, String(seed));
         return seed;
     }
 
@@ -5022,19 +5029,44 @@
 
         try {
             var friendIds = friends.map(function(f) { return f.out_user_id; });
-            // Fetch more items so we have enough for pulse selection + shuffle pool
-            var { data: items, error } = await supabaseClient
-                .from('knowledge_items')
-                .select('id, title, photo_url, type, added_by, added_by_name, created_at, visibility, feed_card_summary, personal_note, metadata, latitude, longitude')
-                .in('added_by', friendIds)
-                .neq('visibility', 'private')   // never show friends' private items
-                .order('created_at', { ascending: false })
-                .limit(24);
 
-            if (error) {
-                console.error('Friend feed query error:', JSON.stringify(error));
+            // Source from the already-deduped, 3-source dataset built by
+            // loadDiscoveries() in app.js. allDiscoveries already includes:
+            //   own adds + direct-friend adds + Save Inheritance + extended circle,
+            // with cross-source de-duplication and identity anonymisation applied.
+            // Reusing it keeps home and Discover in sync and gives Save Inheritance
+            // on home for free. See Visibility_and_Feed_Logic §2.
+            var items;
+            var _src = (typeof allDiscoveries !== 'undefined' && Array.isArray(allDiscoveries))
+                ? allDiscoveries : [];
+
+            if (_src.length > 0) {
+                // Home rail = the CIRCLE, not the self. Drop own items and any
+                // private items (belt-and-braces; upstream already excludes them).
+                var _selfId = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.id : null;
+                items = _src.filter(function(d) {
+                    if (!d) return false;
+                    if (d.visibility === 'private') return false;
+                    if (_selfId && d.added_by === _selfId) return false;   // own item
+                    if (d._trust_level === 'own') return false;             // own item (trust-tagged)
+                    return true;
+                });
+            } else {
+                // FALLBACK: allDiscoveries not ready yet (load-order race — loadDiscoveries
+                // may still be in flight). Fall back to the previous adds-only query so home
+                // is never blank. Self-corrects to the full set on the next render.
+                var fb = await supabaseClient
+                    .from('knowledge_items')
+                    .select('id, title, photo_url, type, added_by, added_by_name, created_at, visibility, feed_card_summary, personal_note, metadata, latitude, longitude')
+                    .in('added_by', friendIds)
+                    .neq('visibility', 'private')
+                    .order('created_at', { ascending: false })
+                    .limit(24);
+                if (fb.error) console.error('Friend feed fallback query error:', JSON.stringify(fb.error));
+                items = fb.data || [];
             }
-            if (error || !items || items.length === 0) {
+
+            if (!items || items.length === 0) {
                 if (feedSection) feedSection.style.display  = 'none';
                 if (launcherFeed) launcherFeed.style.display = 'none';
                 if (emptySection) {
@@ -5058,7 +5090,11 @@
             var SVG_TAG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>';
             var SVG_PLACE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>';
 
-            // ── Per-login shuffle: fully random order every visit ──────────
+            // ── Per-login shuffle: random order, fixed for the session ─────
+            // Session-stable seed (see _getFeedSeed) means the order is random
+            // but stays put as you navigate Home → Discover → Home within a
+            // session. A new login = new session = new seed = new random order,
+            // so "From your circle" looks mostly new each time you come back.
             var seed = _getFeedSeed();
             var orderedItems = items.slice();
             _seededShuffle(orderedItems, _seededRand(seed));

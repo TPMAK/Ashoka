@@ -305,6 +305,10 @@ async function handleLogout() {
         // localStorage is a shared unprotected store — clear it completely
         // so nothing from this session survives to the next user of this browser.
         localStorage.clear();
+        // Also clear sessionStorage so the next login is a true fresh session:
+        // resets the feed shuffle seed + seen-set snapshot, so "From your circle"
+        // re-shuffles and surfaces new items on the next login (not just next tab).
+        sessionStorage.clear();
         showLoginScreen();
     }
 }
@@ -385,6 +389,7 @@ async function executeDeleteAccount() {
         outgoingFriendRequests = new Set();
         blockedUsersCache = [];
         localStorage.clear();
+        sessionStorage.clear();  // fresh session on next login (feed seed + seen-set)
 
         // Show landing page, then display confirmation message
         showLoginScreen();
