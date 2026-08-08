@@ -5090,7 +5090,11 @@
             var SVG_TAG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>';
             var SVG_PLACE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>';
 
-            // ── Per-login shuffle: fully random order every visit ──────────
+            // ── Per-login shuffle: random order, fixed for the session ─────
+            // Session-stable seed (see _getFeedSeed) means the order is random
+            // but stays put as you navigate Home → Discover → Home within a
+            // session. A new login = new session = new seed = new random order,
+            // so "From your circle" looks mostly new each time you come back.
             var seed = _getFeedSeed();
             var orderedItems = items.slice();
             _seededShuffle(orderedItems, _seededRand(seed));
