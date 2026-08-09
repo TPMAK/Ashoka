@@ -4261,6 +4261,7 @@ function renderPhotoCarousel(photos, opts) {
     const imgClass = opts.imgClass ? ' ' + opts.imgClass : '';
     const slides = photoArr.map(function(url, i) {
         return '<div class="carousel-slide" data-idx="' + i + '">'
+            + '<div class="carousel-slide-blur" style="background-image:url(&quot;' + escapeHtml(url) + '&quot;)"></div>'
             + '<img class="carousel-slide-img' + imgClass + '" src="' + escapeHtml(url) + '" loading="' + (i === 0 ? 'eager' : 'lazy') + '">'
             + '</div>';
     }).join('');
@@ -4416,6 +4417,7 @@ let _lightboxIdx = 0;
 
 function _renderLightbox() {
     if (_lightboxPhotos.length === 0) return;
+    if (typeof _lbResetZoom === 'function') _lbResetZoom(false);  // clear zoom/pan on slide change
     document.getElementById('lightboxImg').src = _lightboxPhotos[_lightboxIdx];
     const multi = _lightboxPhotos.length > 1;
     const counter = document.getElementById('lightboxCounter');
@@ -4439,6 +4441,7 @@ function openLightboxMulti(photosJson, startIdx) {
     if (_lightboxPhotos.length === 0) return;
     _renderLightbox();
     document.getElementById('photoLightbox').classList.add('active');
+    initLightboxZoom();
 }
 
 function openLightbox(photoUrl) {
@@ -4446,6 +4449,7 @@ function openLightbox(photoUrl) {
     _lightboxIdx = 0;
     _renderLightbox();
     document.getElementById('photoLightbox').classList.add('active');
+    initLightboxZoom();
 }
 
 function lightboxNext() {
@@ -4461,7 +4465,95 @@ function lightboxPrev() {
 }
 
 function closeLightbox() {
+    if (typeof _lbResetZoom === 'function') _lbResetZoom(false);
     document.getElementById('photoLightbox').classList.remove('active');
+}
+
+// ── Lightbox pinch / double-tap zoom ────────────────────────────────────────
+// The app disables native pinch-zoom globally (viewport user-scalable=no), so we
+// implement zoom + pan for the fullscreen photo ourselves via CSS transforms.
+let _lbZoom = { scale: 1, tx: 0, ty: 0 };
+let _lbZoomInited = false;
+
+function _lbApplyTransform(animate) {
+    const img = document.getElementById('lightboxImg');
+    if (!img) return;
+    img.classList.toggle('lb-animate', !!animate);
+    img.style.transform = 'translate(' + _lbZoom.tx + 'px,' + _lbZoom.ty + 'px) scale(' + _lbZoom.scale + ')';
+}
+
+function _lbResetZoom(animate) {
+    _lbZoom = { scale: 1, tx: 0, ty: 0 };
+    _lbApplyTransform(animate);
+}
+
+function initLightboxZoom() {
+    if (_lbZoomInited) return;
+    const img = document.getElementById('lightboxImg');
+    if (!img) return;
+    _lbZoomInited = true;
+
+    const MIN = 1, MAX = 4, DOUBLE_TAP_SCALE = 2.5;
+    let startDist = 0, startScale = 1;
+    let panning = false, lastX = 0, lastY = 0, moved = false, lastTap = 0;
+
+    const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+
+    img.addEventListener('touchstart', function(e) {
+        moved = false;
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            startDist = dist(e.touches);
+            startScale = _lbZoom.scale;
+        } else if (e.touches.length === 1) {
+            lastX = e.touches[0].clientX;
+            lastY = e.touches[0].clientY;
+            panning = _lbZoom.scale > 1;   // only pan when zoomed in
+        }
+    }, { passive: false });
+
+    img.addEventListener('touchmove', function(e) {
+        if (e.touches.length === 2 && startDist > 0) {
+            e.preventDefault();
+            moved = true;
+            const s = startScale * (dist(e.touches) / startDist);
+            _lbZoom.scale = Math.max(MIN, Math.min(MAX, s));
+            _lbApplyTransform(false);
+        } else if (panning && e.touches.length === 1) {
+            e.preventDefault();
+            e.stopPropagation();   // don't let a pan bubble to the backdrop (close)
+            const nx = e.touches[0].clientX, ny = e.touches[0].clientY;
+            _lbZoom.tx += nx - lastX;
+            _lbZoom.ty += ny - lastY;
+            lastX = nx; lastY = ny;
+            moved = true;
+            _lbApplyTransform(false);
+        }
+    }, { passive: false });
+
+    img.addEventListener('touchend', function(e) {
+        if (e.touches.length > 0) return;   // fingers still down
+        panning = false;
+        startDist = 0;
+        if (_lbZoom.scale <= 1.02) { _lbResetZoom(true); return; }  // snap out of tiny zoom
+        if (!moved) {
+            const now = Date.now();
+            if (now - lastTap < 300) {       // double-tap toggles zoom
+                if (_lbZoom.scale > 1) _lbResetZoom(true);
+                else { _lbZoom.scale = DOUBLE_TAP_SCALE; _lbApplyTransform(true); }
+                lastTap = 0;
+            } else {
+                lastTap = now;
+            }
+        }
+    });
+
+    // Desktop: double-click toggles zoom
+    img.addEventListener('dblclick', function(e) {
+        e.stopPropagation();
+        if (_lbZoom.scale > 1) _lbResetZoom(true);
+        else { _lbZoom.scale = DOUBLE_TAP_SCALE; _lbApplyTransform(true); }
+    });
 }
 
 // Swipe support for the lightbox on touch devices.

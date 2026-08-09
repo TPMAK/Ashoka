@@ -3371,6 +3371,13 @@
             max-height: 100%;
             object-fit: contain;
             border-radius: 8px;
+            /* We handle pinch/pan ourselves (native page zoom is disabled). */
+            touch-action: none;
+            transform-origin: center center;
+            will-change: transform;
+        }
+        .photo-lightbox img.lb-animate {
+            transition: transform 0.2s ease;
         }
 
         .lightbox-close {
@@ -12157,6 +12164,7 @@ body.map-view-open .content {
     flex: 0 0 100%;
     width: 100%;
     background: #f3f4f6;
+    position: relative;
 }
 .carousel-slide img {
     width: 100%;
@@ -12165,6 +12173,28 @@ body.map-view-open .content {
     display: block;
     pointer-events: auto;
     -webkit-user-drag: none;
+}
+/* Blurred fill behind each slide — only used in the drawer hero (see below).
+   Hidden by default so feed-card thumbnails keep their tight cover crop. */
+.carousel-slide-blur { display: none; }
+
+/* Drawer hero carousel: show the WHOLE photo (contain) with a blurred fill
+   behind, matching the single-photo hero. Nothing gets cropped regardless of
+   the photo's aspect ratio or quality. */
+.drawer-hero .carousel-slide-blur {
+    display: block;
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    filter: blur(24px);
+    transform: scale(1.15);
+    z-index: 0;
+}
+.drawer-hero .carousel-slide .carousel-slide-img {
+    position: relative;
+    z-index: 1;
+    object-fit: contain;
 }
 
 /* Carousel inside a feed card — fill the parent .hf-card-media-wrap (120px tall) */
