@@ -9082,11 +9082,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const urlInput = document.getElementById('url');
     if (!urlInput) return;
 
+    // Normalise schemeless URLs (e.g. "1946butchery.co.nz") to https:// so they
+    // pass the fetch gate. Only prepend when the value looks like a bare domain
+    // (contains a dot, no space) — avoids mangling half-typed input.
+    const _normaliseUrl = (raw) => {
+        const v = (raw || '').trim();
+        if (!v) return v;
+        if (/^https?:\/\//i.test(v)) return v;
+        if (/\s/.test(v)) return v;              // has whitespace — not a URL yet
+        if (!/^[^\s]+\.[^\s]+/.test(v)) return v; // no dot — not a domain yet
+        return 'https://' + v;
+    };
+
     const triggerOGFetch = () => {
-        const val = urlInput.value.trim();
+        const val = _normaliseUrl(urlInput.value);
         if (val && val !== _lastOGFetchedUrl && val.startsWith('http')) {
+            // Reflect the normalised value back into the field so the user sees
+            // the https:// that will be saved, and so submit's capture_mode is right.
+            if (urlInput.value.trim() !== val) urlInput.value = val;
             _lastOGFetchedUrl = val;
-            fetchAndPrefillOG(val);   // selectEntryChip removed — it is a no-op now
+            fetchAndPrefillOG(val);
         }
     };
 
@@ -9095,8 +9110,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // not on every keystroke. This replaces the fragile paste+setTimeout/blur combo.
     let _ogDebounce = null;
     urlInput.addEventListener('input', () => {
-        const val = urlInput.value.trim();
-        if (!/^https?:\/\//i.test(val)) return;   // only fetch real URLs
+        // Accept schemeless domains too; _normaliseUrl inside triggerOGFetch adds
+        // https:// when it's a real domain. Bare/half-typed text is filtered there.
+        const val = _normaliseUrl(urlInput.value);
+        if (!/^https?:\/\//i.test(val)) return;
         clearTimeout(_ogDebounce);
         _ogDebounce = setTimeout(triggerOGFetch, 600);
     });
