@@ -9344,13 +9344,25 @@ var submitDiscovery = async function(e) {
             ? parseFloat(document.getElementById('placeLng').value) : null
     };
 
+    // Rotating body copy for the save-success overlay. Random line each save so
+    // the confirmation stays fresh for repeat savers. All lines reinforce
+    // permanence + findability within the circle — no endorsement language.
+    const _SAVE_SUCCESS_LINES = [
+        'Here whenever your circle needs it',
+        "Wasn't that easy? Here whenever your circle needs it.",
+        'Now your circle can find it anytime',
+        "It's here now — for you and your circle"
+    ];
+    const _randomSaveLine = () =>
+        _SAVE_SUCCESS_LINES[Math.floor(Math.random() * _SAVE_SUCCESS_LINES.length)];
+
     // Post-save nudge: if note is thin, show a gentle prompt in the overlay
     const isThinNote = takeVal.length < 30;
     const overlayBody = document.querySelector('#saveSuccessOverlay .save-success-content p');
     if (overlayBody) {
         overlayBody.innerHTML = isThinNote
             ? 'Saved! <span style="display:block;font-size:12px;color:#9CA3AF;margin-top:4px;">Next time, add one more detail — your circle will love you for it.</span>'
-            : 'Your discovery has been added';
+            : _randomSaveLine();
     }
 
     // Show instant "Saved!" overlay immediately
@@ -10859,6 +10871,17 @@ function dismissEmptyFriends() {
         if (e && e.preventDefault) e.preventDefault();
         if (!currentUser) { alert('Please login first'); return; }
 
+        // Local copy — _randomSaveLine from the other submit path is out of scope here.
+        // Keep in sync with _SAVE_SUCCESS_LINES in the first submitDiscovery.
+        const _SAVE_SUCCESS_LINES = [
+            'Here whenever your circle needs it',
+            "Wasn't that easy? Here whenever your circle needs it.",
+            'Now your circle can find it anytime',
+            "It's here now — for you and your circle"
+        ];
+        const _randomSaveLine = () =>
+            _SAVE_SUCCESS_LINES[Math.floor(Math.random() * _SAVE_SUCCESS_LINES.length)];
+
         // Derive capture_mode from what's actually attached (no chips anymore).
         // Priority: photo beats link beats plain type. User photo is source of truth.
         const _hasPhotos = Array.isArray(_selectedPhotos) && _selectedPhotos.length > 0;
@@ -11001,7 +11024,7 @@ function dismissEmptyFriends() {
         // Show success overlay immediately
         const overlay = document.getElementById('saveSuccessOverlay');
         const overlayBody = document.querySelector('#saveSuccessOverlay .save-success-content p');
-        if (overlayBody) overlayBody.textContent = 'Your discovery has been added';
+        if (overlayBody) overlayBody.textContent = _randomSaveLine();
         if (overlay) overlay.classList.remove('hidden');
 
         // Reset form (preserve mode reset behaviour)
@@ -11040,7 +11063,7 @@ function dismissEmptyFriends() {
         setTimeout(() => {
             if (overlay) overlay.classList.add('hidden');
             try { setMode('discover'); } catch(_) {}
-        }, 1500);
+        }, 2600);
 
         // Background POST
         try {
