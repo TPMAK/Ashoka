@@ -1884,7 +1884,7 @@
                 <div class="home-search-wrapper breathing">
                     <div class="home-search-inner">
                         <svg class="home-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                        <input type="text" class="home-search-bar custom-placeholder" id="homeSearchInput" placeholder="" onkeypress="if(event.key==='Enter') searchFromHome()" onfocus="stopPlaceholderCycle()" onblur="startPlaceholderCycle()">
+                        <input type="text" class="home-search-bar custom-placeholder" id="homeSearchInput" placeholder="" oninput="_onHomeSearchInputType()" onkeypress="if(event.key==='Enter') searchFromHome()" onfocus="stopPlaceholderCycle()" onblur="startPlaceholderCycle()">
                         <div class="home-search-placeholder-text" id="homePlaceholder"></div>
                         <button class="home-search-send" onclick="searchFromHome()" aria-label="Search">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
@@ -4835,6 +4835,19 @@
         if (_placeholderTimer) { clearInterval(_placeholderTimer); _placeholderTimer = null; }
         var el = document.getElementById('homePlaceholder');
         if (el) el.style.display = 'none';
+    }
+
+    // Guard: any typed content hides the home rotating overlay immediately,
+    // regardless of focus/blur races. Restores it when the field is cleared.
+    function _onHomeSearchInputType() {
+        var input = document.getElementById('homeSearchInput');
+        var el    = document.getElementById('homePlaceholder');
+        if (!el) return;
+        if (input && input.value.length > 0) {
+            stopPlaceholderCycle();
+        } else {
+            startPlaceholderCycle();
+        }
     }
 
     // ── 4c. Feed scroll nav (desktop buttons + mobile hint) ──
