@@ -1884,7 +1884,7 @@
                 <div class="home-search-wrapper breathing">
                     <div class="home-search-inner">
                         <svg class="home-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                        <input type="text" class="home-search-bar custom-placeholder" id="homeSearchInput" placeholder="" onkeypress="if(event.key==='Enter') searchFromHome()" onfocus="stopPlaceholderCycle()" onblur="startPlaceholderCycle()">
+                        <input type="text" class="home-search-bar custom-placeholder" id="homeSearchInput" placeholder="" oninput="_onHomeSearchInputType()" onkeypress="if(event.key==='Enter') searchFromHome()" onfocus="stopPlaceholderCycle()" onblur="startPlaceholderCycle()">
                         <div class="home-search-placeholder-text" id="homePlaceholder"></div>
                         <button class="home-search-send" onclick="searchFromHome()" aria-label="Search">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
@@ -2885,7 +2885,7 @@
             <div class="search-input-inner">
                 <svg class="search-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 <div class="search-animated-placeholder" id="searchAnimPlaceholder"></div>
-                <input type="text" id="messageInput" placeholder="" onkeypress="if(event.key==='Enter') sendMessage()" onfocus="stopSearchPlaceholder()" onblur="startSearchPlaceholder()">
+                <input type="text" id="messageInput" placeholder="" oninput="_onSearchInputType()" onkeypress="if(event.key==='Enter') sendMessage()" onfocus="stopSearchPlaceholder()" onblur="startSearchPlaceholder()">
                 <button id="sendButton" onclick="sendMessage()" aria-label="Send">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                 </button>
@@ -3613,6 +3613,19 @@
         if (_searchPlaceholderTimer) { clearInterval(_searchPlaceholderTimer); _searchPlaceholderTimer = null; }
         var el = document.getElementById('searchAnimPlaceholder');
         if (el) el.style.display = 'none';
+    }
+
+    // Guard: any typed content hides the rotating overlay immediately, regardless
+    // of focus/blur races. Restores the overlay when the field is cleared.
+    function _onSearchInputType() {
+        var input = document.getElementById('messageInput');
+        var el    = document.getElementById('searchAnimPlaceholder');
+        if (!el) return;
+        if (input && input.value.length > 0) {
+            stopSearchPlaceholder();
+        } else {
+            startSearchPlaceholder();
+        }
     }
 
     // ══════════════════════════════════════════════
@@ -4824,6 +4837,19 @@
         if (el) el.style.display = 'none';
     }
 
+    // Guard: any typed content hides the home rotating overlay immediately,
+    // regardless of focus/blur races. Restores it when the field is cleared.
+    function _onHomeSearchInputType() {
+        var input = document.getElementById('homeSearchInput');
+        var el    = document.getElementById('homePlaceholder');
+        if (!el) return;
+        if (input && input.value.length > 0) {
+            stopPlaceholderCycle();
+        } else {
+            startPlaceholderCycle();
+        }
+    }
+
     // ── 4c. Feed scroll nav (desktop buttons + mobile hint) ──
     function scrollFeed(dir) {
         // Support both launcher and feedHome scroll containers
@@ -5090,14 +5116,15 @@
             var SVG_TAG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>';
             var SVG_PLACE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>';
 
-            // ── Per-login shuffle: random order, fixed for the session ─────
-            // Session-stable seed (see _getFeedSeed) means the order is random
-            // but stays put as you navigate Home → Discover → Home within a
-            // session. A new login = new session = new seed = new random order,
-            // so "From your circle" looks mostly new each time you come back.
-            var seed = _getFeedSeed();
+            // ── Fresh every visit: random order on every Home load ─────────
+            // Same behaviour as Discover's "Rediscover" tab — a fresh Fisher–Yates
+            // shuffle each time, so "From your circle" surfaces a new mix every
+            // time the user lands on Home (not fixed per session).
             var orderedItems = items.slice();
-            _seededShuffle(orderedItems, _seededRand(seed));
+            for (var _i = orderedItems.length - 1; _i > 0; _i--) {
+                var _j = Math.floor(Math.random() * (_i + 1));
+                var _tmp = orderedItems[_i]; orderedItems[_i] = orderedItems[_j]; orderedItems[_j] = _tmp;
+            }
 
             // Cap to 8 and build all cards with _buildPulseCard (same look, no badge)
             var displayItems = orderedItems.slice(0, 8);

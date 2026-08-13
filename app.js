@@ -1407,10 +1407,14 @@ async function openAddToListSheet(itemId) {
     if (lists.length === 0) {
         const created = await createList('My list');
         if (created) {
-            const ok = await addItemToList(created.id, itemId);
-            body.innerHTML = ok
+            const ids = (window._atlBatchIds && window._atlBatchIds.length) ? window._atlBatchIds : [itemId];
+            let okAll = true;
+            for (const id of ids) { const ok = await addItemToList(created.id, id); if (!ok) okAll = false; }
+            body.innerHTML = okAll
                 ? '<div class="atl-done">Added to <strong>My list</strong></div>'
                 : '<div class="atl-done">Something went wrong. Try again.</div>';
+            window._atlBatchIds = null;
+            if (typeof exitSearchSelectMode === 'function') exitSearchSelectMode();
             setTimeout(closeAddToListSheet, 1100);
         } else {
             body.innerHTML = '<div class="atl-done">Something went wrong. Try again.</div>';
@@ -1432,10 +1436,19 @@ async function openAddToListSheet(itemId) {
 
 async function handlePickList(collectionId, itemId) {
     const body = document.getElementById('addToListBody');
-    const ok = await addItemToList(collectionId, itemId);
-    if (body) body.innerHTML = ok
-        ? '<div class="atl-done">Added</div>'
+    const ids = (window._atlBatchIds && window._atlBatchIds.length)
+        ? window._atlBatchIds
+        : [itemId];
+    let okCount = 0;
+    for (const id of ids) {
+        const ok = await addItemToList(collectionId, id);
+        if (ok) okCount++;
+    }
+    if (body) body.innerHTML = okCount
+        ? `<div class="atl-done">Added ${okCount === 1 ? '' : okCount + ' '}to list</div>`
         : '<div class="atl-done">Something went wrong. Try again.</div>';
+    window._atlBatchIds = null;
+    if (typeof exitSearchSelectMode === 'function') exitSearchSelectMode();
     setTimeout(closeAddToListSheet, 900);
 }
 
@@ -1474,6 +1487,84 @@ async function submitNewList(itemId) {
 function closeAddToListSheet() {
     const sheet = document.getElementById('addToListSheet');
     if (sheet) sheet.classList.remove('open');
+    // If the sheet was dismissed without completing (still in select mode),
+    // bring the floating bar back so the user can retry.
+    if (searchSelectMode) {
+        window._atlBatchIds = null;
+        const bar = document.getElementById('searchSelectBar');
+        if (bar) bar.style.display = '';
+        else renderSearchSelectBar();
+    }
+}
+
+// ── Batch select controllers for search results ──
+// Container is the chat feed (#chatContainer); result cards live inside it.
+function enterSearchSelectMode(firstIdx) {
+    searchSelectMode = true;
+    searchSelectedIds = new Set();
+    const container = document.getElementById('chatContainer');
+    if (container) {
+        container.classList.add('search-selecting');
+        // Push results down so the fixed top action bar doesn't cover the first card.
+        container.style.paddingTop = '56px';
+    }
+    if (typeof firstIdx === 'number') toggleSearchSelect(firstIdx);
+    renderSearchSelectBar();
+}
+
+function exitSearchSelectMode() {
+    searchSelectMode = false;
+    searchSelectedIds = new Set();
+    const container = document.getElementById('chatContainer');
+    if (container) {
+        container.classList.remove('search-selecting');
+        container.style.paddingTop = '';
+    }
+    document.querySelectorAll('.card-selected').forEach(el => el.classList.remove('card-selected'));
+    const bar = document.getElementById('searchSelectBar');
+    if (bar) bar.remove();
+}
+
+function toggleSearchSelect(idx) {
+    const r = currentResults[idx];
+    if (!r || !r.id) return;
+    const card = document.querySelector(`.top-pick-card[data-idx="${idx}"], .compact-card[data-idx="${idx}"]`);
+    if (searchSelectedIds.has(r.id)) {
+        searchSelectedIds.delete(r.id);
+        if (card) card.classList.remove('card-selected');
+    } else {
+        searchSelectedIds.add(r.id);
+        if (card) card.classList.add('card-selected');
+    }
+    renderSearchSelectBar();
+}
+
+function renderSearchSelectBar() {
+    let bar = document.getElementById('searchSelectBar');
+    const n = searchSelectedIds.size;
+    if (!searchSelectMode) { if (bar) bar.remove(); return; }
+    if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'searchSelectBar';
+        bar.innerHTML =
+            `<button id="ssbCancel" onclick="exitSearchSelectMode()">Cancel</button>
+             <span id="ssbCount"></span>
+             <button id="ssbAdd" onclick="batchAddToList()">Add to list</button>`;
+        document.body.appendChild(bar);
+    }
+    const countEl = bar.querySelector('#ssbCount');
+    if (countEl) countEl.textContent = n === 1 ? '1 selected' : `${n} selected`;
+    const addBtn = bar.querySelector('#ssbAdd');
+    if (addBtn) addBtn.disabled = n === 0;
+}
+
+function batchAddToList() {
+    if (!searchSelectedIds.size) return;
+    window._atlBatchIds = Array.from(searchSelectedIds);
+    // Hide the floating bar while the sheet is open so it doesn't cover the list.
+    const bar = document.getElementById('searchSelectBar');
+    if (bar) bar.style.display = 'none';
+    openAddToListSheet(window._atlBatchIds[0]); // first id is a fallback; batch ids drive the loop
 }
 
 // ===== PRIVATE LISTS — Profile view (Brief 2) =====
@@ -3062,6 +3153,11 @@ function getCategoryEmoji(type) {
     const map = { place: '📍', product: '🛍️', service: '🔧', advice: '💡' };
     return map[type] || '📍';
 }
+
+// ── Batch select for search results ──
+let searchSelectMode = false;
+let searchSelectedIds = new Set();
+let _lpTimer = null; // long-press timer
 
 // ===== APP CONFIGURATION =====
 const SEARCH_WEBHOOK = 'https://stanmak.app.n8n.cloud/webhook/search123';
@@ -7424,7 +7520,7 @@ async function sendMessage(text, displayLabel) {
                 // v4 + place_name: heading uses place_name for type='place' when set
                 const _tp = getDisplayHeading(r);
                 return `
-                    <div class="top-pick-card" onclick="showSearchDrawer(${idx})">
+                    <div class="top-pick-card" data-idx="${idx}" onclick="showSearchDrawer(${idx})">
                         <span class="top-pick-badge">Top Pick</span>
                         <div class="top-pick-photo">${photo}</div>
                         <div class="top-pick-content">
@@ -7490,7 +7586,7 @@ async function sendMessage(text, displayLabel) {
                 // For compact cards, prefer venue name; subtitle is suppressed (snippet already shown below).
                 const _cc = getDisplayHeading(r);
                 return `
-                    <div class="compact-card" onclick="showSearchDrawer(${idx})">
+                    <div class="compact-card" data-idx="${idx}" onclick="showSearchDrawer(${idx})">
                         <div class="compact-photo">${photo}</div>
                         <div class="compact-title">${escapeHtml(_cc.heading)}</div>
                         ${_cc.subtitle ? `<div class="compact-subtitle">${escapeHtml(_cc.subtitle).substring(0, 55)}${_cc.subtitle.length > 55 ? '…' : ''}</div>` : ''}
@@ -7592,6 +7688,39 @@ async function sendMessage(text, displayLabel) {
                 html += '</div>';
                 container.innerHTML += html;
                 container.scrollTop = container.scrollHeight;
+
+                // ── Attach long-press + select-tap to result cards ──
+                const _resultsRoot = container; // #chatContainer holds the result cards
+                if (_resultsRoot && !_resultsRoot._selectWired) {
+                    _resultsRoot._selectWired = true;
+                    const cardSel = '.top-pick-card, .compact-card';
+
+                    _resultsRoot.addEventListener('pointerdown', (e) => {
+                        const card = e.target.closest(cardSel);
+                        if (!card) return;
+                        const idx = parseInt(card.getAttribute('data-idx'), 10);
+                        _lpTimer = setTimeout(() => {
+                            _lpTimer = null;
+                            if (!searchSelectMode) enterSearchSelectMode(idx);
+                        }, 500);
+                    });
+                    const cancelLP = () => { if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; } };
+                    _resultsRoot.addEventListener('pointerup', cancelLP);
+                    _resultsRoot.addEventListener('pointermove', cancelLP);
+                    _resultsRoot.addEventListener('pointercancel', cancelLP);
+
+                    // Intercept taps in select mode (capture phase, before card onclick)
+                    _resultsRoot.addEventListener('click', (e) => {
+                        if (!searchSelectMode) return;
+                        const card = e.target.closest(cardSel);
+                        if (!card) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const idx = parseInt(card.getAttribute('data-idx'), 10);
+                        toggleSearchSelect(idx);
+                    }, true);
+                }
+
                 var moreScroll = container.querySelector('.more-options-scroll');
                 if (moreScroll && moreScroll.id) {
                     setTimeout(function() { updateScrollArrows(moreScroll.id); }, 150);
@@ -11186,4 +11315,35 @@ function dismissEmptyFriends() {
     // The existing autocomplete attaches once on DOMContentLoaded — show/hide
     // doesn't break it because the input element itself isn't re-created.
     // Nothing to do here, but if an issue surfaces during staging QA this is the spot.
+})();
+
+// ── Batch-select styles (injected; no styles.css changes) ──
+(function injectSearchSelectStyles(){
+    if (document.getElementById('searchSelectStyles')) return;
+    const s = document.createElement('style');
+    s.id = 'searchSelectStyles';
+    s.textContent = `
+    .search-selecting .top-pick-card, .search-selecting .compact-card { position: relative; }
+    .search-selecting .top-pick-card::after, .search-selecting .compact-card::after {
+        content: ''; position: absolute; top: 10px; right: 10px; width: 22px; height: 22px;
+        border: 2px solid #7B2D45; border-radius: 50%; background: #fff; z-index: 3;
+    }
+    .search-selecting .card-selected::after {
+        background: #7B2D45;
+        box-shadow: inset 0 0 0 3px #fff;
+    }
+    #searchSelectBar {
+        position: fixed; top: 0; left: 0; right: 0;
+        display: flex; align-items: center; gap: 14px;
+        background: #7B2D45; color: #fff; padding: 12px 16px;
+        box-shadow: 0 2px 10px rgba(0,0,0,.18); z-index: 9999; font-size: 15px;
+    }
+    #searchSelectBar button {
+        background: transparent; color: #fff; border: none; font-size: 15px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    }
+    #searchSelectBar #ssbCount { flex: 1; text-align: left; font-weight: 600; }
+    #searchSelectBar #ssbAdd { background: #fff; color: #7B2D45; padding: 8px 16px; border-radius: 999px; }
+    #searchSelectBar #ssbAdd:disabled { opacity: .5; }
+    `;
+    document.head.appendChild(s);
 })();

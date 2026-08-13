@@ -938,6 +938,15 @@
             color: transparent;
         }
 
+        /* Hide the custom rotating placeholder whenever the input is focused.
+           :focus-within on the wrapper is order-independent and !important beats
+           the inline display the JS sets, so a mobile focus/blur race can't leave
+           the overlay visible over the caret. Typed-content hiding is handled in
+           JS (_onHomeSearchInputType). */
+        .home-search-inner:focus-within .home-search-placeholder-text {
+            display: none !important;
+        }
+
         /* ── Home Feed Card — polished, matches discovery card ── */
         .hf-card {
             flex-shrink: 0;
@@ -2479,7 +2488,7 @@
 
         .search-animated-placeholder {
             position: absolute;
-            left: 36px; /* after the search icon */
+            left: 40px; /* aligned with #messageInput text (padding-left:40px) */
             top: 50%;
             transform: translateY(-50%);
             font-size: 14px;
@@ -2510,10 +2519,13 @@
             to   { opacity: 0; transform: translateY(calc(-50% - 6px)); }
         }
 
-        /* Hide animated placeholder when input has value or is focused */
-        #messageInput:focus ~ .search-animated-placeholder,
-        #messageInput:not(:placeholder-shown) ~ .search-animated-placeholder {
-            display: none;
+        /* Hide animated placeholder whenever the input is focused.
+           Uses :focus-within on the wrapper (order-independent) because the
+           overlay div precedes the input in the DOM, so a sibling (~) selector
+           can never match it. Typed-content hiding is handled in JS
+           (_onSearchInputType). !important beats the inline display JS sets. */
+        .search-input-inner:focus-within .search-animated-placeholder {
+            display: none !important;
         }
 
         /* ── Recent Searches — horizontal pill row ── */
