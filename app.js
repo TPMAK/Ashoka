@@ -10325,30 +10325,54 @@ let _onbInviterData = null; // { id, display_name }
 // Looks up the token, sends a friend request to the inviter, marks token used.
 // No UI shown — happens invisibly in the background.
 async function _processInviteTokenSilently(token) {
-    if (!currentUser || !token) return;
+    // Returns one of: 'ok' | 'retry' | 'terminal' | 'noop'
+    //  - 'ok'       : connected (or already connected) — token consumed
+    //  - 'retry'    : session/user not ready — caller should retry, KEEP token
+    //  - 'terminal' : token invalid/used/expired/self — token consumed, stop
+    //  - 'noop'     : nothing to do
+    if (!token) return 'noop';
+    if (!currentUser) return 'retry';   // session not ready — do NOT clear token
+    let outcome = 'retry';
     try {
         const { data, error } = await supabaseClient.rpc('accept_invite_and_connect', {
             p_token: token,
             p_new_user_id: currentUser.id
         });
-
+        if (error) {
+            // Network / unexpected RPC failure — allow a retry, keep token.
+            console.warn('accept_invite_and_connect RPC error:', error);
+            return 'retry';
+        }
         if (data?.ok === true) {
+            outcome = 'ok';
             friendsCache = null;
             await Promise.all([loadFriends(), loadDiscoveries()]);
-            // Repaint count-driven views so the user doesn't have to reload.
             try { if (typeof loadHomeStats === 'function')   await loadHomeStats(); }   catch (e) { console.warn('loadHomeStats refresh failed:', e); }
             try { if (typeof loadProfilePage === 'function') await loadProfilePage(); } catch (e) { console.warn('loadProfilePage refresh failed:', e); }
             showToast('Connected! Check your profile.', 4000);
+        } else if (data?.error === 'unauthorized') {
+            // Session not fully established yet — retry, KEEP token.
+            outcome = 'retry';
         } else if (data?.error === 'token_expired') {
+            outcome = 'terminal';
             showToast('That invite link has expired. Ask your friend for a fresh one.', 5000);
+        } else if (data?.error === 'token_used'
+                || data?.error === 'invalid_token'
+                || data?.error === 'self_invite') {
+            outcome = 'terminal';   // nothing more to do; safe to consume token
+        } else {
+            outcome = 'retry';      // unknown state — be conservative, keep token
         }
-        // Other errors fail silently — non-critical for returning users
-
-        sessionStorage.removeItem('odin_invite_token');
-        localStorage.removeItem('odin_invite_token');
     } catch (err) {
         console.warn('Silent invite processing failed:', err);
+        return 'retry';             // keep token so a later attempt can recover
     }
+    // Only clear the token on definitive outcomes.
+    if (outcome === 'ok' || outcome === 'terminal') {
+        sessionStorage.removeItem('odin_invite_token');
+        localStorage.removeItem('odin_invite_token');
+    }
+    return outcome;
 }
 
 // ── Invite helper: look up inviter via SECURITY DEFINER RPC ──
@@ -10466,10 +10490,12 @@ async function checkOnboardingBanner() {
     // showMainApp() will open the item drawer afterward if applicable.
     if (currentProfile.onboarding_completed_at) {
         if (_onbInviteToken) {
-            await _processInviteTokenSilently(_onbInviteToken);
-            _onbInviteToken = null;
-            sessionStorage.removeItem('odin_invite_token');
-            localStorage.removeItem('odin_invite_token');
+            const r = await _processInviteTokenSilently(_onbInviteToken);
+            // Only forget the in-memory token when the attempt was definitive.
+            // On 'retry', leave it in storage so a later load can recover.
+            if (r === 'ok' || r === 'terminal') {
+                _onbInviteToken = null;
+            }
         }
         return;
     }
@@ -10494,12 +10520,24 @@ async function checkOnboardingBanner() {
         if (inviter) {
             _onbInviterData = inviter;
             _populateStep2UI(inviter);
-            // Fire-and-forget the silent connect — don't block onboarding
-            // render on the RPC. If it fails, the user can retry later via
-            // a fresh share/invite link; the worst case is "no connection",
-            // which is the same as the old skip-button outcome.
-            _processInviteTokenSilently(_onbInviteToken).catch(err =>
-                console.warn('Auto-connect on invitation failed (non-fatal):', err)
+            // Attempt the silent connect. If the session wasn't ready yet
+            // (returns 'retry'), try again shortly — this is the OAuth-redirect
+            // race that previously left new users orphaned with no connection.
+            (async () => {
+                let r = await _processInviteTokenSilently(_onbInviteToken);
+                let attempts = 0;
+                while (r === 'retry' && attempts < 5) {
+                    attempts++;
+                    await new Promise(res => setTimeout(res, 1500));
+                    r = await _processInviteTokenSilently(_onbInviteToken);
+                }
+                if (r === 'ok' || r === 'terminal') {
+                    _onbInviteToken = null;
+                }
+                // If still 'retry' after all attempts, the token remains in
+                // storage; a later app load will pick it up and try again.
+            })().catch(err =>
+                console.warn('Auto-connect on invitation failed (will retry on next load):', err)
             );
         } else {
             // Token invalid or already used — clear it
